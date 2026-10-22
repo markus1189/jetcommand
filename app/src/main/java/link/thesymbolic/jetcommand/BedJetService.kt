@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.drawable.Icon
 import android.os.IBinder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,8 @@ import link.thesymbolic.jetcommand.protocol.formatTemp
  */
 class BedJetService : Service() {
     private var scope: CoroutineScope? = null
+    // Every post takes a NotificationManagerService wake lock; reposting unchanged content each second was ~1/3 of the screen-off drain.
+    private var posted: Triple<String, String, Boolean>? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -36,7 +39,9 @@ class BedJetService : Service() {
         val controller = controller
         // startForeground first, every time: a startForegroundService() that isn't answered within seconds crashes the app.
         try {
-            startForeground(ID, build(controller.stack.value?.label ?: "JetCommand", "Starting", false), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+            // Re-shows the last posted content, so a press from the shade doesn't flash "Starting" until the next change.
+            val (title, text, ready) = posted ?: Triple(controller.stack.value?.label ?: "JetCommand", "Starting", false)
+            startForeground(ID, build(title, text, ready), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
         } catch (e: RuntimeException) { // SecurityException, ForegroundServiceStartNotAllowedException
             controller.log(LogLevel.ERROR, "Service: ${e::class.simpleName} ${e.message}")
             stopSelf()
@@ -66,8 +71,11 @@ class BedJetService : Service() {
                         val r = st.remainingSeconds
                         "%d:%02d left · $link".format(r / 3600, r / 60 % 60)
                     }
+                    val content = Triple(title, text, st != null)
+                    if (content == posted) return@collect
+                    posted = content
                     getSystemService(NotificationManager::class.java).notify(ID, build(title, text, st != null))
-                    delay(UPDATE_MS)
+                    delay(RATE_MS)
                 }
         }
     }
@@ -97,24 +105,34 @@ class BedJetService : Service() {
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
         // Presses while the link is down would only land in the log.
-        if (ready) ACTIONS.forEachIndexed { i, a ->
-            val pi = PendingIntent.getService(this, 1 + i, Intent(this, BedJetService::class.java).setAction(a.action), PendingIntent.FLAG_IMMUTABLE)
-            b.addAction(Notification.Action.Builder(null, a.label, pi).build())
+        if (ready) {
+            // No session token: SystemUI only moves MediaStyle notifications that carry one into the media player,
+            // so this stays a plain notification; its compact view shows icons only, the labels serve accessibility and media/headset buttons are left alone.
+            b.setStyle(Notification.MediaStyle().setShowActionsInCompactView(0, 1, 2))
+            ACTIONS.forEachIndexed { i, a ->
+                val pi = PendingIntent.getService(this, 1 + i, Intent(this, BedJetService::class.java).setAction(a.action), PendingIntent.FLAG_IMMUTABLE)
+                b.addAction(Notification.Action.Builder(Icon.createWithResource(this, a.icon), a.label, pi).build())
+            }
         }
         return b.build()
     }
 
-    private class Action(val label: String, val button: Int) {
+    private class Action(val label: String, val button: Int, val icon: Int) {
         val action = "link.thesymbolic.jetcommand.PRESS_$button"
     }
 
     companion object {
         private const val ID = 1
-        private const val CHANNEL = "connection"
+        // Was "connection" at IMPORTANCE_LOW: silent notifications are hidden on the lock screen by default.
+        private const val CHANNEL = "controls"
         // Three is the most a notification shows; the user picked these, Fan − stays in the app.
-        private val ACTIONS = listOf(Action("Temp −", Btn.TEMP_DOWN_C), Action("Temp +", Btn.TEMP_UP_C), Action("Fan +", Btn.FAN_UP))
-        // Short enough that a press from the shade shows its effect before the user gives up on it.
-        private const val UPDATE_MS = 1_000L
+        private val ACTIONS = listOf(
+            Action("Temp −", Btn.TEMP_DOWN_C, R.drawable.ic_temp_down),
+            Action("Temp +", Btn.TEMP_UP_C, R.drawable.ic_temp_up),
+            Action("Fan +", Btn.FAN_UP, R.drawable.ic_fan_up),
+        )
+        // Collapses bursts; short enough that a press from the shade shows its effect before the user gives up on it.
+        private const val RATE_MS = 1_000L
 
         /**
          * From the foreground only (Android 12+ refuses background FGS starts). A connectedDevice service needs
@@ -125,9 +143,14 @@ class BedJetService : Service() {
                 controller.log(LogLevel.WARN, "No BLUETOOTH_CONNECT: running without the background service")
                 return
             }
-            context.getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(CHANNEL, "Connection", NotificationManager.IMPORTANCE_LOW)
-                    .apply { lockscreenVisibility = Notification.VISIBILITY_PUBLIC },
+            val nm = context.getSystemService(NotificationManager::class.java)
+            nm.deleteNotificationChannel("connection")
+            nm.createNotificationChannel(
+                NotificationChannel(CHANNEL, "Controls", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                    setSound(null, null)
+                    enableVibration(false)
+                },
             )
             try {
                 context.startForegroundService(Intent(context, BedJetService::class.java))

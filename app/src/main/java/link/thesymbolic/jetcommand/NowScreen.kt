@@ -24,6 +24,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,10 +54,14 @@ fun NowScreen(vm: BedJetViewModel, snackbar: SnackbarHostState, openDiagnostics:
     val st = update?.status?.takeIf { link == LinkState.Ready }
 
     Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            (stack?.label?.let { "$it · " } ?: "") + linkText(link),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                (stack?.label?.let { "$it · " } ?: "") + linkText(link),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // Up here, away from the steppers and Stop; also while (re)connecting, so the user can always quit.
+            if (stack != null) TextButton(vm::disconnect) { Text("Disconnect", fontSize = 13.sp) }
+        }
         NotificationsPrompt()
         if (st == null) {
             Spacer(Modifier.weight(1f))
