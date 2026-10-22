@@ -1,5 +1,12 @@
 package link.thesymbolic.jetcommand
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,9 +27,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -46,6 +57,7 @@ fun NowScreen(vm: BedJetViewModel, snackbar: SnackbarHostState, openDiagnostics:
             (stack?.label?.let { "$it · " } ?: "") + linkText(link),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        NotificationsPrompt()
         if (st == null) {
             Spacer(Modifier.weight(1f))
             if (stack == null) {
@@ -92,6 +104,25 @@ fun NowScreen(vm: BedJetViewModel, snackbar: SnackbarHostState, openDiagnostics:
             ) { Text("Stop") }
         } else Spacer(Modifier.height(52.dp))
     }
+}
+
+/** The night controls live in the notification; Bluetooth granted via `pm grant` or settings never asked for it. */
+@Composable
+private fun NotificationsPrompt() {
+    if (Build.VERSION.SDK_INT < 33) return
+    val context = LocalContext.current
+    fun granted() = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    var ok by remember { mutableStateOf(granted()) }
+    var asked by remember { mutableStateOf(false) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok = it; asked = true }
+    if (ok) return
+    Spacer(Modifier.height(8.dp))
+    Text("Notifications are off: no controls in the shade or on the lock screen.", color = MaterialTheme.colorScheme.error)
+    OutlinedButton({
+        // After a denial the system dialog no longer shows; only the app's settings page can turn them on.
+        if (asked) context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+        else launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }) { Text("Turn on notifications") }
 }
 
 @Composable
