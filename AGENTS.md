@@ -17,3 +17,8 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 - `:protocol` is a pure-Kotlin port of the web app's `bedjet-codec` and `bedjet-sim` scripts; `BedJetSim` is the device only, connection state belongs to the transport.
 - `FixtureTest` replays `fixtures.json`, recorded from the web app by `node scripts/gen-fixtures.mjs` (reads `../tools/bedjet-bluetooth-control.html`). After a protocol change on either side, regenerate and rerun `./gradlew :protocol:test`.
 - Random cases miss boundaries: a behaviour worth pinning gets a hand-written case in the generator.
+
+## BLE
+
+- `app/.../ble/GattTransport` is the only `BluetoothGatt` user; minSdk 31 means every value-carrying GATT call and callback needs the API-33 overload plus the deprecated one, gated on `SDK_INT`.
+- Lint `MissingPermission` is fatal: check the permission at the public entry point and suppress per method with the reason, never per file.

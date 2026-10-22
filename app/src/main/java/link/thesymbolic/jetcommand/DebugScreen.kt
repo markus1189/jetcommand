@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import link.thesymbolic.jetcommand.ble.BedJetScanner
@@ -56,6 +57,8 @@ fun DebugScreen() {
         error = null
         try {
             scanner.scan(showAll).collect { found[it.address] = it }
+        } catch (e: CancellationException) {
+            throw e // also an IllegalStateException
         } catch (e: IllegalStateException) {
             error = e.message
             scanning = false
