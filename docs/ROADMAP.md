@@ -13,6 +13,8 @@ appears.
 | Mock seam at the transport, not the link | On Android our code does the GATT work (serialization, 133 retries, reconnects); a sim that replaced the link would leave it untested. |
 | Demo BedJet is a runtime source, not a debug build | Same screen for the emulator, demos and the user without hardware. |
 | minSdk 31 | BLUETOOTH_SCAN/CONNECT runtime permissions instead of location. |
+| One `BedJetController` per process; the UI and `BedJetService` only observe it | One owner of the GATT connection whether or not an activity exists. |
+| Night log in Room via KSP 2.3.x | KSP 2.3+ is versioned apart from Kotlin and builds with 2.4.20. |
 | App id `link.thesymbolic.jetcommand` | Owned domain; changing it after install loses app data. |
 
 ## Phases
@@ -25,14 +27,17 @@ appears.
 | 4 | `GattTransport`, scanner, permissions | done, works on a real unit |
 | 5 | Full-stack debug screen, Demo BedJet | done |
 | 6 | Real-device test (checklist below) | done (API 31/32 path untested) |
-| 7 | Foreground service owning the link + night log (Room) | **next** |
+| 7 | Foreground service owning the link + night log (Room) | done on the emulator; overnight on a real unit open |
 | 8 | Real UI: status/controls, program editor + library, night log + review | |
 | 9 | Notification actions → exact-alarm program chaining → morning review (WorkManager) → CompanionDeviceManager auto-connect → QS tile/widget → Health Connect | |
 | 10 | Import of the PWA's backup text format | |
 
 ## Known gaps
 
-- Link gives up after 10 reconnect attempts (JS default); the overnight service needs to keep trying.
+- Service is `START_NOT_STICKY` and there is no boot receiver: if the process is killed overnight, the connection stays down until the app is opened (auto-connects to the remembered device then).
+- Without BLUETOOTH_CONNECT the demo runs without the service (Android 14+ refuses a connectedDevice FGS).
+- Night log keeps every event forever; no pruning yet.
+- Status changes that happen while the link is down are stamped when the phone sees them after the reconnect.
 - `BedJetLink.replySource` is a plain var and the link doesn't expose the MTU; the debug screen works around both.
 - Validation/verify errors carry only a message, not the JS read-back details.
 - Optional spike: a second emulator as a BLE peripheral hosting `BedJetSim` via `BluetoothGattServer`, to test `GattTransport` without hardware (assumes emulators share netsim; unchecked).

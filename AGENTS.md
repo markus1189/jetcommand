@@ -10,7 +10,8 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 | Transport contract | `protocol/.../Transport.kt` | — |
 | `SimTransport`, `BedJetLink`, `BedJetDevice` | `protocol/` | `BedJetLinkTest`, virtual time |
 | `GattTransport`, scanner, permissions | `app/.../ble/` | real device only |
-| `BedJetViewModel`, debug screen | `app/` | emulator via Demo BedJet |
+| `NightRecorder`, `NightLogStore` | `protocol/.../NightLog.kt` | `NightRecorderTest` |
+| `BedJetController` (owns the stack), `BedJetService`, Room night log, debug screen | `app/` | emulator via Demo BedJet |
 
 `:protocol` stays free of Android so its tests run on the JVM.
 
@@ -24,6 +25,7 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 ## Emulator
 
 - `emu` (in the dev shell) boots a headless API 36 AVD named `jetcommand`, creating it on first run; run it in the background, cold boot takes ~30 s. Reuse a running one (`adb devices`).
+- `./gradlew installDebug` installs on every attached device, the user's phone included; use `adb -s emulator-5554 install -r app/build/outputs/apk/debug/app-debug.apk`.
 - Drive it with `adb`: `am start -n link.thesymbolic.jetcommand/.MainActivity`, `exec-out screencap -p`, `uiautomator dump` for tap coordinates, `input tap|text`.
 - Its virtual Bluetooth never sees a BedJet. The "Demo BedJet" entry runs the full link/device stack on `SimTransport`, with fault buttons; `pm grant link.thesymbolic.jetcommand android.permission.BLUETOOTH_SCAN` (and `_CONNECT`) skips the permission dialog.
 - The user's phone is reachable over wireless adb when connected (`adb devices`). Read a device setting before changing it for a test and restore it after; anything that writes to the BedJet needs the user's go, and it ends Off.
