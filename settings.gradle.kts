@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "jetcommand"
-include(":app")
+include(":app", ":protocol")

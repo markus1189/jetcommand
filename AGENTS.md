@@ -11,3 +11,9 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 - `emu` (in the dev shell) boots a headless API 36 AVD named `jetcommand`, creating it on first run; run it in the background, cold boot takes ~30 s.
 - Drive it with `adb`: `am start -n link.thesymbolic.jetcommand/.MainActivity`, `exec-out screencap -p`, `uiautomator dump` for tap coordinates, `input tap|text`.
 - Its virtual Bluetooth controller never sees a real BedJet: test BLE against the in-app mock device or on a phone.
+
+## Protocol
+
+- `:protocol` is a pure-Kotlin port of the web app's `bedjet-codec` and `bedjet-sim` scripts; `BedJetSim` is the device only, connection state belongs to the transport.
+- `FixtureTest` replays `fixtures.json`, recorded from the web app by `node scripts/gen-fixtures.mjs` (reads `../tools/bedjet-bluetooth-control.html`). After a protocol change on either side, regenerate and rerun `./gradlew :protocol:test`.
+- Random cases miss boundaries: a behaviour worth pinning gets a hand-written case in the generator.
