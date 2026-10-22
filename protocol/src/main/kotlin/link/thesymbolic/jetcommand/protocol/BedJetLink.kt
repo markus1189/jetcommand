@@ -56,10 +56,13 @@ class BedJetLink(
         val queryAttempts: Int = 8,
         val queryRetryMs: Long = 400,
         val remainderIntervalMs: Long = 2000,
-        val maxReconnectAttempts: Int = 10,
+        /** Null: never give up while the connection is wanted. */
+        val maxReconnectAttempts: Int? = 10,
         val reconnectBaseMs: Long = 3000,
         val reconnectMaxMs: Long = 60000,
         val autoReconnect: Boolean = true,
+        /** A failed [connect] goes on retrying like a lost link instead of staying down. */
+        val retryFailedConnect: Boolean = false,
     )
 
     private val scope = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
@@ -79,6 +82,9 @@ class BedJetLink(
     var deviceName: String? = null
         private set
     var reconnectAttempt = 0
+        private set
+    /** Why the link last dropped; set before the state leaves [LinkState.Ready]. */
+    var lastDropReason: String? = null
         private set
 
     private val queue = Mutex()
@@ -107,7 +113,30 @@ class BedJetLink(
         wanted = true
         reconnectJob?.cancel()
         reconnectJob = null
-        connectOnce()
+        try {
+            connectOnce()
+        } catch (e: BedJetException) {
+            if (wanted && config.retryFailedConnect && config.autoReconnect) {
+                log(LogLevel.WARN, "Connect failed: ${e.message}")
+                scheduleReconnect()
+            }
+            throw e
+        }
+    }
+
+    /**
+     * Cuts a pending reconnect's wait short and restarts the backoff, for when the cause of the failures has
+     * likely gone (Bluetooth back on). No-op unless a reconnect is waiting or the link gave up while still wanted.
+     */
+    fun retryNow() {
+        if (!wanted || !config.autoReconnect) return
+        val waiting = reconnectJob?.isActive == true && !connecting
+        val gaveUp = (_state.value as? LinkState.Disconnected)?.gaveUp == true
+        if (!waiting && !gaveUp) return
+        log(LogLevel.INFO, "Retrying now")
+        reconnectJob?.cancel()
+        reconnectAttempt = 1
+        runReconnect(0)
     }
 
     /** Stays down: no reconnect follows. */
@@ -168,8 +197,19 @@ class BedJetLink(
 
     // ---- connection ----
 
+    private var connecting = false
+
     private suspend fun connectOnce() = connectLock.withLock {
-        if (_state.value == LinkState.Ready) return@withLock
+        connecting = true
+        try {
+            connectLocked()
+        } finally {
+            connecting = false
+        }
+    }
+
+    private suspend fun connectLocked() {
+        if (_state.value == LinkState.Ready) return
         if (_state.value !is LinkState.Connecting) setState(LinkState.Connecting())
         try {
             withTimeoutOrNull(config.connectTimeoutMs) { transport.connect() }
@@ -204,13 +244,15 @@ class BedJetLink(
     private fun handleDrop(reason: TransportException) {
         if (!attached && _state.value is LinkState.Disconnected) return
         log(LogLevel.WARN, "Connection lost: ${reason.message}")
+        lastDropReason = reason.message
         teardown()
         if (!wanted || !config.autoReconnect) return
         scheduleReconnect()
     }
 
     private fun scheduleReconnect() {
-        if (reconnectAttempt >= config.maxReconnectAttempts) {
+        val max = config.maxReconnectAttempts
+        if (max != null && reconnectAttempt >= max) {
             log(LogLevel.ERROR, "Gave up after $reconnectAttempt reconnect attempts")
             reconnectAttempt = 0
             setState(LinkState.Disconnected(gaveUp = true))
@@ -218,7 +260,11 @@ class BedJetLink(
         }
         reconnectAttempt += 1
         val wait = minOf(config.reconnectBaseMs shl (reconnectAttempt - 1).coerceAtMost(30), config.reconnectMaxMs)
-        log(LogLevel.WARN, "Reconnect $reconnectAttempt/${config.maxReconnectAttempts} in ${wait / 1000} s")
+        log(LogLevel.WARN, "Reconnect $reconnectAttempt/${max ?: "∞"} in ${wait / 1000} s")
+        runReconnect(wait)
+    }
+
+    private fun runReconnect(wait: Long) {
         setState(LinkState.Connecting(reconnectAttempt))
         reconnectJob = scope.launch {
             delay(wait)

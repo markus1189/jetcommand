@@ -34,9 +34,10 @@ class BedJetLinkTest {
         hasReplyAlt: Boolean = true,
         autoAck: Boolean = true,
         time: LocalTime = LocalTime.of(22, 0),
+        config: BedJetLink.Config = BedJetLink.Config(),
     ): Rig {
         val transport = SimTransport(sim, backgroundScope, mtu, hasReplyAlt)
-        val link = BedJetLink(transport, backgroundScope, now = { currentTime })
+        val link = BedJetLink(transport, backgroundScope, config, now = { currentTime })
         val device = BedJetDevice(link, backgroundScope, autoAck, clock = { time }, now = { currentTime })
         return Rig(sim, transport, link, device).also { rig ->
             backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { link.statuses.toList(rig.updates) }
@@ -110,6 +111,55 @@ class BedJetLinkTest {
         advanceTimeBy(1.hours)
         assertEquals(LinkState.Disconnected(gaveUp = true), r.link.state.value)
         assertEquals(1 + 10, r.transport.ops.count { it == Op.Connect })
+    }
+
+    @Test
+    fun `reconnect forever keeps trying all night at most every 60 s`() = runTest {
+        val r = connected(rig(config = BedJetLink.Config(maxReconnectAttempts = null)))
+        r.transport.inject(Fault.Fail(133), times = Int.MAX_VALUE) { it == Op.Connect }
+        r.transport.loseLink()
+        advanceTimeBy(10.hours)
+        assertTrue(r.link.state.value is LinkState.Connecting, r.link.state.value.toString())
+        // 3+6+12+24+48 s, then one attempt a minute.
+        val attempts = r.transport.ops.count { it == Op.Connect } - 1
+        assertEquals(5 + (10 * 3600 - 93) / 60, attempts)
+    }
+
+    @Test
+    fun `a failed first connect retries when configured`() = runTest {
+        val r = rig(config = BedJetLink.Config(maxReconnectAttempts = null, retryFailedConnect = true))
+        r.transport.inject(Fault.Fail(133), times = 3) { it == Op.Connect }
+        code(ErrorCode.NOT_CONNECTED) { r.link.connect() }
+        assertEquals(LinkState.Connecting(1), r.link.state.value)
+        advanceTimeBy(3_000 + 6_000 + 12_000 + 1)
+        assertEquals(LinkState.Ready, r.link.state.value)
+    }
+
+    @Test
+    fun `retryNow cuts the backoff short and restarts it`() = runTest {
+        val r = connected(rig(config = BedJetLink.Config(maxReconnectAttempts = null)))
+        var bluetoothOn = false
+        // As on the phone with Bluetooth off: every connect fails at once.
+        r.transport.inject(Fault.Fail(0), times = Int.MAX_VALUE) { it == Op.Connect && !bluetoothOn }
+        r.transport.loseLink()
+        advanceTimeBy(1.hours)
+        val waitingFor = r.link.reconnectAttempt
+        assertTrue(waitingFor > 10)
+        bluetoothOn = true
+        r.link.retryNow()
+        runCurrent()
+        assertEquals(LinkState.Ready, r.link.state.value)
+        assertEquals(0, r.link.reconnectAttempt)
+    }
+
+    @Test
+    fun `retryNow does nothing for a link nobody wants`() = runTest {
+        val r = connected(rig())
+        r.link.disconnect()
+        r.link.retryNow()
+        advanceTimeBy(1.hours)
+        assertEquals(LinkState.Disconnected(), r.link.state.value)
+        assertEquals(1, r.transport.ops.count { it == Op.Connect })
     }
 
     @Test
