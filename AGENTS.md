@@ -1,17 +1,31 @@
 # JetCommand (Android)
 
-Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; protocol reference in `~/repos/projects/tools/docs/BEDJET_PROTOCOL.md`.
+Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; protocol reference in `~/repos/projects/tools/docs/BEDJET_PROTOCOL.md`. Plan, decisions, status and the real-device checklist: `docs/ROADMAP.md` (update its status when a phase lands).
 
-- Toolchain only via `nix develop` (SDK, JDK 21, adb). Build: `./gradlew assembleDebug`; install: `./gradlew installDebug`.
+## Layout
+
+| Layer | Where | Tested by |
+|---|---|---|
+| Codec, `BedJetSim` (device model) | `protocol/.../Codec.kt`, `BedJetSim.kt` | `FixtureTest` (recorded from the web app) |
+| Transport contract | `protocol/.../Transport.kt` | — |
+| `SimTransport`, `BedJetLink`, `BedJetDevice` | `protocol/` | `BedJetLinkTest`, virtual time |
+| `GattTransport`, scanner, permissions | `app/.../ble/` | real device only |
+| `BedJetViewModel`, debug screen | `app/` | emulator via Demo BedJet |
+
+`:protocol` stays free of Android so its tests run on the JVM.
+
+## Toolchain
+
+- Everything via `nix develop` (SDK, JDK 21, adb, node). Done means `./gradlew check assembleDebug` exits 0 (protocol tests, app unit tests, lint, APK); install with `./gradlew installDebug`.
 - New files must be `git add`ed before `nix develop` sees flake changes.
 - SDK in the Nix store is read-only: `compileSdk`/`buildToolsVersion` in `app/build.gradle.kts` must match the versions in `flake.nix`, or AGP tries to install and fails.
+- New dependency versions go in `gradle/libs.versions.toml`, checked to exist on Maven first.
 
 ## Emulator
 
-- `emu` (in the dev shell) boots a headless API 36 AVD named `jetcommand`, creating it on first run; run it in the background, cold boot takes ~30 s.
+- `emu` (in the dev shell) boots a headless API 36 AVD named `jetcommand`, creating it on first run; run it in the background, cold boot takes ~30 s. Reuse a running one (`adb devices`).
 - Drive it with `adb`: `am start -n link.thesymbolic.jetcommand/.MainActivity`, `exec-out screencap -p`, `uiautomator dump` for tap coordinates, `input tap|text`.
-- Its virtual Bluetooth controller never sees a real BedJet: test BLE against the in-app mock device or on a phone.
-- The "Demo BedJet" entry runs the full link/device stack on `SimTransport`, with fault buttons; `pm grant link.thesymbolic.jetcommand android.permission.BLUETOOTH_SCAN` (and `_CONNECT`) skips the permission dialog.
+- Its virtual Bluetooth never sees a BedJet. The "Demo BedJet" entry runs the full link/device stack on `SimTransport`, with fault buttons; `pm grant link.thesymbolic.jetcommand android.permission.BLUETOOTH_SCAN` (and `_CONNECT`) skips the permission dialog.
 
 ## Protocol
 
@@ -25,3 +39,9 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 
 - `app/.../ble/GattTransport` is the only `BluetoothGatt` user; minSdk 31 means every value-carrying GATT call and callback needs the API-33 overload plus the deprecated one, gated on `SDK_INT`.
 - Lint `MissingPermission` is fatal: check the permission at the public entry point and suppress per method with the reason, never per file.
+
+## Working here
+
+- Commits: `area: subject` in lowercase (`protocol:`, `app:`, `ble:`, `docs:`).
+- Parallel agents each get a worktree beside the repo (`git worktree add ../jetcommand-wt-<task> -b agent/<task>`); give agents disjoint files, and never two agents on the same screen.
+- Notes in this file go under the matching heading, one fact per line; the deletion test applies.
