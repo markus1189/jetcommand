@@ -6,6 +6,9 @@ activityCompose = "1.13.0"
 serialization = "1.12.0"
 coroutines = "1.11.0"
 junit = "6.1.3"
+# KSP 2.3+ is versioned apart from Kotlin and works with any 2.x compiler.
+ksp = "2.3.12"
+room = "2.8.4"
 
 [libraries]
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
@@ -19,9 +22,13 @@ coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-androi
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test-junit5", version.ref = "kotlin" }
 serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 junit-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+room = { id = "androidx.room", version.ref = "room" }

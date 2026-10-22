@@ -54,6 +54,9 @@ import link.thesymbolic.jetcommand.protocol.formatTemp
 @Composable
 fun DebugScreen(vm: BedJetViewModel) {
     val stack by vm.stack.collectAsState()
+    val log by vm.log.collectAsState()
+    val remembered by vm.remembered.collectAsState()
+    val nightLog by vm.nightLog.collectAsState()
     Column(
         Modifier.padding(horizontal = 12.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -61,13 +64,24 @@ fun DebugScreen(vm: BedJetViewModel) {
         val s = stack
         if (s == null) {
             Button(onClick = vm::connectDemo, Modifier.fillMaxWidth()) { Text("Demo BedJet") }
-            RequireBluetoothPermissions { ScanList(vm) }
+            RequireBluetoothPermissions {
+                remembered?.let { d ->
+                    Button(onClick = vm::connectRemembered, Modifier.fillMaxWidth()) { Text("Connect ${d.label} (${d.address})") }
+                }
+                ScanList(vm)
+            }
         } else {
             Connected(vm, s)
         }
         HorizontalDivider()
+        Text("Night log", fontWeight = FontWeight.Bold)
+        val time = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT) }
+        nightLog.forEach {
+            Text("${time.format(java.util.Date(it.at))} ${it.kind} ${it.detail}", fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 13.sp)
+        }
+        HorizontalDivider()
         Text("Log", fontWeight = FontWeight.Bold)
-        vm.log.asReversed().forEach { Text(it, fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 13.sp) }
+        log.asReversed().forEach { Text(it, fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 13.sp) }
     }
 }
 

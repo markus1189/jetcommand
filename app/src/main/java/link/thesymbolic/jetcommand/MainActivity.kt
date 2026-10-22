@@ -15,6 +15,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        vm.autoConnectOnce()
         setContent {
             MaterialTheme {
                 Surface(Modifier.fillMaxSize().safeDrawingPadding()) {

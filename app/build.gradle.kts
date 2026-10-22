@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
 }
 
 android {
@@ -23,6 +25,8 @@ android {
 
 kotlin { jvmToolchain(21) }
 
+room { schemaDirectory("$projectDir/schemas") }
+
 dependencies {
     implementation(project(":protocol"))
     implementation(libs.coroutines.android)
@@ -30,5 +34,7 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.activity.compose)
+    implementation(libs.room.runtime)
+    ksp(libs.room.compiler)
     debugImplementation(libs.compose.ui.tooling)
 }
