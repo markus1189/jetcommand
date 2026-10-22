@@ -22,9 +22,9 @@ appears.
 | 1 | Repo, Nix toolchain, headless emulator | done |
 | 2 | Protocol port + `BedJetSim`, cross-checked against the web app | done |
 | 3 | `BedJetTransport` contract, `SimTransport`, `BedJetLink`/`BedJetDevice` | done |
-| 4 | `GattTransport`, scanner, permissions | done, untested on hardware |
+| 4 | `GattTransport`, scanner, permissions | done, works on a real unit |
 | 5 | Full-stack debug screen, Demo BedJet | done |
-| 6 | Real-device test (checklist below) | **next** |
+| 6 | Real-device test (checklist below) | **partly done**: reconnect, status freshness open |
 | 7 | Foreground service owning the link + night log (Room) | |
 | 8 | Real UI: status/controls, program editor + library, night log + review | |
 | 9 | Notification actions → exact-alarm program chaining → morning review (WorkManager) → CompanionDeviceManager auto-connect → QS tile/widget → Health Connect | |
@@ -51,3 +51,12 @@ Record results here (date, phone, Android version) when run.
 8. Out of range or power-cycle: reconnect attempts, then Ready; note any status 133.
 9. Rotate and background the app: the link stays Ready.
 10. On Android 12 (API 31/32) if available: repeat 3–5 (deprecated-callback path).
+
+### 2026-10-22: Samsung SM-S948B, Android 17 (API 37), wireless adb, firmware V1.20
+
+- 2–3: found as `BEDJET_V3` without "All devices", connects as `BEDJET-CD9A`; MTU 500; replies from 2006.
+- 5: the user played with the controls: "seems to work".
+- 6: name, firmware (`V1.20 (140) · V1.20 (412) · V1.20 (182)`), memories and all three slots read back (slot 1: 12 steps incl. clock-time steps).
+- Open: 4 ("extra" stayed stale at MTU 500; unit still sends short packets?), 7, 8 (reconnect, 133), 9, 10.
+- Open: "Programs" read back the same names as "Memories" (`1-Winter | Summer | 3-BTW`): display bug or the unit's data?
+- Lesson: a scripted tap hit a mode button after read results shifted the layout. Keep commands that change the bed apart from reads.
