@@ -6,6 +6,8 @@ plugins {
 kotlin { jvmToolchain(21) }
 
 dependencies {
+    api(libs.coroutines.core)
+    testImplementation(libs.coroutines.test)
     testImplementation(libs.kotlin.test)
     testImplementation(libs.serialization.json)
     testImplementation(platform(libs.junit.bom))
