@@ -21,6 +21,8 @@ appears.
 | Dark by default, no red tint (for now) | User's call. |
 | Four places: Now, Programs, Nights, Settings (Diagnostics + Demo inside) | Agreed; bottom navigation. |
 | UI built in small iterations with design rounds; program editor deferred | Write-vs-read separation and undo need to be felt, not specified; the editor is the least clear part. |
+| Notification actions: Temp −, Temp +, Fan + (user's pick); Fan −, Stop, Disconnect only in the app | Three is the most a notification shows. |
+| Notification is `MediaStyle` with compact actions but no MediaSession, on channel `controls` (DEFAULT importance, no sound) | Buttons visible collapsed and on the lock screen; no session keeps media/headset buttons untouched; silent (LOW) channels are hidden on lock screens. |
 
 ## Phases
 
@@ -33,15 +35,21 @@ appears.
 | 5 | Full-stack debug screen, Demo BedJet | done |
 | 6 | Real-device test (checklist below) | done (API 31/32 path untested) |
 | 7 | Foreground service owning the link + night log (Room) | done on the emulator; overnight on a real unit open |
-| 8 | Real UI: status/controls, program editor + library, night log + review | iteration 1 (night loop: Now screen, 3-action notification, bottom nav, dark theme) on the emulator; editor, library, nights open |
+| 8 | Real UI: status/controls, program editor + library, night log + review | iteration 1 (night loop: Now screen, lock-screen notification controls, bottom nav, dark theme) on the user's phone 2026-10-22, first real night pending; then a design round; editor, library, nights open |
 | 9 | Notification actions → exact-alarm program chaining → morning review (WorkManager) → CompanionDeviceManager auto-connect → QS tile/widget → Health Connect | |
 | 10 | Import of the PWA's backup text format | |
+
+## Next
+
+1. Evaluate the first real night (2026-10-22/23) on the phone: night log (drops, reconnects, presses; Settings → Diagnostics, or `run-as link.thesymbolic.jetcommand` on `databases/night-log.db` plus its `-wal`), whether Samsung killed the service, battery (`dumpsys batterystats`, reset at 19:14 that evening; uid of the app via `dumpsys package`).
+2. Design round on iteration 1 with the user's notes from the night.
 
 ## Known gaps
 
 - Service is `START_NOT_STICKY` and there is no boot receiver: if the process is killed overnight, the connection stays down until the app is opened (auto-connects to the remembered device then).
 - Without BLUETOOTH_CONNECT the demo runs without the service (Android 14+ refuses a connectedDevice FGS).
 - Night log keeps every event forever; no pruning yet.
+- Background service costs ≈ 2 mAh/h (30 min measured on the phone, before change-only notification posts).
 - Status changes that happen while the link is down are stamped when the phone sees them after the reconnect.
 - `BedJetLink.replySource` is a plain var and the link doesn't expose the MTU; the debug screen works around both.
 - Validation/verify errors carry only a message, not the JS read-back details.
