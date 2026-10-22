@@ -111,7 +111,7 @@ class BedJetService : Service() {
     companion object {
         private const val ID = 1
         private const val CHANNEL = "connection"
-        // Fan − is left out on purpose: the night routine only ever raises the fan from bed.
+        // Three is the most a notification shows; the user picked these, Fan − stays in the app.
         private val ACTIONS = listOf(Action("Temp −", Btn.TEMP_DOWN_C), Action("Temp +", Btn.TEMP_UP_C), Action("Fan +", Btn.FAN_UP))
         // Short enough that a press from the shade shows its effect before the user gives up on it.
         private const val UPDATE_MS = 1_000L
