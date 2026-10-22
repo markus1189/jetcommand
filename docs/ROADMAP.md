@@ -16,6 +16,11 @@ appears.
 | One `BedJetController` per process; the UI and `BedJetService` only observe it | One owner of the GATT connection whether or not an activity exists. |
 | Night log in Room via KSP 2.3.x | KSP 2.3+ is versioned apart from Kotlin and builds with 2.4.20. |
 | App id `link.thesymbolic.jetcommand` | Owned domain; changing it after install loses app data. |
+| UI is a rethink, not a port of the PWA layout | The user isn't attached to it; concepts (gauge, timeline, templates, night log, review) carry over. |
+| Night use: temp ± often, fan ± sometimes, from notification/lock screen | The user's night routine; the app stays one tap away for the rest. |
+| Dark by default, no red tint (for now) | User's call. |
+| Four places: Now, Programs, Nights, Settings (Diagnostics + Demo inside) | Agreed; bottom navigation. |
+| UI built in small iterations with design rounds; program editor deferred | Write-vs-read separation and undo need to be felt, not specified; the editor is the least clear part. |
 
 ## Phases
 
