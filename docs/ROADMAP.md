@@ -24,8 +24,8 @@ appears.
 | 3 | `BedJetTransport` contract, `SimTransport`, `BedJetLink`/`BedJetDevice` | done |
 | 4 | `GattTransport`, scanner, permissions | done, works on a real unit |
 | 5 | Full-stack debug screen, Demo BedJet | done |
-| 6 | Real-device test (checklist below) | **partly done**: reconnect, clock sync, background open |
-| 7 | Foreground service owning the link + night log (Room) | |
+| 6 | Real-device test (checklist below) | done (API 31/32 path untested) |
+| 7 | Foreground service owning the link + night log (Room) | **next** |
 | 8 | Real UI: status/controls, program editor + library, night log + review | |
 | 9 | Notification actions → exact-alarm program chaining → morning review (WorkManager) → CompanionDeviceManager auto-connect → QS tile/widget → Health Connect | |
 | 10 | Import of the PWA's backup text format | |
@@ -58,6 +58,9 @@ Record results here (date, phone, Android version) when run.
 - 5: the user played with the controls: "seems to work".
 - 6: name, firmware (`V1.20 (140) · V1.20 (412) · V1.20 (182)`), memories and all three slots read back (slot 1: 12 steps incl. clock-time steps).
 - 4: resolved. The unit notifies ~4/s with 20-byte heads (byte 0 = 1) even at MTU 500; the remainder read returns the 11 missing bytes and merges every 2 s. "Stale" was the screen showing only the latest update; it now shows the extra's age (0–2 s sawtooth observed).
-- Open: 7, 8 (reconnect, 133), 9, 10.
-- Open: "Programs" read back the same names as "Memories" (`1-Winter | Summer | 3-BTW`): display bug or the unit's data?
+- 7: clock sync: no error, no notification after.
+- 8 (Bluetooth off/on via `cmd bluetooth_manager`): lost with status 22, two attempts failed while off ("CONNECT could not be started"), attempt 3 Ready ~13 s after Bluetooth returned; no 133. Walking out of range not tried.
+- 9: two rotations and 30 s in the background: link stayed Ready, no drop in the log; no crash in logcat.
+- "Programs" = "Memories" names is the unit (`BEDJET_PROTOCOL.md:109`), not a bug.
+- Open: 10 (no API 31/32 phone).
 - Lesson: a scripted tap hit a mode button after read results shifted the layout. Keep commands that change the bed apart from reads.
