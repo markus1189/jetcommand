@@ -35,6 +35,7 @@ import link.thesymbolic.jetcommand.protocol.BedJetSim
 import link.thesymbolic.jetcommand.protocol.BedJetTransport
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
+import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.NightEvent
 import link.thesymbolic.jetcommand.protocol.NightLogStore
 import link.thesymbolic.jetcommand.protocol.NightRecorder
@@ -180,6 +181,10 @@ class BedJetController(context: Context, private val store: NightLogStore) {
         val stack = _stack.value ?: return log(LogLevel.ERROR, "$what: no device")
         stack.scope.launch { guard(what) { block(stack) } }
     }
+
+    fun press(what: String, button: Int) = act(what) { it.device.press(button) }
+
+    fun setMode(mode: Mode) = act("mode ${mode.label}") { it.device.setMode(mode) }
 
     private suspend fun guard(what: String, block: suspend () -> Unit) {
         try {

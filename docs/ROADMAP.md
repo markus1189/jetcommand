@@ -33,7 +33,7 @@ appears.
 | 5 | Full-stack debug screen, Demo BedJet | done |
 | 6 | Real-device test (checklist below) | done (API 31/32 path untested) |
 | 7 | Foreground service owning the link + night log (Room) | done on the emulator; overnight on a real unit open |
-| 8 | Real UI: status/controls, program editor + library, night log + review | |
+| 8 | Real UI: status/controls, program editor + library, night log + review | iteration 1 (night loop: Now screen, 3-action notification, bottom nav, dark theme) on the emulator; editor, library, nights open |
 | 9 | Notification actions → exact-alarm program chaining → morning review (WorkManager) → CompanionDeviceManager auto-connect → QS tile/widget → Health Connect | |
 | 10 | Import of the PWA's backup text format | |
 
