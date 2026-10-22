@@ -8,15 +8,17 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import link.thesymbolic.jetcommand.ble.RequireBluetoothPermissions
+import androidx.activity.viewModels
 
 class MainActivity : ComponentActivity() {
+    private val vm: BedJetViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
                 Surface(Modifier.fillMaxSize().safeDrawingPadding()) {
-                    RequireBluetoothPermissions { DebugScreen() }
+                    DebugScreen(vm)
                 }
             }
         }

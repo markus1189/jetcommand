@@ -11,6 +11,7 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 - `emu` (in the dev shell) boots a headless API 36 AVD named `jetcommand`, creating it on first run; run it in the background, cold boot takes ~30 s.
 - Drive it with `adb`: `am start -n link.thesymbolic.jetcommand/.MainActivity`, `exec-out screencap -p`, `uiautomator dump` for tap coordinates, `input tap|text`.
 - Its virtual Bluetooth controller never sees a real BedJet: test BLE against the in-app mock device or on a phone.
+- The "Demo BedJet" entry runs the full link/device stack on `SimTransport`, with fault buttons; `pm grant link.thesymbolic.jetcommand android.permission.BLUETOOTH_SCAN` (and `_CONNECT`) skips the permission dialog.
 
 ## Protocol
 
