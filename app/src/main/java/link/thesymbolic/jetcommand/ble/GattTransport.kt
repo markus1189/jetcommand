@@ -12,6 +12,7 @@ import android.bluetooth.BluetoothStatusCodes
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -26,6 +27,7 @@ import link.thesymbolic.jetcommand.protocol.TransportException
 import link.thesymbolic.jetcommand.protocol.TransportException.Kind
 import link.thesymbolic.jetcommand.protocol.TransportState
 import link.thesymbolic.jetcommand.protocol.Uuids
+import link.thesymbolic.jetcommand.protocol.toHex
 import java.util.UUID
 
 /**
@@ -144,6 +146,7 @@ class GattTransport(context: Context, private val device: BluetoothDevice) : Bed
         requirePermission()
         val (g, c) = target(characteristic)
         return await(Op.READ, c.uuid) { g.readCharacteristic(c) }
+            .also { Log.d(TAG, "read $characteristic ${it.size}: ${it.toHex()}") }
     }
 
     private fun target(characteristic: Characteristic): Pair<BluetoothGatt, BluetoothGattCharacteristic> = synchronized(lock) {
@@ -262,10 +265,13 @@ class GattTransport(context: Context, private val device: BluetoothDevice) : Bed
     }
 
     private fun onNotification(uuid: UUID, value: ByteArray) {
-        if (uuid == STATUS_UUID) _notifications.tryEmit(value)
+        if (uuid != STATUS_UUID) return
+        Log.d(TAG, "notify ${value.size}: ${value.toHex()}")
+        _notifications.tryEmit(value)
     }
 
     companion object {
+        private const val TAG = "GattTransport"
         const val REQUESTED_MTU = 247
         const val DEFAULT_MTU = 23
         private val CCCD: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")

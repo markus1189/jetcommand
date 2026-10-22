@@ -18,7 +18,7 @@ import kotlin.random.Random
 /**
  * A [BedJetTransport] over a [BedJetSim] that behaves like the real unit on the wire, for demo mode and tests.
  *
- * Device time is [scope]'s clock: the sim ticks once a second and, while connected, notifies its status. It keeps
+ * Device time is [scope]'s clock: the sim ticks once a second and, while connected, notifies its status 4 times a second. It keeps
  * running while disconnected, as a BedJet does when the phone leaves. Under `runTest` pass `backgroundScope`.
  */
 class SimTransport(
@@ -76,13 +76,15 @@ class SimTransport(
     private var reply = byteArrayOf(0, 0)
     private class PendingReply(val bytes: ByteArray, var staleReads: Int, var timeReady: Boolean)
     private var pendingReply: PendingReply? = null
-    private val headSize get() = minOf(30, mtu - 3)
+    // The real unit sends 20-byte heads even at MTU 500 (V1.20, 2026-10-22), so the MTU never makes a packet whole.
+    private val headSize = 20
 
     init {
         scope.launch {
+            var quarter = 0
             while (true) {
-                delay(1000)
-                sim.tick()
+                delay(250)
+                if (++quarter % 4 == 0) sim.tick()
                 notifyStatus()
             }
         }
@@ -101,7 +103,7 @@ class SimTransport(
         conn.cancel()
     }
 
-    /** Notifies the current status now instead of waiting for the next second. */
+    /** Notifies the current status now instead of waiting for the next quarter second. */
     fun notifyStatus() {
         if (connection == null) return
         if (dropNotifications > 0) {
@@ -109,12 +111,9 @@ class SimTransport(
             return
         }
         if (random?.let { it.nextDouble() < chaos!!.dropRate } == true) return
-        val packet = sim.packet()
-        if (headSize < packet.size) {
-            val head = packet.copyOf(headSize)
-            head[0] = 1
-            _notifications.tryEmit(head)
-        } else _notifications.tryEmit(packet)
+        val head = sim.packet().copyOf(headSize)
+        head[0] = 1
+        _notifications.tryEmit(head)
     }
 
     override suspend fun connect() {

@@ -24,6 +24,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import link.thesymbolic.jetcommand.ble.BedJetScanner
 import link.thesymbolic.jetcommand.ble.RequireBluetoothPermissions
 import link.thesymbolic.jetcommand.ble.ScannedDevice
@@ -140,6 +142,16 @@ private fun Connected(vm: BedJetViewModel, s: BedJetStack) {
     // replySource is a plain var: re-read whenever a status recomposes this.
     Text("MTU: ${(transport as? TransportState.Connected)?.mtu ?: "-"}   Replies from: ${s.link.replySource?.uuid?.substring(4, 8) ?: "-"}")
     val u = update
+    // The unit notifies ~4/s but the remainder is read every 2 s, so the latest update is almost never the fresh one.
+    var freshAt by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(u) { if (u?.extraFresh == true) freshAt = System.currentTimeMillis() }
+    // link.status drops repeats of an unchanged status, so the age needs its own clock to keep moving.
+    val nowMs by produceState(System.currentTimeMillis()) {
+        while (true) {
+            delay(250)
+            value = System.currentTimeMillis()
+        }
+    }
     if (u == null) Text("Status: -")
     else {
         val st = u.status
@@ -147,7 +159,7 @@ private fun Connected(vm: BedJetViewModel, s: BedJetStack) {
         Text("Mode ${st.mode.label}   actual ${formatTemp(st.actualTemp)}   target ${formatTemp(st.targetTemp)}   fan ${st.fanPercent}%")
         Text("Remaining ${st.remainingSeconds / 3600}:%02d:%02d   ambient ${formatTemp(st.ambientTemp)}".format(st.remainingSeconds / 60 % 60, st.remainingSeconds % 60))
         Text(
-            "Program step ${x?.programStep ?: "-"}   extra ${if (u.extraFresh) "fresh" else "stale"}" +
+            "Program step ${x?.programStep ?: "-"}   extra ${freshAt?.let { "%.1f s old".format((nowMs - it) / 1000.0) } ?: "never read"}" +
                 (x?.notification?.takeIf { it != 0 }?.let { "\nNotification $it: ${Notification.TEXT[it] ?: "?"}" } ?: ""),
         )
     }

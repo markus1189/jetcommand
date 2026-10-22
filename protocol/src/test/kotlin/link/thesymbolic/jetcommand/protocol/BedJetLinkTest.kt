@@ -233,20 +233,21 @@ class BedJetLinkTest {
     }
 
     @Test
-    fun `with a large MTU every notification is whole`() = runTest {
-        val r = connected(rig(mtu = 247))
-        advanceTimeBy(5.seconds)
-        assertEquals(0, r.reads(Characteristic.STATUS))
-        assertTrue(r.updates.size >= 4 && r.updates.all { it.extraFresh && it.status.extra != null })
+    fun `even with a large MTU notifications are partial and the remainder keeps extra fresh`() = runTest {
+        val r = connected(rig(mtu = 500))
+        advanceTimeBy(10.seconds)
+        assertTrue(r.reads(Characteristic.STATUS) in 4..6, "remainder every 2 s, not per notification")
+        assertTrue(r.updates.count { it.extraFresh } in 4..6)
+        assertTrue(r.updates.count { !it.extraFresh } >= 30, "~4 notifications a second")
     }
 
     @Test
     fun `dropped notifications only thin out the stream`() = runTest {
         val r = connected(rig())
-        r.transport.dropNotifications = 3
-        advanceTimeBy(3_500)
+        r.transport.dropNotifications = 12
+        advanceTimeBy(3_100)
         assertTrue(r.updates.isEmpty())
-        advanceTimeBy(1_000)
+        advanceTimeBy(300)
         assertTrue(r.updates.isNotEmpty())
     }
 

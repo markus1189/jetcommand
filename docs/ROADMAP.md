@@ -24,7 +24,7 @@ appears.
 | 3 | `BedJetTransport` contract, `SimTransport`, `BedJetLink`/`BedJetDevice` | done |
 | 4 | `GattTransport`, scanner, permissions | done, works on a real unit |
 | 5 | Full-stack debug screen, Demo BedJet | done |
-| 6 | Real-device test (checklist below) | **partly done**: reconnect, status freshness open |
+| 6 | Real-device test (checklist below) | **partly done**: reconnect, clock sync, background open |
 | 7 | Foreground service owning the link + night log (Room) | |
 | 8 | Real UI: status/controls, program editor + library, night log + review | |
 | 9 | Notification actions → exact-alarm program chaining → morning review (WorkManager) → CompanionDeviceManager auto-connect → QS tile/widget → Health Connect | |
@@ -57,6 +57,7 @@ Record results here (date, phone, Android version) when run.
 - 2–3: found as `BEDJET_V3` without "All devices", connects as `BEDJET-CD9A`; MTU 500; replies from 2006.
 - 5: the user played with the controls: "seems to work".
 - 6: name, firmware (`V1.20 (140) · V1.20 (412) · V1.20 (182)`), memories and all three slots read back (slot 1: 12 steps incl. clock-time steps).
-- Open: 4 ("extra" stayed stale at MTU 500; unit still sends short packets?), 7, 8 (reconnect, 133), 9, 10.
+- 4: resolved. The unit notifies ~4/s with 20-byte heads (byte 0 = 1) even at MTU 500; the remainder read returns the 11 missing bytes and merges every 2 s. "Stale" was the screen showing only the latest update; it now shows the extra's age (0–2 s sawtooth observed).
+- Open: 7, 8 (reconnect, 133), 9, 10.
 - Open: "Programs" read back the same names as "Memories" (`1-Winter | Summer | 3-BTW`): display bug or the unit's data?
 - Lesson: a scripted tap hit a mode button after read results shifted the layout. Keep commands that change the bed apart from reads.
