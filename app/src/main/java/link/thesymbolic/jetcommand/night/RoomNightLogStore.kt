@@ -13,6 +13,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.NightEvent
 import link.thesymbolic.jetcommand.protocol.NightLogStore
 import link.thesymbolic.jetcommand.protocol.NightSample
@@ -46,6 +47,19 @@ interface NightEventDao {
 
     @Query("SELECT * FROM night_event ORDER BY id DESC LIMIT :limit")
     fun recent(limit: Int): Flow<List<NightEventRow>>
+
+    @Query("SELECT * FROM night_event ORDER BY at, id")
+    fun allEvents(): Flow<List<NightEventRow>>
+
+    // Times only: the summaries need a sample's time, not its values.
+    @Query("SELECT at FROM night_sample ORDER BY at")
+    fun allSampleTimes(): Flow<List<Long>>
+
+    @Query("SELECT * FROM night_event WHERE at >= :from AND at < :to ORDER BY at, id")
+    suspend fun events(from: Long, to: Long): List<NightEventRow>
+
+    @Query("SELECT * FROM night_sample WHERE at >= :from AND at < :to ORDER BY at, id")
+    suspend fun samples(from: Long, to: Long): List<NightSampleRow>
 }
 
 @Database(entities = [NightEventRow::class, NightSampleRow::class], version = 2, autoMigrations = [AutoMigration(from = 1, to = 2)])
@@ -66,9 +80,13 @@ class RoomNightLogStore(private val dao: NightEventDao) : NightLogStore {
     }
 
     override fun recent(limit: Int): Flow<List<NightEvent>> = dao.recent(limit).map { rows ->
-        rows.mapNotNull { r ->
-            val kind = NightEvent.Kind.entries.firstOrNull { it.name == r.kind } ?: return@mapNotNull null
-            NightEvent(r.at, kind, r.detail, r.value)
-        }
+        rows.mapNotNull(NightEventRow::toEvent)
     }
 }
+
+internal fun NightEventRow.toEvent(): NightEvent? =
+    NightEvent.Kind.entries.firstOrNull { it.name == kind }?.let { NightEvent(at, it, detail, value) }
+
+internal fun NightSampleRow.toSample(): NightSample? =
+    Mode.entries.firstOrNull { it.name == mode }?.let { NightSample(at, room, air, target, fanStep, it) }
+
