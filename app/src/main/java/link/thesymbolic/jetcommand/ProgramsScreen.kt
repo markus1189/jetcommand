@@ -3,6 +3,10 @@ package link.thesymbolic.jetcommand
 import link.thesymbolic.jetcommand.protocol.StartedSlot
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberCoroutineScope
 import link.thesymbolic.jetcommand.protocol.BedJetException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -86,6 +90,7 @@ interface ProgramsSource {
     fun resolve(slot: Int, resolution: Resolution)
     fun keep(slot: Int)
     fun restore(programId: String)
+    fun delete(programId: String)
 }
 
 /** The real source: [ProgramLibrary] for state, [BedJetController.act] for anything that reaches the unit. */
@@ -141,6 +146,7 @@ class LibraryPrograms(
     override fun resolve(slot: Int, resolution: Resolution) = local("resolve slot ${slot + 1}") { resolve(it, slot, resolution) }
     override fun keep(slot: Int) = local("keep slot ${slot + 1}") { keep(it, slot) }
     override fun restore(programId: String) = local("restore") { restore(programId) }
+    override fun delete(programId: String) = local("delete") { delete(programId) }
 }
 
 private sealed interface Route {
@@ -159,6 +165,15 @@ fun ProgramsScreen(source: ProgramsSource) {
     val slots by remember(source, device) { device?.let(source::slots) ?: flowOf(emptyList()) }.collectAsState(emptyList())
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(source) { source.errors.collect { snackbar.showSnackbar(it) } }
+    val scope = rememberCoroutineScope()
+    val delete = { e: LibraryEntry ->
+        source.delete(e.id)
+        scope.launch {
+            val undo = snackbar.showSnackbar("Deleted “${prettyName(e.current.program.name)}”", "Undo", duration = SnackbarDuration.Long)
+            if (undo == SnackbarResult.ActionPerformed) source.restore(e.id)
+        }
+        Unit
+    }
     Box(Modifier.fillMaxSize()) {
     when (val r = route) {
         Route.List -> ProgramsList(
@@ -166,10 +181,11 @@ fun ProgramsScreen(source: ProgramsSource) {
             open = { route = Route.Detail(it) },
             review = { route = Route.Conflict(it) },
             act = { slot -> slotAction(source, slot) },
+            delete = delete,
         )
         // A program deleted or a conflict resolved meanwhile has nothing left to show: back to the list.
         is Route.Detail -> entries.firstOrNull { it.id == r.id }?.let { e ->
-            ProgramDetailScreen(source, e, slots, live, back = { route = Route.List })
+            ProgramDetailScreen(source, e, slots, live, back = { route = Route.List }, delete = { route = Route.List; delete(e) })
         } ?: LaunchedEffect(r) { route = Route.List }
         is Route.Conflict -> slots.getOrNull(r.slot)?.takeIf { it.status is SlotStatus.ChangedOutside }?.let { v ->
             ConflictScreen(source, v, back = { route = Route.List })
@@ -261,9 +277,11 @@ fun ProgramsList(
     open: (String) -> Unit,
     review: (Int) -> Unit,
     act: (SlotView) -> Unit,
+    delete: (LibraryEntry) -> Unit,
     start: LocalTime = LocalTime.now(),
 ) {
     val library = entries.filter { it.deletedAt == null }
+    var openRow by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -287,7 +305,17 @@ fun ProgramsList(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionTitle("Library", "${library.size} program${if (library.size == 1) "" else "s"}")
                 if (library.isEmpty()) Text("Programs you keep from the BedJet show up here.", color = Muted, fontSize = 14.sp)
-                library.forEach { e -> LibraryRow(e, slots, start) { open(e.id) } }
+                library.forEach { e ->
+                    key(e.id) {
+                        SwipeToDelete(
+                            prettyName(e.current.program.name),
+                            isOpen = openRow == e.id,
+                            setOpen = { if (it) openRow = e.id else if (openRow == e.id) openRow = null },
+                            onDelete = { delete(e) },
+                            onClick = { open(e.id) },
+                        ) { m -> LibraryRow(e, slots, start, m) }
+                    }
+                }
             }
         }
     }
@@ -332,11 +360,11 @@ private fun SlotRow(v: SlotView, live: Boolean, open: (String) -> Unit, review: 
 }
 
 @Composable
-private fun LibraryRow(e: LibraryEntry, slots: List<SlotView>, start: LocalTime, onClick: () -> Unit) {
+private fun LibraryRow(e: LibraryEntry, slots: List<SlotView>, start: LocalTime, modifier: Modifier) {
     val p = e.current.program
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainer)
-            .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -418,6 +446,7 @@ class FakePrograms : ProgramsSource {
     override fun resolve(slot: Int, resolution: Resolution) = note("resolve ${slot + 1} $resolution")
     override fun keep(slot: Int) = note("keep ${slot + 1}")
     override fun restore(programId: String) = note("restore $programId")
+    override fun delete(programId: String) = note("delete $programId")
 }
 
 private fun <T> MutableStateFlow<T>.update(f: (T) -> T) { value = f(value) }
@@ -428,6 +457,6 @@ private fun ProgramsListPreview() = JetCommandTheme {
     val fake = remember { FakePrograms() }
     val entries by fake.entries().collectAsState(emptyList())
     val slots by fake.slots("demo").collectAsState(emptyList())
-    ProgramsList(entries, slots, live = true, open = {}, review = {}, act = {}, start = LocalTime.of(22, 30))
+    ProgramsList(entries, slots, live = true, open = {}, review = {}, act = {}, delete = {}, start = LocalTime.of(22, 30))
 }
 
