@@ -150,6 +150,7 @@ enum class ErrorCode(val text: String) {
     CLOCK_NOT_SET(Notification.TEXT.getValue(Notification.PROGRAM_NEEDS_CLOCK)),
     STEP_TOO_LONG(Notification.TEXT.getValue(Notification.PROGRAM_TOO_LONG)),
     INVALID_PROGRAM("This program can't be stored on the BedJet."),
+    SLOT_CHANGED("This program slot changed since it was last read. Check it and try again."),
 }
 
 class BedJetException(val code: ErrorCode, message: String = code.text, cause: Throwable? = null) :
