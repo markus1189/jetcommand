@@ -40,8 +40,9 @@ private sealed interface Press {
 }
 
 /**
- * A value in `0 until count`: tap the left/right half for one step, hold to repeat faster and faster, or drag
- * vertically for one step per [pxPerStep]. [onPreview] follows the finger; [onCommit] fires once, on release.
+ * A value in `0 until count`: tap the left/right half for one step, hold to repeat faster and faster, or drag and
+ * the value jumps to the finger, bottom = min, top = max. A touch alone never jumps, so a stray brush changes
+ * nothing. [onPreview] follows the finger; [onCommit] fires once, on release.
  * [hollow] draws the number outlined, for a value sent but not yet confirmed by the unit.
  */
 @Composable
@@ -57,7 +58,6 @@ fun ValueField(
     onPreview: (Int?) -> Unit,
     onCommit: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    pxPerStep: Float = 40f,
 ) {
     val view = LocalView.current
     val slop = LocalViewConfiguration.current.touchSlop
@@ -97,7 +97,7 @@ fun ValueField(
                     val change = awaitPointerEvent().changes.first()
                     if (!change.pressed) break
                     change.consume()
-                    set(start + ((down.position.y - change.position.y) / pxPerStep).roundToInt())
+                    set(((1 - change.position.y / size.height) * (count - 1)).roundToInt())
                 }
                 null -> {
                     var delay = 350L
