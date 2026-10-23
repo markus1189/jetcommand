@@ -23,6 +23,9 @@ appears.
 | UI built in small iterations with design rounds; program editor deferred | Write-vs-read separation and undo need to be felt, not specified; the editor is the least clear part. |
 | Notification actions: Temp −, Temp +, Fan + (user's pick); Fan −, Stop, Disconnect only in the app | Three is the most a notification shows. |
 | Notification is `MediaStyle` with compact actions but no MediaSession, on channel `controls` (DEFAULT importance, no sound) | Buttons visible collapsed and on the lock screen; no session keeps media/headset buttons untouched; silent (LOW) channels are hidden on lock screens. |
+| Program library is the source of truth; the 3 slots are a read-only per-device cache; edits go library → push | The unit stores only name + steps, no id; one owner keeps conflicts resolvable. |
+| Slot identity: push record `(device, slot) → program, rev, read-back fingerprint`, content match as fallback; the name counts | Detects every outside change (official app, rename); attributing foreign programs is impossible by construction. |
+| No PWA compatibility; generic readable JSON for sharing programs maybe later | The user never used the PWA backup. |
 
 ## Phases
 
@@ -37,7 +40,7 @@ appears.
 | 7 | Foreground service owning the link + night log (Room) | done on the emulator; overnight on a real unit open |
 | 8 | Real UI: status/controls, program editor + library, night log + review | iteration 1 (night loop: Now screen, lock-screen notification controls, bottom nav, dark theme) on the user's phone 2026-10-22; night 1: service SIGKILLed at 22:55 as FGS (likely Samsung battery optimisation), night 2 pending; then a design round; nights tab on the emulator 2026-10-23; editor, library open |
 | 9 | Notification actions → exact-alarm program chaining → morning review (WorkManager) → CompanionDeviceManager auto-connect → QS tile/widget → Health Connect | |
-| 10 | Import of the PWA's backup text format | |
+| 10 | ~~Import of the PWA's backup text format~~ | dropped 2026-10-23 |
 
 ## Next
 
@@ -45,6 +48,17 @@ appears.
 2. If the service died again: START_STICKY plus a restart path, or CompanionDeviceManager.
 3. Design round on iteration 1 with the user's notes from the nights.
 4. Nights screen landed (list, review, Vico timeline with scrubbing; design on https://claude.ai/artifact/Xe8NsmhAqKkYV9Zxv91CQo): check it against night 2's real data. Vico joins points across gaps unless `GapInterpolator` lifts the pen; there is no dual y-axis, so °C and fan are stacked panels.
+
+
+## Program library (design 2026-10-23)
+
+Protocol: `BEDJET_PROTOCOL.md:99-198`. Design canvas: open.
+
+1. Slots re-read in full on every Ready, in a low-priority lane behind user commands (the link queue needs one); offline the cache shows its age.
+2. Room: `program` (id, currentRev, deletedAt tombstone), `program_revision` (immutable: name, steps as 5-byte wire blob, start, note, origin), `slot_state` (cache + push record + pending write). `fingerprint()` over the wire encoding lives in `:protocol`.
+3. Write: validate → re-read slot and compare to cache → confirm overwrite → store pending intent → fragments, name, read-back verify → push record. A slot holding a program found nowhere else is saved to the library first. Writes are blocked while a program runs. A pending intent found on the next Ready resolves to done or "interrupted, retry".
+4. Unseen content on a linked slot is saved as a non-current `outside` revision; the user picks take / keep / split off, never automatic. A slot matching a different entry re-links to it.
+5. Run from the library: ranked slot picker, best preselected (already holds current → older rev → empty → in-sync linked, oldest push → orphan, auto-saved).
 
 ## Known gaps
 
@@ -71,6 +85,9 @@ Record results here (date, phone, Android version) when run.
 8. Out of range or power-cycle: reconnect attempts, then Ready; note any status 133.
 9. Rotate and background the app: the link stays Ready.
 10. On Android 12 (API 31/32) if available: repeat 3–5 (deprecated-callback path).
+11. With JetCommand connected, can the official app connect? (Slot refresh assumes not.)
+12. Write commit point: drop the link after the last fragment, before the name; what does the slot hold? (User's go; ends Off.)
+13. Overwrite the slot of a running program: what does the unit do? (User's go; ends Off.)
 
 ### 2026-10-22: Samsung SM-S948B, Android 17 (API 37), wireless adb, firmware V1.20
 
