@@ -85,7 +85,12 @@ class BedJetService : Service() {
         stopSelf()
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        controller.lifecycle("task removed")
+    }
+
     override fun onDestroy() {
+        controller.lifecycle("service destroyed")
         scope?.cancel()
         scope = null
     }

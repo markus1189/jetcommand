@@ -13,6 +13,8 @@ data class NightEvent(val at: Long, val kind: Kind, val detail: String, val valu
     enum class Kind {
         CONNECTED, LOST, RECONNECTED, DISCONNECTED, GAVE_UP,
         MODE, TARGET, FAN, PROGRAM_STEP, NOTIFICATION, SHUTDOWN, COMMAND,
+        /** Our own process and service lifecycle, to tell a killed app from a dropped link. */
+        PROCESS,
     }
 }
 

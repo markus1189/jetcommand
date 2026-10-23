@@ -95,6 +95,10 @@ class BedJetController(context: Context, private val store: NightLogStore) {
 
     fun nightLog(limit: Int = 50): Flow<List<NightEvent>> = store.recent(limit)
 
+    fun lifecycle(detail: String, at: Long = System.currentTimeMillis()) {
+        scope.launch { store.append(NightEvent(at, NightEvent.Kind.PROCESS, detail)) }
+    }
+
     private var switching: Job? = null
     private var autoConnectTried = false
 
