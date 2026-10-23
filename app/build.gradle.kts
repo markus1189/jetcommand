@@ -27,8 +27,15 @@ android {
         warningsAsErrors = true
         checkDependencies = true
         // Network lookups would make `check` fail on a later day with identical code;
-        // synthetic accessors cost nothing on ART.
-        disable += setOf("NewerVersionAvailable", "GradleDependency", "SyntheticAccessor")
+        // synthetic accessors cost nothing on ART; strong skipping (default since Kotlin 2.0.20)
+        // skips on instance equality, so unstable collection params no longer defeat skipping.
+        disable +=
+            setOf(
+                "NewerVersionAvailable",
+                "GradleDependency",
+                "SyntheticAccessor",
+                "ComposeUnstableCollections",
+            )
         baseline = file("lint-baseline.xml")
     }
 }
