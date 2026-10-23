@@ -42,7 +42,6 @@ import link.thesymbolic.jetcommand.protocol.NightEvent
 import link.thesymbolic.jetcommand.protocol.NightLogStore
 import link.thesymbolic.jetcommand.protocol.NightRecorder
 import link.thesymbolic.jetcommand.protocol.Program
-import link.thesymbolic.jetcommand.protocol.ProgramTemplates
 import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 import link.thesymbolic.jetcommand.protocol.SimTransport
@@ -246,9 +245,9 @@ class BedJetController(context: Context, private val store: NightLogStore, priva
     companion object {
         const val DEMO_ID = "demo"
 
-        /** One slot the seeded library recognises, one it doesn't, one empty: the slot states worth seeing. */
+        /** Two programs to keep or run, one empty slot. */
         fun demoSlots() = listOf(
-            ProgramTemplates.all[2],
+            Program("Cool down", listOf(Step(Mode.TURBO, 19, 86, 0, 5), Step(Mode.COOL, 7, 40, 6, 0))),
             Program("Twostep", listOf(Step(Mode.HEAT, 9, 70, 0, 30), Step(Mode.EXT_HEAT, 5, 62, 2, 0))),
             null,
         )

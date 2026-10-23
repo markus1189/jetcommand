@@ -9,10 +9,10 @@ import link.thesymbolic.jetcommand.library.RoomLibraryStore
 import link.thesymbolic.jetcommand.night.NightLogDatabase
 import link.thesymbolic.jetcommand.night.RoomNightLogStore
 import link.thesymbolic.jetcommand.night.RoomNightsSource
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import link.thesymbolic.jetcommand.protocol.Origin
 import link.thesymbolic.jetcommand.protocol.ProcessLog
-import link.thesymbolic.jetcommand.protocol.ProgramTemplates
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 
 class JetCommandApp : Application() {
@@ -28,19 +28,22 @@ class JetCommandApp : Application() {
         val dao = NightLogDatabase.open(this).events()
         library = ProgramLibrary(RoomLibraryStore(LibraryDatabase.open(this)))
         controller = BedJetController(this, RoomNightLogStore(dao), library)
-        seedLibrary()
+        dropSeededTemplates()
         nights = RoomNightsSource(dao)
         logExits()
         controller.lifecycle(ProcessLog.STARTED)
     }
 
-    // Once per install, so a library the user emptied stays empty.
-    private fun seedLibrary() {
+    // Builds from 2026-10-23 seeded the official app's suggestions; the user didn't want them. Untouched ones go
+    // (tombstoned, so a slot still holding one offers Restore); edited ones are the user's now and stay.
+    private fun dropSeededTemplates() {
         val prefs = getSharedPreferences("jetcommand", MODE_PRIVATE)
-        if (prefs.getBoolean(KEY_SEEDED, false)) return
+        if (!prefs.getBoolean(KEY_SEEDED, false)) return
         controller.scope.launch {
-            ProgramTemplates.all.asReversed().forEach { library.create(it, Origin.TEMPLATE) }
-            prefs.edit().putBoolean(KEY_SEEDED, true).apply()
+            library.entries().first()
+                .filter { it.deletedAt == null && it.current.rev == 1 && it.current.origin == Origin.TEMPLATE }
+                .forEach { library.delete(it.id) }
+            prefs.edit().remove(KEY_SEEDED).apply()
         }
     }
 
