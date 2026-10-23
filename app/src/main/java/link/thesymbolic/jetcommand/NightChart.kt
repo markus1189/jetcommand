@@ -77,7 +77,12 @@ private val AxisWidth = 36.dp
  * finger is up.
  */
 @Composable
-fun NightTimeline(d: NightDetail, text: NightText, cursor: MutableState<Double?>) {
+fun NightTimeline(
+    d: NightDetail,
+    text: NightText,
+    cursor: MutableState<Double?>,
+    modifier: Modifier = Modifier,
+) {
     val m = remember(d) { TimelineData(d) }
     val listener =
         remember(cursor) {
@@ -102,7 +107,7 @@ fun NightTimeline(d: NightDetail, text: NightText, cursor: MutableState<Double?>
             }
         }
     val decorations = remember(m, cursor) { listOf(Unobserved(m.unobserved), CursorLine(cursor)) }
-    Column(Modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth()) {
         Lanes(m, listener, cursor)
         Panel("°C") {
             TempChart(m, listener, decorations)
@@ -114,14 +119,14 @@ fun NightTimeline(d: NightDetail, text: NightText, cursor: MutableState<Double?>
 }
 
 @Composable
-private fun Panel(label: String, chart: @Composable () -> Unit) =
+private fun Panel(label: String, content: @Composable () -> Unit) =
     Column(Modifier.padding(top = 8.dp)) {
         Text(
             label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        chart()
+        content()
     }
 
 /**
@@ -170,14 +175,16 @@ private class TimelineData(d: NightDetail) {
             .filter { it.cause == NightSummary.Cause.APP }
             .map { minuteOf(it.from)..minuteOf(it.to) }
     val modes: List<Pair<ClosedFloatingPointRange<Double>, Mode>> = buildList {
-        samples.forEachIndexed { i, it ->
-            val x = minuteOf(it.at)
+        samples.forEach { sample ->
+            val x = minuteOf(sample.at)
             val last = lastOrNull()
             if (
-                last != null && last.second == it.mode && x - last.first.endInclusive <= GAP_MINUTES
+                last != null &&
+                    last.second == sample.mode &&
+                    x - last.first.endInclusive <= GAP_MINUTES
             )
-                set(size - 1, last.first.start..x + 1 to it.mode)
-            else add(x..x + 1 to it.mode)
+                set(size - 1, last.first.start..x + 1 to sample.mode)
+            else add(x..x + 1 to sample.mode)
         }
     }
     val startMinuteOfHour =
@@ -373,7 +380,6 @@ private fun Host(chart: CartesianChart, model: CartesianChartModel, height: Dp) 
 
 @Composable
 private fun scrubChart(
-    m: TimelineData,
     layer: LineCartesianLayer,
     startAxis: VerticalAxis<Axis.Position.Vertical.Start>,
     bottomAxis: HorizontalAxis<Axis.Position.Horizontal.Bottom>?,
@@ -418,7 +424,7 @@ private fun Lanes(
                 CursorLine(cursor),
             )
         }
-    val chart = scrubChart(m, layer, axis, null, listener, decorations)
+    val chart = scrubChart(layer, axis, null, listener, decorations)
     val model =
         remember(m) {
             CartesianChartModel(
@@ -477,7 +483,7 @@ private fun TempChart(
                 },
             rangeProvider = rememberRange(m, m.minY, m.maxY),
         )
-    val chart = scrubChart(m, layer, startAxis(2.0, "°"), null, listener, decorations)
+    val chart = scrubChart(layer, startAxis(2.0, "°"), null, listener, decorations)
     val model =
         remember(m) {
             CartesianChartModel(
@@ -532,45 +538,8 @@ private fun FanChart(
                 },
             rangeProvider = rememberRange(m, 0.0, 100.0),
         )
-    // At most five labels: Vico ellipsizes a label wider than its share of the axis.
-    val spacing =
-        listOf(15, 30, 60, 120, 180, 240, 360, 720).firstOrNull { m.maxX / it <= 5 } ?: 1440
-    val hour = minOf(spacing, 60)
-    // Vico clips the first label when it sits at the plot's left edge; start one step later then.
-    val offset = ((60 - m.startMinuteOfHour) % hour).let { if (it < m.maxX / 20) it + hour else it }
-    val bottom =
-        HorizontalAxis.rememberBottom(
-            line =
-                rememberAxisGuidelineComponent(
-                    fill = Fill(MaterialTheme.colorScheme.outline),
-                    shape = androidx.compose.ui.graphics.RectangleShape,
-                ),
-            tick = null,
-            guideline = null,
-            label =
-                rememberAxisLabelComponent(
-                    style =
-                        TextStyle(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 10.sp,
-                        )
-                ),
-            valueFormatter =
-                remember(m) {
-                    CartesianValueFormatter { _, x, _ ->
-                        text.time(m.s.start + (x * 60_000).toLong())
-                    }
-                },
-            itemPlacer =
-                remember(spacing, offset) {
-                    HorizontalAxis.ItemPlacer.aligned(
-                        spacing = { spacing },
-                        offset = { offset },
-                        addExtremeLabelPadding = false,
-                    )
-                },
-        )
-    val chart = scrubChart(m, layer, startAxis(50.0, ""), bottom, listener, decorations)
+    val bottom = rememberTimeAxis(m, text)
+    val chart = scrubChart(layer, startAxis(50.0, ""), bottom, listener, decorations)
     val model =
         remember(m) {
             CartesianChartModel(
@@ -588,4 +557,49 @@ private fun FanChart(
             )
         }
     Host(chart, model, 96.dp)
+}
+
+/** Bottom axis of clock times, labelled on whole spans aligned to the hour. */
+@Composable
+private fun rememberTimeAxis(
+    m: TimelineData,
+    text: NightText,
+): HorizontalAxis<Axis.Position.Horizontal.Bottom> {
+    // At most five labels: Vico ellipsizes a label wider than its share of the axis.
+    val spacing =
+        listOf(15, 30, 60, 120, 180, 240, 360, 720).firstOrNull { m.maxX / it <= 5 } ?: 1440
+    val hour = minOf(spacing, 60)
+    // Vico clips the first label when it sits at the plot's left edge; start one step later then.
+    val offset = ((60 - m.startMinuteOfHour) % hour).let { if (it < m.maxX / 20) it + hour else it }
+    return HorizontalAxis.rememberBottom(
+        line =
+            rememberAxisGuidelineComponent(
+                fill = Fill(MaterialTheme.colorScheme.outline),
+                shape = androidx.compose.ui.graphics.RectangleShape,
+            ),
+        tick = null,
+        guideline = null,
+        label =
+            rememberAxisLabelComponent(
+                style =
+                    TextStyle(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 10.sp,
+                    )
+            ),
+        valueFormatter =
+            remember(m) {
+                CartesianValueFormatter { _, x, _ ->
+                    text.time(m.s.start + (x * 60_000).toLong())
+                }
+            },
+        itemPlacer =
+            remember(spacing, offset) {
+                HorizontalAxis.ItemPlacer.aligned(
+                    spacing = { spacing },
+                    offset = { offset },
+                    addExtremeLabelPadding = false,
+                )
+            },
+    )
 }

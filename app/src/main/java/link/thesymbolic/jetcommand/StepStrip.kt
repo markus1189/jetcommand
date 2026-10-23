@@ -17,12 +17,6 @@ import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.fanPercent
 import link.thesymbolic.jetcommand.protocol.formatTemp
 
-/** A step placed in time: minutes since the program's start. */
-data class Span(val index: Int, val step: Step, val from: Int, val to: Int) {
-    val minutes
-        get() = to - from
-}
-
 /**
  * A clock-time step ends at its wall-clock time, so the layout needs the start; the unit starts at
  * phone time.

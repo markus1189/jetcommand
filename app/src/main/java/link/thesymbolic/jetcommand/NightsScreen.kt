@@ -45,7 +45,7 @@ val ChipWarnBorder = Color(0xFF5A4520)
 
 /** The Nights tab: the list, and a night's review in place of it once one is picked. */
 @Composable
-fun NightsScreen(source: NightsSource) {
+fun NightsScreen(source: NightsSource, modifier: Modifier = Modifier) {
     val text = remember { NightText() }
     val nights by remember(source) { source.nights() }.collectAsState(initial = null)
     var open by remember { mutableStateOf<NightSummary?>(null) }
@@ -54,11 +54,11 @@ fun NightsScreen(source: NightsSource) {
         BackHandler { open = null }
         // The list re-emits as the ongoing night grows; follow it by start time.
         val latest = nights?.firstOrNull { it.start == current.start } ?: current
-        NightReviewScreen(source, latest, text, onBack = { open = null })
+        NightReviewScreen(source, latest, text, onBack = { open = null }, modifier = modifier)
         return
     }
     LazyColumn(
-        Modifier.fillMaxSize(),
+        modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -144,13 +144,14 @@ private fun NightCard(s: NightSummary, text: NightText, onClick: () -> Unit) {
 }
 
 @Composable
-fun Chip(label: String, warn: Boolean) =
+fun Chip(label: String, warn: Boolean, modifier: Modifier = Modifier) =
     Text(
         label,
         style = MaterialTheme.typography.labelMedium,
         color = if (warn) Amber else MaterialTheme.colorScheme.onSurface,
         modifier =
-            Modifier.border(
+            modifier
+                .border(
                     1.dp,
                     if (warn) ChipWarnBorder else MaterialTheme.colorScheme.outline,
                     RoundedCornerShape(50),
@@ -163,7 +164,7 @@ fun Chip(label: String, warn: Boolean) =
  * unobserved hatched.
  */
 @Composable
-fun NightStrip(s: NightSummary, modifier: Modifier) {
+fun NightStrip(s: NightSummary, modifier: Modifier = Modifier) {
     val connected = MaterialTheme.colorScheme.primary
     val base = MaterialTheme.colorScheme.surfaceVariant
     val parts = remember(s) { stretches(s) }
