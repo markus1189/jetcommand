@@ -165,8 +165,9 @@ class BedJetController(context: Context, private val store: NightLogStore) {
         }
         lateinit var recorder: NightRecorder
         val transport = TappedTransport(raw) { recorder.command(it) }
-        // The user wants the link until they say otherwise: keep trying all night.
-        val config = BedJetLink.Config(maxReconnectAttempts = null, retryFailedConnect = true)
+        // The user wants the link until they say otherwise: keep trying all night. Night 1's status-8 drops happened
+        // in range, yet the default 60 s cap plus 20 s connect timeouts left a 358 s gap; 10 s keeps it under ~30 s.
+        val config = BedJetLink.Config(maxReconnectAttempts = null, retryFailedConnect = true, reconnectMaxMs = 10_000)
         val link = BedJetLink(transport, scope, config, log = ::log)
         recorder = NightRecorder(link, store, scope)
         val device = BedJetDevice(link, scope)
