@@ -88,6 +88,20 @@ class NightGroupingTest {
     }
 
     @Test
+    fun `an app update or the user stopping it is a gap, not a kill`() {
+        val events = listOf(
+            started(t(21, 22, 0)),
+            ev(t(21, 23, 0), Kind.PROCESS, "exit package updated importance 100: stop"),
+            started(t(21, 23, 1)),
+            ev(t(22, 1, 0), Kind.PROCESS, "exit user stopped importance 125: null"),
+            started(t(22, 2, 0)),
+        )
+        val night = groupNights(events, emptyList(), zone, t(22, 12, 0)).single()
+        assertEquals(listOf(Cause.APP, Cause.APP), night.gaps.map { it.cause })
+        assertEquals(emptyList(), night.killedAt)
+    }
+
+    @Test
     fun `two nights split at noon, newest first, only tonight ongoing`() {
         val events = listOf(
             started(t(20, 23, 0)), ev(t(20, 23, 0, 1), Kind.CONNECTED),

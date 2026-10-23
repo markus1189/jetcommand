@@ -33,6 +33,10 @@ fun groupNights(events: List<NightEvent>, sampleTimes: List<Long>, zone: ZoneId,
 private fun isStart(e: NightEvent) = e.kind == NightEvent.Kind.PROCESS && e.detail == ProcessLog.STARTED
 private fun isExit(e: NightEvent) = e.kind == NightEvent.Kind.PROCESS && e.detail.startsWith(ProcessLog.EXIT_PREFIX)
 
+// An update, a crash or the user stopping the app is still a gap, but not the system killing it.
+private val KILL_REASONS = listOf("signaled ", "low memory ", "excessive resource usage ")
+private fun isKill(e: NightEvent) = KILL_REASONS.any { e.detail.startsWith(ProcessLog.EXIT_PREFIX + it) }
+
 /** Sort is stable, so same-millisecond events keep their logged order. */
 fun summarize(events: List<NightEvent>, sampleTimes: List<Long>, ongoing: Boolean): NightSummary {
     val evs = events.sortedBy { it.at }
@@ -43,6 +47,7 @@ fun summarize(events: List<NightEvent>, sampleTimes: List<Long>, ongoing: Boolea
     val killed = mutableListOf<Long>()
     var linkDownSince: Long? = null
     var exitAt: Long? = null
+    var exitWasKill = true // no exit record: most likely the system
     var seenStart = false
     var lastAt: Long? = null // last item of the current process, events or samples
     var si = 0
@@ -54,13 +59,14 @@ fun summarize(events: List<NightEvent>, sampleTimes: List<Long>, ongoing: Boolea
             if (died != null) {
                 linkDownSince?.let { if (died > it) gaps += NightSummary.Gap(it, died, NightSummary.Cause.LINK) }
                 gaps += NightSummary.Gap(died, e.at, NightSummary.Cause.APP)
-                killed += died
+                if (exitAt == null || exitWasKill) killed += died
             }
             linkDownSince = null
             exitAt = null
             seenStart = true
         } else if (isExit(e)) {
             exitAt = e.at
+            exitWasKill = isKill(e)
         } else when (e.kind) {
             NightEvent.Kind.LOST -> if (linkDownSince == null) linkDownSince = e.at
             NightEvent.Kind.RECONNECTED, NightEvent.Kind.CONNECTED -> linkDownSince?.let {
