@@ -3,6 +3,7 @@ package link.thesymbolic.jetcommand.night
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.NightDetail
 import link.thesymbolic.jetcommand.protocol.NightEvent
+import link.thesymbolic.jetcommand.protocol.ProcessLog
 import link.thesymbolic.jetcommand.protocol.NightEvent.Kind
 import link.thesymbolic.jetcommand.protocol.NightSample
 import link.thesymbolic.jetcommand.protocol.NightSummary
@@ -114,7 +115,7 @@ fun importantRows(d: NightDetail, text: NightText): List<EventRow> {
         val e = ev[i]
         when (e.kind) {
             Kind.CONNECTED -> {
-                val started = ev.any { it.kind == Kind.PROCESS && it.detail == "process started" && it.at in e.at - 60_000..e.at } &&
+                val started = ev.any { it.kind == Kind.PROCESS && it.detail == ProcessLog.STARTED && it.at in e.at - 60_000..e.at } &&
                     rows.isNotEmpty()
                 val mode = ev.drop(i + 1).firstOrNull { it.kind == Kind.MODE && it.at - e.at < 60_000 }
                 val modeNote = mode?.takeIf { started }?.let { " · BedJet ${it.detail}" } ?: ""
@@ -151,7 +152,7 @@ fun importantRows(d: NightDetail, text: NightText): List<EventRow> {
             Kind.MODE -> if (pressed(e)) rows += EventRow(e.at, "Mode ${e.detail}")
             Kind.PROCESS -> if (e.detail.startsWith("exit")) {
                 val killed = e.at in d.summary.killedAt
-                rows += EventRow(e.at, if (killed) "App killed by Android" else "App ended: ${e.detail.removePrefix("exit ")}", warn = killed)
+                rows += EventRow(e.at, if (killed) "App killed by Android" else "App ended: ${e.detail.removePrefix(ProcessLog.EXIT_PREFIX)}", warn = killed)
                 d.summary.gaps.firstOrNull { it.cause == NightSummary.Cause.APP && it.from == e.at }?.let {
                     rows += EventRow(null, "${duration(it.to - it.from)} unobserved", muted = true)
                 }
@@ -198,7 +199,7 @@ fun readout(sample: NightSample?, at: Long, text: NightText): String =
 /** The amber callout for each time the app was killed: title and explanation. */
 fun killedCallouts(d: NightDetail, text: NightText): List<Pair<String, String>> = d.summary.killedAt.map { at ->
     val why = d.events.firstOrNull { it.at == at && it.kind == Kind.PROCESS }?.detail?.let { detail ->
-        Regex("""\(([^()]*)\)""").findAll(detail).lastOrNull()?.groupValues?.get(1) ?: detail.removePrefix("exit ").substringBefore(' ')
+        Regex("""\(([^()]*)\)""").findAll(detail).lastOrNull()?.groupValues?.get(1) ?: detail.removePrefix(ProcessLog.EXIT_PREFIX).substringBefore(' ')
     }
     val gap = d.summary.gaps.firstOrNull { it.cause == NightSummary.Cause.APP && it.from == at }
     val mode = gap?.let { g -> d.events.firstOrNull { it.kind == Kind.MODE && it.at >= g.to } }

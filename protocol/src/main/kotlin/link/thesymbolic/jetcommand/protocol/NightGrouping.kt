@@ -30,8 +30,8 @@ fun groupNights(events: List<NightEvent>, sampleTimes: List<Long>, zone: ZoneId,
     }
 }
 
-private fun isStart(e: NightEvent) = e.kind == NightEvent.Kind.PROCESS && e.detail == "process started"
-private fun isExit(e: NightEvent) = e.kind == NightEvent.Kind.PROCESS && e.detail.startsWith("exit ")
+private fun isStart(e: NightEvent) = e.kind == NightEvent.Kind.PROCESS && e.detail == ProcessLog.STARTED
+private fun isExit(e: NightEvent) = e.kind == NightEvent.Kind.PROCESS && e.detail.startsWith(ProcessLog.EXIT_PREFIX)
 
 /** Sort is stable, so same-millisecond events keep their logged order. */
 fun summarize(events: List<NightEvent>, sampleTimes: List<Long>, ongoing: Boolean): NightSummary {

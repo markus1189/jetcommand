@@ -21,6 +21,12 @@ data class NightEvent(val at: Long, val kind: Kind, val detail: String, val valu
 /** Temperatures in the status's raw units ([formatTemp]); [room] is the unit's ambient sensor, [air] its outlet. */
 data class NightSample(val at: Long, val room: Int, val air: Int, val target: Int, val fanStep: Int, val mode: Mode)
 
+/** [NightEvent.Kind.PROCESS] details that the night grouping parses back. */
+object ProcessLog {
+    const val STARTED = "process started"
+    const val EXIT_PREFIX = "exit "
+}
+
 interface NightLogStore {
     suspend fun append(event: NightEvent)
     suspend fun appendSample(sample: NightSample)

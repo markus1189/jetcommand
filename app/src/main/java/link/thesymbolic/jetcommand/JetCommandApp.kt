@@ -6,16 +6,22 @@ import android.app.ApplicationExitInfo
 import android.content.ComponentCallbacks2
 import link.thesymbolic.jetcommand.night.NightLogDatabase
 import link.thesymbolic.jetcommand.night.RoomNightLogStore
+import link.thesymbolic.jetcommand.night.RoomNightsSource
+import link.thesymbolic.jetcommand.protocol.ProcessLog
 
 class JetCommandApp : Application() {
     lateinit var controller: BedJetController
         private set
+    lateinit var nights: RoomNightsSource
+        private set
 
     override fun onCreate() {
         super.onCreate()
-        controller = BedJetController(this, RoomNightLogStore(NightLogDatabase.open(this).events()))
+        val dao = NightLogDatabase.open(this).events()
+        controller = BedJetController(this, RoomNightLogStore(dao))
+        nights = RoomNightsSource(dao)
         logExits()
-        controller.lifecycle("process started")
+        controller.lifecycle(ProcessLog.STARTED)
     }
 
     // The system's record survives the process; logcat's kill lines rotate out within hours.
@@ -25,7 +31,7 @@ class JetCommandApp : Application() {
         val exits = getSystemService(ActivityManager::class.java).getHistoricalProcessExitReasons(packageName, 0, 10)
             .filter { it.timestamp > seen }
         exits.sortedBy { it.timestamp }.forEach {
-            controller.lifecycle("exit ${reasonName(it.reason)} importance ${it.importance}: ${it.description}", it.timestamp)
+            controller.lifecycle("${ProcessLog.EXIT_PREFIX}${reasonName(it.reason)} importance ${it.importance}: ${it.description}", it.timestamp)
         }
         exits.maxOfOrNull { it.timestamp }?.let { prefs.edit().putLong(KEY_EXIT_SEEN, it).apply() }
     }

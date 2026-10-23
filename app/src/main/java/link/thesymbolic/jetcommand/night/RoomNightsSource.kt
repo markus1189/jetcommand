@@ -1,9 +1,11 @@
 package link.thesymbolic.jetcommand.night
 
 import java.time.ZoneId
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.flow
 import link.thesymbolic.jetcommand.protocol.NightDetail
 import link.thesymbolic.jetcommand.protocol.NightSummary
 import link.thesymbolic.jetcommand.protocol.NightsSource
@@ -21,9 +23,17 @@ class RoomNightsSource(
     private val now: () -> Long = System::currentTimeMillis,
 ) : NightsSource {
     override fun nights(): Flow<List<NightSummary>> =
-        combine(dao.allEvents(), dao.allSampleTimes()) { events, samples ->
+        // The tick ends "ongoing" when the log goes quiet, which no write would signal.
+        combine(dao.allEvents(), dao.allSampleTimes(), minuteTicks()) { events, samples, _ ->
             groupNights(events.mapNotNull { it.toEvent() }, samples, zone(), now())
         }.conflate()
+
+    private fun minuteTicks() = flow {
+        while (true) {
+            emit(Unit)
+            delay(60_000)
+        }
+    }
 
     // The whole window, not start..end: an ongoing night has grown since its summary was taken.
     override suspend fun detail(night: NightSummary): NightDetail {

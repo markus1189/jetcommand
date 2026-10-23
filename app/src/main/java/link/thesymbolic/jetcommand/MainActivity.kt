@@ -23,15 +23,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import link.thesymbolic.jetcommand.night.FakeNightsSource
 import link.thesymbolic.jetcommand.protocol.NightsSource
 
 enum class Place(val label: String, val glyph: String) { NOW("Now", "◉"), PROGRAMS("Programs", "☰"), NIGHTS("Nights", "☾"), SETTINGS("Settings", "⚙") }
 
 class MainActivity : ComponentActivity() {
     private val vm: BedJetViewModel by viewModels()
-    // Seam for the Room-backed source; the fake stands in until it lands.
-    private val nights: NightsSource by lazy { FakeNightsSource() }
+    private val nights: NightsSource get() = (application as JetCommandApp).nights
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
