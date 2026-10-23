@@ -49,4 +49,5 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 
 - Commits: `area: subject` in lowercase (`protocol:`, `app:`, `ble:`, `docs:`).
 - Parallel agents each get a worktree beside the repo (`git worktree add ../jetcommand-wt-<task> -b agent/<task>`); give agents disjoint files, and never two agents on the same screen.
+- Before spawning parallel agents, commit the interface between their parts on main; both worktrees branch from that commit.
 - Notes in this file go under the matching heading, one fact per line; the deletion test applies.
