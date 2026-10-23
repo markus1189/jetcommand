@@ -48,9 +48,8 @@ class BedJetViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun log(level: LogLevel, msg: String) = controller.log(level, msg)
 
-    @SuppressLint(
-        "MissingPermission"
-    ) // only reachable from the scan list, shown behind RequireBluetoothPermissions
+    // only reachable from the scan list, shown behind RequireBluetoothPermissions
+    @SuppressLint("MissingPermission")
     fun connectReal(device: BluetoothDevice, name: String?) =
         controller.connect(Source.Device(device.address, name))
 

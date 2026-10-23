@@ -71,9 +71,8 @@ class GattTransport(context: Context, private val device: BluetoothDevice) : Bed
     var mtu = DEFAULT_MTU
         private set
 
-    @SuppressLint(
-        "MissingPermission"
-    ) // checked by requirePermission(); a later revocation surfaces in await()
+    // checked by requirePermission(); a later revocation surfaces in await()
+    @SuppressLint("MissingPermission")
     override suspend fun connect() {
         requirePermission()
         synchronized(lock) {
@@ -161,9 +160,8 @@ class GattTransport(context: Context, private val device: BluetoothDevice) : Bed
         _state.value = TransportState.Disconnected
     }
 
-    @SuppressLint(
-        "MissingPermission"
-    ) // checked by requirePermission(); a later revocation surfaces in await()
+    // checked by requirePermission(); a later revocation surfaces in await()
+    @SuppressLint("MissingPermission")
     override suspend fun write(characteristic: Characteristic, bytes: ByteArray) {
         require(characteristic == Characteristic.COMMAND || characteristic == Characteristic.NAME) {
             "$characteristic is not writable"
@@ -183,9 +181,9 @@ class GattTransport(context: Context, private val device: BluetoothDevice) : Bed
         }
     }
 
-    @SuppressLint(
-        "MissingPermission"
-    ) // checked by requirePermission(); a later revocation surfaces in await()
+    // MissingPermission: checked by requirePermission(); a later revocation surfaces in await().
+    // LogConditional: release builds log BLE traffic on purpose, for adb logcat on the phone.
+    @SuppressLint("MissingPermission", "LogConditional")
     override suspend fun read(characteristic: Characteristic): ByteArray {
         requirePermission()
         val (g, c) = target(characteristic)
@@ -362,6 +360,7 @@ class GattTransport(context: Context, private val device: BluetoothDevice) : Bed
             }
         }
 
+    @SuppressLint("LogConditional") // see read()
     private fun onNotification(uuid: UUID, value: ByteArray) {
         if (uuid != STATUS_UUID) return
         Log.d(TAG, "notify ${value.size}: ${value.toHex()}")
