@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import link.thesymbolic.jetcommand.protocol.Mode
 
 // Fixed, not dynamic, and dark whatever the system says: it's read in a dark bedroom. Muted blue-greys, no reds.
 private val Night = darkColorScheme(
@@ -27,6 +28,16 @@ private val Night = darkColorScheme(
     inversePrimary = Color(0xFF8FB4D9),
     outline = Color(0xFF3A424B),
 )
+
+/** Cold to hot, blue to red, so the modes read as a scale wherever they appear. */
+fun modeColor(mode: Mode): Color = when (mode) {
+    Mode.COOL -> Color(0xFF4C9AFF)
+    Mode.DRY -> Color(0xFF9C8CE0)
+    Mode.EXT_HEAT -> Color(0xFFE8B04A)
+    Mode.HEAT -> Color(0xFFF0803C)
+    Mode.TURBO -> Color(0xFFF0473F)
+    Mode.STANDBY, Mode.WAIT -> Color(0xFF6B737D)
+}
 
 @Composable
 fun JetCommandTheme(content: @Composable () -> Unit) = MaterialTheme(colorScheme = Night, content = content)

@@ -4,20 +4,29 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarDuration
@@ -26,23 +35,36 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import link.thesymbolic.jetcommand.protocol.Button as Btn
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.Mode
+import link.thesymbolic.jetcommand.protocol.Status
+import link.thesymbolic.jetcommand.protocol.fanPercent
 import link.thesymbolic.jetcommand.protocol.formatTemp
+import link.thesymbolic.jetcommand.protocol.tempRange
 
 @Composable
 fun NowScreen(vm: BedJetViewModel, snackbar: SnackbarHostState, openDiagnostics: () -> Unit) {
@@ -52,11 +74,21 @@ fun NowScreen(vm: BedJetViewModel, snackbar: SnackbarHostState, openDiagnostics:
     val remembered by vm.remembered.collectAsState()
     val scope = rememberCoroutineScope()
     val st = update?.status?.takeIf { link == LinkState.Ready }
+    // A status arrives about every second; a growing age is the first sign the link went quiet.
+    var lastStatusAt by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(update) { lastStatusAt = SystemClock.elapsedRealtime() }
+    val now by produceState(SystemClock.elapsedRealtime()) {
+        while (true) {
+            delay(1_000)
+            value = SystemClock.elapsedRealtime()
+        }
+    }
+    val age = ((now - lastStatusAt) / 1_000).takeIf { st != null }
 
     Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                (stack?.label?.let { "$it · " } ?: "") + linkText(link),
+                (stack?.label?.let { "$it · " } ?: "") + linkText(link) + (age?.let { " · $it s ago" } ?: ""),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             // Up here, away from the steppers and Stop; also while (re)connecting, so the user can always quit.
@@ -76,20 +108,11 @@ fun NowScreen(vm: BedJetViewModel, snackbar: SnackbarHostState, openDiagnostics:
             return@Column
         }
 
-        Spacer(Modifier.height(24.dp))
-        Text(st.mode.label, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
-        Text(formatTemp(st.actualTemp), fontSize = 72.sp, lineHeight = 76.sp)
-        Text("→ ${formatTemp(st.targetTemp)}", fontSize = 36.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        val r = st.remainingSeconds
-        Text("%d:%02d left · fan %d%%".format(r / 3600, r / 60 % 60, st.fanPercent), fontSize = 20.sp)
+        Spacer(Modifier.height(8.dp))
+        Connected(vm, st)
+        Spacer(Modifier.height(16.dp))
 
-        Spacer(Modifier.weight(1f))
-        Stepper("Temp", { vm.press("temp down", Btn.TEMP_DOWN_C) }, { vm.press("temp up", Btn.TEMP_UP_C) })
-        Spacer(Modifier.height(12.dp))
-        Stepper("Fan", { vm.press("fan down", Btn.FAN_DOWN) }, { vm.press("fan up", Btn.FAN_UP) })
-
-        // Stop sits apart from the steppers so a sleepy thumb aiming for − doesn't land on it.
-        Spacer(Modifier.height(48.dp))
+        // Off sits apart from the fields so a sleepy thumb aiming for − doesn't land on it.
         if (st.mode != Mode.STANDBY) {
             OutlinedButton(
                 onClick = {
@@ -98,16 +121,162 @@ fun NowScreen(vm: BedJetViewModel, snackbar: SnackbarHostState, openDiagnostics:
                     scope.launch {
                         // The snackbar's Short is ~4 s and Long ~10 s; time it out ourselves for ~5 s.
                         val result = withTimeoutOrNull(5_000) {
-                            snackbar.showSnackbar("Stopped", actionLabel = "Undo", duration = SnackbarDuration.Indefinite)
+                            snackbar.showSnackbar("Turned off", actionLabel = "Undo", duration = SnackbarDuration.Indefinite)
                         }
                         if (result == null) snackbar.currentSnackbarData?.dismiss()
                         // WAIT can't be set by a button; programs aren't restored either.
                         if (result == SnackbarResult.ActionPerformed && Btn.forMode(previous) != null) vm.setMode(previous)
                     }
                 },
-                modifier = Modifier.fillMaxWidth(0.6f).height(52.dp),
-            ) { Text("Stop") }
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) { Text("Turn BedJet off", fontSize = 16.sp) }
         } else Spacer(Modifier.height(52.dp))
+    }
+}
+
+private val MODES = listOf(Mode.COOL, Mode.DRY, Mode.EXT_HEAT, Mode.HEAT, Mode.TURBO)
+
+private fun shortLabel(mode: Mode) = if (mode == Mode.EXT_HEAT) "Ext" else mode.label
+
+/** A value sent to the unit and not yet seen in a status; given up after [PENDING_MS], showing the unit's again. */
+private class Pending {
+    var preview by mutableStateOf<Int?>(null)
+    var sent by mutableStateOf<Int?>(null)
+    fun unconfirmed(confirmed: Int) = sent?.takeIf { it != confirmed }
+}
+
+private const val PENDING_MS = 5_000L
+
+@Composable
+private fun rememberPending(): Pending {
+    val p = remember { Pending() }
+    LaunchedEffect(p.sent) {
+        if (p.sent == null) return@LaunchedEffect
+        delay(PENDING_MS)
+        p.sent = null
+    }
+    return p
+}
+
+@Composable
+private fun ColumnScope.Connected(vm: BedJetViewModel, st: Status) {
+    LaunchedEffect(Unit) { vm.loadPrograms() }
+
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        MODES.forEach { m ->
+            val c = modeColor(m)
+            val on = m == st.mode
+            Box(
+                Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(12.dp))
+                    .background(if (on) c else c.copy(alpha = 0.14f))
+                    .border(if (on) 2.dp else 1.dp, if (on) MaterialTheme.colorScheme.onSurface else c, RoundedCornerShape(12.dp))
+                    .clickable(enabled = !on) { vm.setMode(m) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(shortLabel(m), color = if (on) Color(0xFF0E1116) else c, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+
+    Spacer(Modifier.height(12.dp))
+    val r = st.remainingSeconds
+    val step = st.extra?.programStep ?: 0
+    Text(
+        listOfNotNull(
+            "auto off %d:%02d".format(r / 3600, r / 60 % 60).takeIf { st.mode != Mode.STANDBY },
+            "program step $step".takeIf { step > 0 },
+        ).joinToString(" · "),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontSize = 14.sp,
+    )
+    Spacer(Modifier.height(12.dp))
+
+    val temp = rememberPending()
+    val fan = rememberPending()
+    val (range, _) = tempRange(st.mode, st)
+    val tempOn = st.mode.usesTemperature
+    val fanOn = st.mode != Mode.STANDBY && st.mode != Mode.WAIT
+    val tempShown = temp.preview?.let { range.min + it } ?: temp.unconfirmed(st.targetTemp) ?: st.targetTemp
+    val fanShown = fan.preview ?: fan.unconfirmed(st.fanStep) ?: st.fanStep
+
+    Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        ValueField(
+            label = "Temp",
+            text = if (tempOn || st.mode == Mode.TURBO) formatTemp(tempShown) else "--",
+            sub = when {
+                st.mode == Mode.TURBO -> "fixed in Turbo"
+                temp.unconfirmed(st.targetTemp) != null -> "sending · now ${formatTemp(st.targetTemp)}"
+                else -> "actual ${formatTemp(st.actualTemp)}"
+            },
+            index = tempShown - range.min,
+            count = range.max - range.min + 1,
+            color = modeColor(st.mode),
+            enabled = tempOn,
+            hollow = temp.unconfirmed(st.targetTemp) != null,
+            onPreview = { temp.preview = it },
+            onCommit = {
+                temp.sent = range.min + it
+                vm.setTemperature(range.min + it)
+            },
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+        )
+        ValueField(
+            label = "Fan",
+            text = if (fanOn) "${fanPercent(fanShown)}%" else "--",
+            sub = if (fan.unconfirmed(st.fanStep) != null) "sending · now ${st.fanPercent}%" else "",
+            index = fanShown,
+            count = 20,
+            color = modeColor(st.mode),
+            enabled = fanOn,
+            hollow = fan.unconfirmed(st.fanStep) != null,
+            onPreview = { fan.preview = it },
+            onCommit = {
+                fan.sent = it
+                vm.setFan(it)
+            },
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+        )
+    }
+
+    val programs = vm.programs.withIndex().filter { it.value != null }
+    if (programs.isNotEmpty()) {
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            programs.forEach { (slot, name) ->
+                Column(
+                    Modifier.weight(1f).height(60.dp).clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable { vm.startProgram(slot) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(prettyName(name!!), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        ProgramIcon()
+                        Text("program", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The unit stores names upper-case (the official app's keyboard); "TWOSTEP" reads better as "Twostep". */
+private fun prettyName(name: String) =
+    if (name == name.uppercase()) name.lowercase().replaceFirstChar { it.uppercase() } else name
+
+/** A step curve, the same shape as a program's timeline. */
+@Composable
+private fun ProgramIcon() {
+    val c = MaterialTheme.colorScheme.onSurfaceVariant
+    Canvas(Modifier.size(14.dp)) {
+        val u = size.width / 14f
+        val path = Path().apply {
+            moveTo(1 * u, 11 * u); lineTo(4 * u, 11 * u); lineTo(4 * u, 4 * u); lineTo(8 * u, 4 * u)
+            lineTo(8 * u, 8 * u); lineTo(13 * u, 8 * u)
+        }
+        drawPath(path, c, style = Stroke(width = 1.6f * u))
     }
 }
 
@@ -130,13 +299,3 @@ private fun NotificationsPrompt() {
     }) { Text("Turn on notifications") }
 }
 
-@Composable
-private fun Stepper(name: String, down: () -> Unit, up: () -> Unit) =
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Big("$name −", down)
-        Big("$name +", up)
-    }
-
-@Composable
-private fun RowScope.Big(label: String, onClick: () -> Unit) =
-    FilledTonalButton(onClick, Modifier.weight(1f).height(72.dp)) { Text(label, fontSize = 22.sp) }

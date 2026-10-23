@@ -3,7 +3,10 @@ package link.thesymbolic.jetcommand
 import android.annotation.SuppressLint
 import android.app.Application
 import android.bluetooth.BluetoothDevice
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.SharingStarted
@@ -11,6 +14,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.Mode
+import link.thesymbolic.jetcommand.protocol.fanPercent
+import link.thesymbolic.jetcommand.protocol.formatTemp
 
 /** The UI's view of [BedJetController]; the connection lives there, not here. */
 class BedJetViewModel(app: Application) : AndroidViewModel(app) {
@@ -25,8 +30,17 @@ class BedJetViewModel(app: Application) : AndroidViewModel(app) {
     /** Read-back results by label, for the current stack. */
     val results = mutableStateMapOf<String, String>()
 
+    /** The unit's program slots by index, null where empty; read once per stack. */
+    var programs by mutableStateOf<List<String?>>(emptyList())
+        private set
+
     init {
-        viewModelScope.launch { stack.collect { results.clear() } }
+        viewModelScope.launch {
+            stack.collect {
+                results.clear()
+                programs = emptyList()
+            }
+        }
     }
 
     fun log(level: LogLevel, msg: String) = controller.log(level, msg)
@@ -45,6 +59,14 @@ class BedJetViewModel(app: Application) : AndroidViewModel(app) {
     fun press(what: String, button: Int) = controller.press(what, button)
 
     fun setMode(mode: Mode) = controller.setMode(mode)
+
+    fun setTemperature(halfC: Int) = act("temp ${formatTemp(halfC)}") { it.device.setTemperature(halfC) }
+
+    fun setFan(step: Int) = act("fan ${fanPercent(step)} %") { it.device.setFan(step) }
+
+    fun loadPrograms() = act("programs") { programs = it.device.programNames() }
+
+    fun startProgram(slot: Int) = act("start program ${slot + 1}") { it.device.startProgram(slot) }
 
     fun hasConnectPermission() = controller.hasConnectPermission()
 
