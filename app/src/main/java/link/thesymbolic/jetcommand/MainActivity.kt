@@ -1,5 +1,6 @@
 package link.thesymbolic.jetcommand
 
+import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -20,9 +21,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import link.thesymbolic.jetcommand.protocol.NightsSource
 
 enum class Place(val label: String, val glyph: String) { NOW("Now", "◉"), PROGRAMS("Programs", "☰"), NIGHTS("Nights", "☾"), SETTINGS("Settings", "⚙") }
@@ -30,6 +31,11 @@ enum class Place(val label: String, val glyph: String) { NOW("Now", "◉"), PROG
 class MainActivity : ComponentActivity() {
     private val vm: BedJetViewModel by viewModels()
     private val nights: NightsSource get() = (application as JetCommandApp).nights
+    private val programs: ProgramsSource by lazy {
+        val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        if (debuggable && intent.getBooleanExtra("fake_library", false)) FakePrograms()
+        else LibraryPrograms(library, controller, lifecycleScope)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,8 +61,8 @@ class MainActivity : ComponentActivity() {
                 ) { padding ->
                     Box(Modifier.padding(padding).fillMaxSize()) {
                         when (place) {
-                            Place.NOW -> NowScreen(vm, snackbar, openDiagnostics = { place = Place.SETTINGS })
-                            Place.PROGRAMS -> Coming(place.label)
+                            Place.NOW -> NowScreen(vm, programs, snackbar, openDiagnostics = { place = Place.SETTINGS })
+                            Place.PROGRAMS -> ProgramsScreen(programs)
                             Place.NIGHTS -> NightsScreen(nights)
                             Place.SETTINGS -> Column {
                                 Text("Diagnostics", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(12.dp))
@@ -68,9 +74,4 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-}
-
-@androidx.compose.runtime.Composable
-private fun Coming(what: String) = Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-    Text("$what: coming", color = MaterialTheme.colorScheme.onSurfaceVariant)
 }

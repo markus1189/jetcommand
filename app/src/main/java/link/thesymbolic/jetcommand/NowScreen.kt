@@ -55,19 +55,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.time.LocalTime
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import link.thesymbolic.jetcommand.protocol.Button as Btn
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.Mode
+import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.Status
 import link.thesymbolic.jetcommand.protocol.fanPercent
 import link.thesymbolic.jetcommand.protocol.formatTemp
 import link.thesymbolic.jetcommand.protocol.tempRange
 
 @Composable
-fun NowScreen(vm: BedJetViewModel, snackbar: SnackbarHostState, openDiagnostics: () -> Unit) {
+fun NowScreen(vm: BedJetViewModel, programs: ProgramsSource, snackbar: SnackbarHostState, openDiagnostics: () -> Unit) {
     val stack by vm.stack.collectAsState()
     val link by vm.linkState.collectAsState()
     val update by vm.status.collectAsState()
@@ -109,7 +112,7 @@ fun NowScreen(vm: BedJetViewModel, snackbar: SnackbarHostState, openDiagnostics:
         }
 
         Spacer(Modifier.height(8.dp))
-        Connected(vm, st)
+        Connected(vm, st, programs)
         Spacer(Modifier.height(16.dp))
 
         // Off sits apart from the fields so a sleepy thumb aiming for − doesn't land on it.
@@ -160,7 +163,7 @@ private fun rememberPending(): Pending {
 }
 
 @Composable
-private fun ColumnScope.Connected(vm: BedJetViewModel, st: Status) {
+private fun ColumnScope.Connected(vm: BedJetViewModel, st: Status, source: ProgramsSource) {
     LaunchedEffect(Unit) { vm.loadPrograms() }
 
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -182,14 +185,19 @@ private fun ColumnScope.Connected(vm: BedJetViewModel, st: Status) {
     Spacer(Modifier.height(12.dp))
     val r = st.remainingSeconds
     val step = st.extra?.programStep ?: 0
+    val running = runningProgram(source, step)
     Text(
         listOfNotNull(
             "auto off %d:%02d".format(r / 3600, r / 60 % 60).takeIf { st.mode != Mode.STANDBY },
-            "program step $step".takeIf { step > 0 },
+            "program step $step".takeIf { step > 0 && running == null },
         ).joinToString(" · "),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontSize = 14.sp,
     )
+    running?.let {
+        Spacer(Modifier.height(12.dp))
+        RunningStrip(it, step, r)
+    }
     Spacer(Modifier.height(12.dp))
 
     val temp = rememberPending()
@@ -262,9 +270,43 @@ private fun ColumnScope.Connected(vm: BedJetViewModel, st: Status) {
     }
 }
 
-/** The unit stores names upper-case (the official app's keyboard); "TWOSTEP" reads better as "Twostep". */
-private fun prettyName(name: String) =
-    if (name == name.uppercase()) name.lowercase().replaceFirstChar { it.uppercase() } else name
+/**
+ * The program the unit is running, from the slot cache. The status carries only the step number, so it's the one
+ * cached program long enough for it; null when none or several fit.
+ */
+@Composable
+private fun runningProgram(source: ProgramsSource, step: Int): Program? {
+    if (step <= 0) return null
+    val device by source.device.collectAsState()
+    // Until the library lands on main its bodies throw; the Now screen must not go down with a missing strip.
+    val flow = remember(source, device) { device?.let { runCatching { source.slots(it) }.getOrNull() } ?: flowOf(emptyList()) }
+    val slots by flow.collectAsState(emptyList())
+    return slots.mapNotNull { it.state.program }.filter { it.steps.size >= step }.singleOrNull()
+}
+
+/** "Twostep · step 2/5", the next step and when it starts, and the strip with a now-line. */
+@Composable
+private fun RunningStrip(p: Program, step: Int, remainingSeconds: Int) {
+    val now = LocalTime.now()
+    val i = (step - 1).coerceIn(0, p.steps.lastIndex)
+    // The step's remaining time puts us inside it; clock-time steps depend on the start, so place it twice.
+    fun place(start: LocalTime) = timeline(p.steps, start).let { sp -> sp to sp[i].to - remainingSeconds / 60.0 }
+    val (first, nowMin0) = place(now)
+    val start = now.minusMinutes(nowMin0.toLong().coerceAtLeast(0))
+    val (spans, nowMin) = place(start).takeIf { first.isNotEmpty() } ?: (first to nowMin0)
+    val next = spans.getOrNull(i + 1)
+    val at = now.plusSeconds(remainingSeconds.toLong()).let { "%02d:%02d".format(it.hour, it.minute) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth()) {
+            Text("${prettyName(p.name)} · step $step/${p.steps.size}", fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text(
+                next?.let { "next $at · ${it.step.mode.label.lowercase()} ${duration(it.minutes)}" } ?: "ends $at",
+                fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        StepStrip(spans, height = 36.dp, nowMinute = nowMin)
+    }
+}
 
 /** A step curve, the same shape as a program's timeline. */
 @Composable
