@@ -18,6 +18,7 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 ## Toolchain
 
 - Everything via `nix develop` (SDK, JDK 21, adb, node). Done means `./gradlew check assembleDebug` exits 0 (protocol tests, app unit tests, lint, APK); install with `./gradlew installDebug`.
+- `check` also runs `spotlessCheck` (ktfmt, kotlinlang style), detekt (`detekt.yml`) and lint with Kotlin warnings as errors; run `./gradlew spotlessApply` first. The baselines (`*/lint-baseline.xml`, `*/detekt-baseline.xml`) hold pre-existing findings only: fix new ones, or suppress per site with the reason.
 - New files must be `git add`ed before `nix develop` sees flake changes.
 - SDK in the Nix store is read-only: `compileSdk`/`buildToolsVersion` in `app/build.gradle.kts` must match the versions in `flake.nix`, or AGP tries to install and fails.
 - New dependency versions go in `gradle/libs.versions.toml`, checked to exist on Maven first.

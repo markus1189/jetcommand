@@ -1,0 +1,19 @@
+# Overrides only; defaults come from buildUponDefaultConfig.
+style:
+  # Codec and sim are byte offsets and protocol constants; naming each one hides the layout.
+  MagicNumber:
+    active: false
+  # ktfmt owns line length.
+  MaxLineLength:
+    active: false
+  ReturnCount:
+    active: false
+  ThrowsCount:
+    active: false
+complexity:
+  # Link, device and sim are single state machines on purpose (AGENTS.md: unlocked state, one scope).
+  TooManyFunctions:
+    active: false
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']

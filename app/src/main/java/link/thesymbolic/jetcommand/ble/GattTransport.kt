@@ -83,6 +83,8 @@ class GattTransport(context: Context, private val device: BluetoothDevice) : Bed
         try {
             await(Op.CONNECT) {
                 synchronized(lock) {
+                    // The replacement, connectGatt(BluetoothGattConnectionSettings, …), is API 37+.
+                    @Suppress("DEPRECATION")
                     gatt =
                         device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
                 }

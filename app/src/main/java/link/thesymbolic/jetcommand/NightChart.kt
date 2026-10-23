@@ -282,15 +282,16 @@ private class CursorLine(private val cursor: MutableState<Double?>) : Decoration
             strokeWidth = 3f
         }
 
-    override fun drawOverLayers(context: CartesianDrawingContext) =
+    override fun drawOverLayers(context: CartesianDrawingContext) {
+        val x = cursor.value ?: return
         with(context) {
-            val x = cursor.value ?: return
             canvas.drawLine(
                 Offset(px(x), layerBounds.top),
                 Offset(px(x), layerBounds.bottom),
                 paint,
             )
         }
+    }
 }
 
 /** Vico needs a marker to report the touched x; the cursor itself is [CursorLine]. */
@@ -387,7 +388,7 @@ private fun scrubChart(
         markerVisibilityListener = listener,
         markerController = CartesianMarkerController.rememberShowOnPress(),
         decorations = decorations,
-        getXStep = { 1.0 },
+        getXStep = { _, _, _ -> 1.0 },
     )
 
 @Composable

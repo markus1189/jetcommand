@@ -21,6 +21,16 @@ android {
     }
 
     buildFeatures { compose = true }
+
+    lint {
+        checkAllWarnings = true
+        warningsAsErrors = true
+        checkDependencies = true
+        // Network lookups would make `check` fail on a later day with identical code;
+        // synthetic accessors cost nothing on ART.
+        disable += setOf("NewerVersionAvailable", "GradleDependency", "SyntheticAccessor")
+        baseline = file("lint-baseline.xml")
+    }
 }
 
 kotlin { jvmToolchain(21) }
@@ -38,4 +48,5 @@ dependencies {
     implementation(libs.vico.compose.m3)
     ksp(libs.room.compiler)
     debugImplementation(libs.compose.ui.tooling)
+    lintChecks(libs.compose.lint.checks)
 }

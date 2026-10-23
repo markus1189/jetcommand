@@ -117,7 +117,7 @@ fun ValueField(
                                 set(value + dir)
                                 val released =
                                     withTimeoutOrNull(delay) {
-                                        while (awaitPointerEvent().changes.first().pressed) Unit
+                                        while (awaitPointerEvent().changes.first().pressed) {}
                                     } != null
                                 delay = maxOf(50L, delay * 3 / 4)
                             } while (!released)

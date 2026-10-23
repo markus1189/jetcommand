@@ -1,0 +1,38 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:DebugScreen.kt:@Composable private fun Connected</ID>
+    <ID>CyclomaticComplexMethod:JetCommandApp.kt:JetCommandApp.Companion$fun reasonName</ID>
+    <ID>CyclomaticComplexMethod:NightReview.kt:fun importantRows: List&lt;EventRow&gt;</ID>
+    <ID>CyclomaticComplexMethod:NowScreen.kt:@Composable private fun ColumnScope.Connected</ID>
+    <ID>CyclomaticComplexMethod:ProgramChart.kt:private fun DrawScope.drawProfile</ID>
+    <ID>CyclomaticComplexMethod:ProgramDetailScreen.kt:@Composable fun SlotPickerBody</ID>
+    <ID>CyclomaticComplexMethod:ValueField.kt:@Composable fun ValueField</ID>
+    <ID>EmptyWhileBlock:ValueField.kt:{}</ID>
+    <ID>ExplicitItLambdaMultipleParameters:NightChart.kt:TimelineData${ i, it -&gt; val x = minuteOf(it.at) val last = lastOrNull() if ( last != null &amp;&amp; last.second == it.mode &amp;&amp; x - last.first.endInclusive &lt;= GAP_MINUTES ) set(size - 1, last.first.start..x + 1 to it.mode) else add(x..x + 1 to it.mode) }</ID>
+    <ID>ForEachOnRange:DebugScreen.kt:0 until Limits.SLOTS</ID>
+    <ID>LongMethod:DebugScreen.kt:@Composable private fun Connected</ID>
+    <ID>LongMethod:NightChart.kt:@Composable private fun FanChart</ID>
+    <ID>LongMethod:NightReview.kt:fun importantRows: List&lt;EventRow&gt;</ID>
+    <ID>LongMethod:NightReviewScreen.kt:@Composable fun NightReviewScreen</ID>
+    <ID>LongMethod:NowScreen.kt:@Composable fun NowScreen</ID>
+    <ID>LongMethod:NowScreen.kt:@Composable private fun ColumnScope.Connected</ID>
+    <ID>LongMethod:ProgramChart.kt:private fun DrawScope.drawProfile</ID>
+    <ID>LongMethod:ProgramDetailScreen.kt:@Composable fun Conflict</ID>
+    <ID>LongMethod:ProgramDetailScreen.kt:@Composable fun ProgramDetail</ID>
+    <ID>LongMethod:ProgramDetailScreen.kt:@Composable fun SlotPickerBody</ID>
+    <ID>LongMethod:ProgramsScreen.kt:@Composable fun ProgramsList</ID>
+    <ID>LongMethod:ProgramsScreen.kt:@Composable fun ProgramsScreen</ID>
+    <ID>LongMethod:ValueField.kt:@Composable fun ValueField</ID>
+    <ID>LoopWithTooManyJumpStatements:ProgramChart.kt:while</ID>
+    <ID>MatchingDeclarationName:StepStrip.kt:Span</ID>
+    <ID>NestedBlockDepth:NightReview.kt:fun importantRows: List&lt;EventRow&gt;</ID>
+    <ID>SwallowedException:GattTransport.kt:GattTransport$e: SecurityException</ID>
+    <ID>SwallowedException:GattTransport.kt:GattTransport$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:BedJetController.kt:BedJetController$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:BedJetService.kt:BedJetService$e: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:GattTransport.kt:GattTransport$e: Throwable</ID>
+    <ID>UnusedParameter:NightChart.kt:m: TimelineData</ID>
+  </CurrentIssues>
+</SmellBaseline>

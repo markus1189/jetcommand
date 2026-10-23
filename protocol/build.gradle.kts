@@ -1,6 +1,7 @@
 // Pure Kotlin: everything here runs as fast JVM tests, without Android.
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.android.lint)
 }
 
 kotlin { jvmToolchain(21) }

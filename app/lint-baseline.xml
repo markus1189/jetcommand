@@ -1,0 +1,675 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 9.4.1" type="baseline" client="gradle" dependencies="true" name="AGP (9.4.1)" variant="all" version="9.4.1">
+
+    <issue
+        id="InlinedApi"
+        message="Field requires API level 33 (current min is 31): `android.content.Context#RECEIVER_NOT_EXPORTED`"
+        errorLine1="            Context.RECEIVER_NOT_EXPORTED,"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/BedJetController.kt"
+            line="148"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="OldTargetApi"
+        message="Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the `android.os.Build.VERSION_CODES` javadoc for details."
+        errorLine1="        targetSdk = 36"
+        errorLine2="        ~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle.kts"
+            line="18"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="ComposeViewModelForwarding"
+        message="Forwarding a ViewModel through multiple @Composable functions should be avoided. Consider using state hoisting.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#hoist-all-the-things for more information."
+        errorLine1="                ScanList(vm)"
+        errorLine2="                ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/DebugScreen.kt"
+            line="73"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="ComposeViewModelForwarding"
+        message="Forwarding a ViewModel through multiple @Composable functions should be avoided. Consider using state hoisting.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#hoist-all-the-things for more information."
+        errorLine1="            Connected(vm, s)"
+        errorLine2="            ~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/DebugScreen.kt"
+            line="76"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="ComposeViewModelForwarding"
+        message="Forwarding a ViewModel through multiple @Composable functions should be avoided. Consider using state hoisting.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#hoist-all-the-things for more information."
+        errorLine1="    s.sim?.let { sim -> DemoControls(vm, sim) }"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/DebugScreen.kt"
+            line="261"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="ComposeViewModelForwarding"
+        message="Forwarding a ViewModel through multiple @Composable functions should be avoided. Consider using state hoisting.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#hoist-all-the-things for more information."
+        errorLine1="        Connected(vm, st, programs)"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NowScreen.kt"
+            line="133"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="MemberExtensionConflict"
+        message="`library` is defined both as a member in class `link.thesymbolic.jetcommand.JetCommandApp` and an extension in package `link.thesymbolic.jetcommand`. The defined behavior for this is to use the member, but since the extension is explicitly imported into this file, there&apos;s a chance that this was not expected. (One common way this happens is for members to be added to a class after code was already written to use an extension)."
+        errorLine1="        controller = BedJetController(this, RoomNightLogStore(dao), library)"
+        errorLine2="                                                                    ~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/JetCommandApp.kt"
+            line="32"
+            column="69"/>
+    </issue>
+
+    <issue
+        id="MemberExtensionConflict"
+        message="`controller` is defined both as a member in class `link.thesymbolic.jetcommand.JetCommandApp` and an extension in package `link.thesymbolic.jetcommand`. The defined behavior for this is to use the member, but since the extension is explicitly imported into this file, there&apos;s a chance that this was not expected. (One common way this happens is for members to be added to a class after code was already written to use an extension)."
+        errorLine1="        controller.lifecycle(ProcessLog.STARTED)"
+        errorLine2="        ~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/JetCommandApp.kt"
+            line="36"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="MemberExtensionConflict"
+        message="`controller` is defined both as a member in class `link.thesymbolic.jetcommand.JetCommandApp` and an extension in package `link.thesymbolic.jetcommand`. The defined behavior for this is to use the member, but since the extension is explicitly imported into this file, there&apos;s a chance that this was not expected. (One common way this happens is for members to be added to a class after code was already written to use an extension)."
+        errorLine1="        controller.scope.launch {"
+        errorLine2="        ~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/JetCommandApp.kt"
+            line="46"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="MemberExtensionConflict"
+        message="`controller` is defined both as a member in class `link.thesymbolic.jetcommand.JetCommandApp` and an extension in package `link.thesymbolic.jetcommand`. The defined behavior for this is to use the member, but since the extension is explicitly imported into this file, there&apos;s a chance that this was not expected. (One common way this happens is for members to be added to a class after code was already written to use an extension)."
+        errorLine1="                controller.lifecycle("
+        errorLine2="                ~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/JetCommandApp.kt"
+            line="71"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="MemberExtensionConflict"
+        message="`controller` is defined both as a member in class `link.thesymbolic.jetcommand.JetCommandApp` and an extension in package `link.thesymbolic.jetcommand`. The defined behavior for this is to use the member, but since the extension is explicitly imported into this file, there&apos;s a chance that this was not expected. (One common way this happens is for members to be added to a class after code was already written to use an extension)."
+        errorLine1="            controller.lifecycle(&quot;trim memory $level&quot;)"
+        errorLine2="            ~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/JetCommandApp.kt"
+            line="83"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MemberExtensionConflict"
+        message="`controller` is defined both as a member in class `link.thesymbolic.jetcommand.JetCommandApp` and an extension in package `link.thesymbolic.jetcommand`. The defined behavior for this is to use the member, but since the extension is explicitly imported into this file, there&apos;s a chance that this was not expected. (One common way this happens is for members to be added to a class after code was already written to use an extension)."
+        errorLine1="    get() = (applicationContext as JetCommandApp).controller"
+        errorLine2="                                                  ~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/JetCommandApp.kt"
+            line="114"
+            column="51"/>
+    </issue>
+
+    <issue
+        id="MemberExtensionConflict"
+        message="`library` is defined both as a member in class `link.thesymbolic.jetcommand.JetCommandApp` and an extension in package `link.thesymbolic.jetcommand`. The defined behavior for this is to use the member, but since the extension is explicitly imported into this file, there&apos;s a chance that this was not expected. (One common way this happens is for members to be added to a class after code was already written to use an extension)."
+        errorLine1="    get() = (applicationContext as JetCommandApp).library"
+        errorLine2="                                                  ~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/JetCommandApp.kt"
+            line="116"
+            column="51"/>
+    </issue>
+
+    <issue
+        id="ComposableLambdaParameterNaming"
+        message="Composable lambda parameter should be named `content`"
+        errorLine1="private fun Panel(label: String, chart: @Composable () -> Unit) ="
+        errorLine2="                                 ~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NightChart.kt"
+            line="117"
+            column="34"/>
+    </issue>
+
+    <issue
+        id="LogConditional"
+        message="The log call Log.d(...) should be conditional: surround with `if (Log.isLoggable(...))` or `if (BuildConfig.DEBUG) { ... }`"
+        errorLine1="            .also { Log.d(TAG, &quot;read $characteristic ${it.size}: ${it.toHex()}&quot;) }"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ble/GattTransport.kt"
+            line="193"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="LogConditional"
+        message="The log call Log.d(...) should be conditional: surround with `if (Log.isLoggable(...))` or `if (BuildConfig.DEBUG) { ... }`"
+        errorLine1="        Log.d(TAG, &quot;notify ${value.size}: ${value.toHex()}&quot;)"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ble/GattTransport.kt"
+            line="367"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="MissingApplicationIcon"
+        message="Should explicitly set `android:icon`, there is no default"
+        errorLine1="    &lt;application"
+        errorLine2="     ~~~~~~~~~~~">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="11"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit().putString(KEY_ADDRESS, device.address).putString(KEY_NAME, device.name).apply()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/BedJetController.kt"
+            line="294"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="            prefs.edit().remove(KEY_SEEDED).apply()"
+        errorLine2="            ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/JetCommandApp.kt"
+            line="56"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        exits.maxOfOrNull { it.timestamp }?.let { prefs.edit().putLong(KEY_EXIT_SEEN, it).apply() }"
+        errorLine2="                                                  ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/JetCommandApp.kt"
+            line="76"
+            column="51"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun RequireBluetoothPermissions(content: @Composable () -> Unit) {"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ble/BluetoothPermissions.kt"
+            line="36"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun DebugScreen(vm: BedJetViewModel) {"
+        errorLine2="    ~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/DebugScreen.kt"
+            line="55"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun NightTimeline(d: NightDetail, text: NightText, cursor: MutableState&lt;Double?>) {"
+        errorLine2="    ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NightChart.kt"
+            line="80"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun NightReviewScreen("
+        errorLine2="    ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NightReviewScreen.kt"
+            line="62"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun NightsScreen(source: NightsSource) {"
+        errorLine2="    ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NightsScreen.kt"
+            line="48"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun Chip(label: String, warn: Boolean) ="
+        errorLine2="    ~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NightsScreen.kt"
+            line="147"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun NowScreen("
+        errorLine2="    ~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NowScreen.kt"
+            line="73"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun ProgramDetail("
+        errorLine2="    ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramDetailScreen.kt"
+            line="139"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun SlotPickerBody("
+        errorLine2="    ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramDetailScreen.kt"
+            line="383"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun Conflict("
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramDetailScreen.kt"
+            line="532"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun ProgramsScreen(source: ProgramsSource) {"
+        errorLine2="    ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramsScreen.kt"
+            line="193"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun SectionTitle(text: String, right: String? = null) ="
+        errorLine2="    ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramsScreen.kt"
+            line="332"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun SlotBadge(n: Int) ="
+        errorLine2="    ~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramsScreen.kt"
+            line="346"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun Pill(text: String, fg: Color, border: Color) ="
+        errorLine2="    ~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramsScreen.kt"
+            line="357"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun ProgramsList("
+        errorLine2="    ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramsScreen.kt"
+            line="383"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun SwipeToDelete("
+        errorLine2="    ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/SwipeToDelete.kt"
+            line="57"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierMissing"
+        message="This @Composable function emits content but doesn&apos;t have a modifier parameter.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#when-should-i-expose-modifier-parameters for more information."
+        errorLine1="fun TrashIcon(size: Dp, color: Color = DeleteFg) ="
+        errorLine2="    ~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/SwipeToDelete.kt"
+            line="110"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierWithoutDefault"
+        message="This @Composable function has a modifier parameter but it doesn&apos;t have a default value.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#modifiers-should-have-default-parameters for more information."
+        errorLine1="fun NightStrip(s: NightSummary, modifier: Modifier) {"
+        errorLine2="                                ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NightsScreen.kt"
+            line="166"
+            column="33"/>
+    </issue>
+
+    <issue
+        id="ComposeModifierWithoutDefault"
+        message="This @Composable function has a modifier parameter but it doesn&apos;t have a default value.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#modifiers-should-have-default-parameters for more information."
+        errorLine1="    modifier: Modifier,"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramsScreen.kt"
+            line="537"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ComposeMultipleContentEmitters"
+        message="Composable functions should only be emitting content into the composition from one source at their top level.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#do-not-emit-multiple-pieces-of-content for more information."
+        errorLine1="@SuppressLint(&quot;MissingPermission&quot;) // composed only inside RequireBluetoothPermissions"
+        errorLine2="^">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/DebugScreen.kt"
+            line="97"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="ComposeMultipleContentEmitters"
+        message="Composable functions should only be emitting content into the composition from one source at their top level.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#do-not-emit-multiple-pieces-of-content for more information."
+        errorLine1="@Composable"
+        errorLine2="^">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/DebugScreen.kt"
+            line="156"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="ComposeMultipleContentEmitters"
+        message="Composable functions should only be emitting content into the composition from one source at their top level.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#do-not-emit-multiple-pieces-of-content for more information."
+        errorLine1="/**"
+        errorLine2="^">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NowScreen.kt"
+            line="417"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="ComposeMutableParameters"
+        message="Using mutable objects as state in Compose will cause your users to see incorrect or stale data in your app. Mutable objects that are not observable, such as ArrayList&lt;T> or a mutable data class, cannot be observed by Compose to trigger recomposition when they change.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#do-not-use-inherently-mutable-types-as-parameters for more information."
+        errorLine1="fun NightTimeline(d: NightDetail, text: NightText, cursor: MutableState&lt;Double?>) {"
+        errorLine2="                                                           ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NightChart.kt"
+            line="80"
+            column="60"/>
+    </issue>
+
+    <issue
+        id="ComposeMutableParameters"
+        message="Using mutable objects as state in Compose will cause your users to see incorrect or stale data in your app. Mutable objects that are not observable, such as ArrayList&lt;T> or a mutable data class, cannot be observed by Compose to trigger recomposition when they change.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#do-not-use-inherently-mutable-types-as-parameters for more information."
+        errorLine1="    cursor: MutableState&lt;Double?>,"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NightChart.kt"
+            line="398"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;Decoration> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `decorations: ImmutableList&lt;Decoration>` or create an `@Immutable` wrapper for this class: `@Immutable data class DecorationsList(val items: List&lt;Decoration>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    decorations: List&lt;Decoration>,"
+        errorLine2="                 ~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NightChart.kt"
+            line="381"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;Decoration> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `decorations: ImmutableList&lt;Decoration>` or create an `@Immutable` wrapper for this class: `@Immutable data class DecorationsList(val items: List&lt;Decoration>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    decorations: List&lt;Decoration>,"
+        errorLine2="                 ~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NightChart.kt"
+            line="443"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;Decoration> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `decorations: ImmutableList&lt;Decoration>` or create an `@Immutable` wrapper for this class: `@Immutable data class DecorationsList(val items: List&lt;Decoration>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    decorations: List&lt;Decoration>,"
+        errorLine2="                 ~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/NightChart.kt"
+            line="507"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;Span> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `spans: ImmutableList&lt;Span>` or create an `@Immutable` wrapper for this class: `@Immutable data class SpansList(val items: List&lt;Span>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="fun ProgramChart(spans: List&lt;Span>, start: LocalTime, modifier: Modifier = Modifier) {"
+        errorLine2="                        ~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramChart.kt"
+            line="51"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;SlotView> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `slots: ImmutableList&lt;SlotView>` or create an `@Immutable` wrapper for this class: `@Immutable data class SlotsList(val items: List&lt;SlotView>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    slots: List&lt;SlotView>,"
+        errorLine2="           ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramDetailScreen.kt"
+            line="104"
+            column="12"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;ProgramRevision> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `revisions: ImmutableList&lt;ProgramRevision>` or create an `@Immutable` wrapper for this class: `@Immutable data class RevisionsList(val items: List&lt;ProgramRevision>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    revisions: List&lt;ProgramRevision>,"
+        errorLine2="               ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramDetailScreen.kt"
+            line="141"
+            column="16"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;SlotView> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `slots: ImmutableList&lt;SlotView>` or create an `@Immutable` wrapper for this class: `@Immutable data class SlotsList(val items: List&lt;SlotView>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    slots: List&lt;SlotView>,"
+        errorLine2="           ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramDetailScreen.kt"
+            line="142"
+            column="12"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;SlotView> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `slots: ImmutableList&lt;SlotView>` or create an `@Immutable` wrapper for this class: `@Immutable data class SlotsList(val items: List&lt;SlotView>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="private fun RevisionRow(r: ProgramRevision, entry: LibraryEntry, slots: List&lt;SlotView>) ="
+        errorLine2="                                                                        ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramDetailScreen.kt"
+            line="309"
+            column="73"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;SlotView> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `slots: ImmutableList&lt;SlotView>` or create an `@Immutable` wrapper for this class: `@Immutable data class SlotsList(val items: List&lt;SlotView>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    slots: List&lt;SlotView>,"
+        errorLine2="           ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramDetailScreen.kt"
+            line="371"
+            column="12"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;Int> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `ranked: ImmutableList&lt;Int>` or create an `@Immutable` wrapper for this class: `@Immutable data class RankedList(val items: List&lt;Int>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    ranked: List&lt;Int>,"
+        errorLine2="            ~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramDetailScreen.kt"
+            line="372"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;SlotView> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `slots: ImmutableList&lt;SlotView>` or create an `@Immutable` wrapper for this class: `@Immutable data class SlotsList(val items: List&lt;SlotView>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    slots: List&lt;SlotView>,"
+        errorLine2="           ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramDetailScreen.kt"
+            line="385"
+            column="12"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;Int> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `ranked: ImmutableList&lt;Int>` or create an `@Immutable` wrapper for this class: `@Immutable data class RankedList(val items: List&lt;Int>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    ranked: List&lt;Int>,"
+        errorLine2="            ~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramDetailScreen.kt"
+            line="386"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;Step> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `theirs: ImmutableList&lt;Step>` or create an `@Immutable` wrapper for this class: `@Immutable data class TheirsList(val items: List&lt;Step>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    theirs: List&lt;Step>,"
+        errorLine2="            ~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramDetailScreen.kt"
+            line="535"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;LibraryEntry> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `entries: ImmutableList&lt;LibraryEntry>` or create an `@Immutable` wrapper for this class: `@Immutable data class EntriesList(val items: List&lt;LibraryEntry>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    entries: List&lt;LibraryEntry>,"
+        errorLine2="             ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramsScreen.kt"
+            line="384"
+            column="14"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;SlotView> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `slots: ImmutableList&lt;SlotView>` or create an `@Immutable` wrapper for this class: `@Immutable data class SlotsList(val items: List&lt;SlotView>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    slots: List&lt;SlotView>,"
+        errorLine2="           ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramsScreen.kt"
+            line="385"
+            column="12"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;SlotView> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `slots: ImmutableList&lt;SlotView>` or create an `@Immutable` wrapper for this class: `@Immutable data class SlotsList(val items: List&lt;SlotView>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    slots: List&lt;SlotView>,"
+        errorLine2="           ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/ProgramsScreen.kt"
+            line="535"
+            column="12"/>
+    </issue>
+
+    <issue
+        id="ComposeUnstableCollections"
+        message="The Compose Compiler cannot infer the stability of a parameter if a List&lt;Span> is used in it, even if the item type is stable.&#xA;You should use Kotlinx Immutable Collections instead: `spans: ImmutableList&lt;Span>` or create an `@Immutable` wrapper for this class: `@Immutable data class SpansList(val items: List&lt;Span>)`&#xA;See https://slackhq.github.io/compose-lints/rules/#avoid-using-unstable-collections for more information."
+        errorLine1="    spans: List&lt;Span>,"
+        errorLine2="           ~~~~~~~~~~">
+        <location
+            file="src/main/java/link/thesymbolic/jetcommand/StepStrip.kt"
+            line="75"
+            column="12"/>
+    </issue>
+
+</issues>

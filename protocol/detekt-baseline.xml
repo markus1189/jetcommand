@@ -1,0 +1,21 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:Codec.kt:status != null &amp;&amp; status.mode == mode &amp;&amp; status.minTemp &gt; 0 &amp;&amp; status.maxTemp &gt;= status.minTemp &amp;&amp; mode.usesTemperature</ID>
+    <ID>CyclomaticComplexMethod:BedJetSim.kt:BedJetSim$private fun press</ID>
+    <ID>CyclomaticComplexMethod:Codec.kt:fun stepProblem: String?</ID>
+    <ID>CyclomaticComplexMethod:FixtureTest.kt:FixtureTest$@Test fun encoders</ID>
+    <ID>CyclomaticComplexMethod:FixtureTest.kt:FixtureTest$@Test fun simScenarios</ID>
+    <ID>CyclomaticComplexMethod:Library.kt:ProgramLibrary$private suspend fun reconcile</ID>
+    <ID>CyclomaticComplexMethod:NightGrouping.kt:fun summarize: NightSummary</ID>
+    <ID>CyclomaticComplexMethod:NightLog.kt:NightRecorder$private fun onStatus</ID>
+    <ID>CyclomaticComplexMethod:NightLog.kt:fun describeCommand: String</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:Codec.kt:val (mode, fan, temp, hours, minutes, clock) = step</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:FixtureTest.kt:FixtureTest$val (mode, temp, fan, want) = row.jsonArray.map { it.num }</ID>
+    <ID>LongMethod:NightRecorderTest.kt:NightRecorderTest$@Test fun `a full night - program, an hour without link, reconnect, no duplicates from 4 notifications per second`</ID>
+    <ID>NestedBlockDepth:NightGrouping.kt:fun summarize: NightSummary</ID>
+    <ID>TooGenericExceptionCaught:BedJetLink.kt:BedJetLink$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:SimTransport.kt:SimTransport$e: Throwable</ID>
+  </CurrentIssues>
+</SmellBaseline>
