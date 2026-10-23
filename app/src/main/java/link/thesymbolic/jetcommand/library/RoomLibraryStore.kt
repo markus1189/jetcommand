@@ -12,6 +12,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
 import androidx.room.withTransaction
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import link.thesymbolic.jetcommand.protocol.LibraryEntry
@@ -23,7 +24,6 @@ import link.thesymbolic.jetcommand.protocol.PushRecord
 import link.thesymbolic.jetcommand.protocol.SlotState
 import link.thesymbolic.jetcommand.protocol.decodeSteps
 import link.thesymbolic.jetcommand.protocol.encodeSteps
-import java.util.UUID
 
 @Entity(tableName = "program", indices = [Index("updatedAt")])
 data class ProgramRow(
@@ -33,7 +33,8 @@ data class ProgramRow(
     val updatedAt: Long,
 )
 
-// origin as its enum name, like the night log's kind. Steps in the 5-byte wire form, so a fingerprint can be
+// origin as its enum name, like the night log's kind. Steps in the 5-byte wire form, so a
+// fingerprint can be
 // recomputed from exactly what the unit stores.
 @Entity(tableName = "program_revision", primaryKeys = ["programId", "rev"])
 data class ProgramRevisionRow(
@@ -114,48 +115,64 @@ interface LibraryDao {
     @Upsert suspend fun put(row: SlotStateRow)
 }
 
-@Database(entities = [ProgramRow::class, ProgramRevisionRow::class, SlotStateRow::class], version = 1)
+@Database(
+    entities = [ProgramRow::class, ProgramRevisionRow::class, SlotStateRow::class],
+    version = 1,
+)
 abstract class LibraryDatabase : RoomDatabase() {
     abstract fun library(): LibraryDao
 
     companion object {
-        fun open(context: Context) = Room.databaseBuilder(context, LibraryDatabase::class.java, "library.db").build()
+        fun open(context: Context) =
+            Room.databaseBuilder(context, LibraryDatabase::class.java, "library.db").build()
     }
 }
 
 class RoomLibraryStore(private val db: LibraryDatabase) : LibraryStore {
     private val dao = db.library()
 
-    override fun entries(): Flow<List<LibraryEntry>> = dao.entries().map { rows -> rows.map(EntryRow::toEntry) }
+    override fun entries(): Flow<List<LibraryEntry>> =
+        dao.entries().map { rows -> rows.map(EntryRow::toEntry) }
 
-    override fun slots(device: String): Flow<List<SlotState>> = dao.slots(device).map { rows -> rows.map(SlotStateRow::toState) }
+    override fun slots(device: String): Flow<List<SlotState>> =
+        dao.slots(device).map { rows -> rows.map(SlotStateRow::toState) }
 
     override suspend fun entry(id: String): LibraryEntry? = dao.entry(id)?.toEntry()
 
-    override suspend fun revisions(programId: String): List<ProgramRevision> = dao.revisions(programId).map(ProgramRevisionRow::toRevision)
+    override suspend fun revisions(programId: String): List<ProgramRevision> =
+        dao.revisions(programId).map(ProgramRevisionRow::toRevision)
 
-    override suspend fun slot(device: String, slot: Int): SlotState? = dao.slot(device, slot)?.toState()
+    override suspend fun slot(device: String, slot: Int): SlotState? =
+        dao.slot(device, slot)?.toState()
 
-    override suspend fun createProgram(program: Program, origin: Origin, at: Long): LibraryEntry = db.withTransaction {
-        val id = UUID.randomUUID().toString()
-        val revision = ProgramRevision(id, 1, program, at, origin)
-        dao.insert(ProgramRow(id, currentRev = 1, deletedAt = null, updatedAt = at))
-        dao.insert(revision.toRow())
-        LibraryEntry(id, revision)
-    }
-
-    override suspend fun addRevision(programId: String, program: Program, origin: Origin, at: Long, makeCurrent: Boolean): ProgramRevision =
+    override suspend fun createProgram(program: Program, origin: Origin, at: Long): LibraryEntry =
         db.withTransaction {
-            val rev = (dao.maxRev(programId) ?: error("no program $programId")) + 1
-            val revision = ProgramRevision(programId, rev, program, at, origin)
+            val id = UUID.randomUUID().toString()
+            val revision = ProgramRevision(id, 1, program, at, origin)
+            dao.insert(ProgramRow(id, currentRev = 1, deletedAt = null, updatedAt = at))
             dao.insert(revision.toRow())
-            if (makeCurrent) dao.setCurrent(programId, rev, at)
-            revision
+            LibraryEntry(id, revision)
         }
+
+    override suspend fun addRevision(
+        programId: String,
+        program: Program,
+        origin: Origin,
+        at: Long,
+        makeCurrent: Boolean,
+    ): ProgramRevision = db.withTransaction {
+        val rev = (dao.maxRev(programId) ?: error("no program $programId")) + 1
+        val revision = ProgramRevision(programId, rev, program, at, origin)
+        dao.insert(revision.toRow())
+        if (makeCurrent) dao.setCurrent(programId, rev, at)
+        revision
+    }
 
     // Reverting to an older revision counts as an edit for "most recently edited first".
     override suspend fun setCurrent(programId: String, rev: Int) {
-        check(dao.setCurrent(programId, rev, System.currentTimeMillis()) == 1) { "no program $programId" }
+        check(dao.setCurrent(programId, rev, System.currentTimeMillis()) == 1) {
+            "no program $programId"
+        }
     }
 
     override suspend fun setDeleted(programId: String, at: Long?) {
@@ -166,30 +183,71 @@ class RoomLibraryStore(private val db: LibraryDatabase) : LibraryStore {
 }
 
 private fun ProgramRevision.toRow() =
-    ProgramRevisionRow(programId, rev, program.name, encodeSteps(program.steps), createdAt, origin.name, note)
+    ProgramRevisionRow(
+        programId,
+        rev,
+        program.name,
+        encodeSteps(program.steps),
+        createdAt,
+        origin.name,
+        note,
+    )
 
-// An unknown origin name can only come from a newer build; OUTSIDE is the least presumptuous reading.
-private fun originOf(name: String) = Origin.entries.firstOrNull { it.name == name } ?: Origin.OUTSIDE
+// An unknown origin name can only come from a newer build; OUTSIDE is the least presumptuous
+// reading.
+private fun originOf(name: String) =
+    Origin.entries.firstOrNull { it.name == name } ?: Origin.OUTSIDE
 
 private fun ProgramRevisionRow.toRevision() =
-    ProgramRevision(programId, rev, Program(name, decodeSteps(steps)), createdAt, originOf(origin), note)
+    ProgramRevision(
+        programId,
+        rev,
+        Program(name, decodeSteps(steps)),
+        createdAt,
+        originOf(origin),
+        note,
+    )
 
 private fun EntryRow.toEntry() =
-    LibraryEntry(id, ProgramRevision(id, rev, Program(name, decodeSteps(steps)), createdAt, originOf(origin), note), deletedAt)
+    LibraryEntry(
+        id,
+        ProgramRevision(
+            id,
+            rev,
+            Program(name, decodeSteps(steps)),
+            createdAt,
+            originOf(origin),
+            note,
+        ),
+        deletedAt,
+    )
 
 private fun record(id: String?, rev: Int?, fingerprint: String?, at: Long? = null) =
-    if (id != null && rev != null && fingerprint != null) PushRecord(id, rev, fingerprint, at ?: 0) else null
+    if (id != null && rev != null && fingerprint != null) PushRecord(id, rev, fingerprint, at ?: 0)
+    else null
 
-private fun SlotStateRow.toState() = SlotState(
-    device, slot,
-    program = if (name != null && steps != null) Program(name, decodeSteps(steps)) else null,
-    readAt = readAt,
-    pushed = record(pushedProgramId, pushedRev, pushedFingerprint, pushedAt),
-    pending = record(pendingProgramId, pendingRev, pendingFingerprint),
-)
+private fun SlotStateRow.toState() =
+    SlotState(
+        device,
+        slot,
+        program = if (name != null && steps != null) Program(name, decodeSteps(steps)) else null,
+        readAt = readAt,
+        pushed = record(pushedProgramId, pushedRev, pushedFingerprint, pushedAt),
+        pending = record(pendingProgramId, pendingRev, pendingFingerprint),
+    )
 
-private fun SlotState.toRow() = SlotStateRow(
-    device, slot, program?.name, program?.steps?.let(::encodeSteps), readAt,
-    pushed?.programId, pushed?.rev, pushed?.fingerprint, pushed?.at,
-    pending?.programId, pending?.rev, pending?.fingerprint,
-)
+private fun SlotState.toRow() =
+    SlotStateRow(
+        device,
+        slot,
+        program?.name,
+        program?.steps?.let(::encodeSteps),
+        readAt,
+        pushed?.programId,
+        pushed?.rev,
+        pushed?.fingerprint,
+        pushed?.at,
+        pending?.programId,
+        pending?.rev,
+        pending?.fingerprint,
+    )

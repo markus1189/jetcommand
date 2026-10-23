@@ -36,14 +36,16 @@ import kotlin.math.roundToInt
 
 private sealed interface Press {
     data object Released : Press
+
     data object Dragging : Press
 }
 
 /**
- * A value in `0 until count`: tap the left/right half for one step, hold to repeat faster and faster, or drag and
- * the value jumps to the finger, bottom = min, top = max. A touch alone never jumps, so a stray brush changes
- * nothing. [onPreview] follows the finger; [onCommit] fires once, on release.
- * [hollow] draws the number outlined, for a value sent but not yet confirmed by the unit.
+ * A value in `0 until count`: tap the left/right half for one step, hold to repeat faster and
+ * faster, or drag and the value jumps to the finger, bottom = min, top = max. A touch alone never
+ * jumps, so a stray brush changes nothing. [onPreview] follows the finger; [onCommit] fires once,
+ * on release. [hollow] draws the number outlined, for a value sent but not yet confirmed by the
+ * unit.
  */
 @Composable
 fun ValueField(
@@ -64,67 +66,84 @@ fun ValueField(
     val current by rememberUpdatedState(index)
     val preview by rememberUpdatedState(onPreview)
     val commit by rememberUpdatedState(onCommit)
-    fun tick() = view.performHapticFeedback(
-        if (Build.VERSION.SDK_INT >= 34) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK,
-    )
+    fun tick() =
+        view.performHapticFeedback(
+            if (Build.VERSION.SDK_INT >= 34) HapticFeedbackConstants.SEGMENT_TICK
+            else HapticFeedbackConstants.CLOCK_TICK
+        )
 
-    val gestures = if (!enabled) Modifier else Modifier.pointerInput(count) {
-        awaitEachGesture {
-            val down = awaitFirstDown()
-            val dir = if (down.position.x < size.width / 2) -1 else 1
-            val start = current
-            var value = start
-            fun set(v: Int) {
-                val c = v.coerceIn(0, count - 1)
-                if (c == value) return
-                value = c
-                tick()
-                preview(c)
-            }
+    val gestures =
+        if (!enabled) Modifier
+        else
+            Modifier.pointerInput(count) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val dir = if (down.position.x < size.width / 2) -1 else 1
+                    val start = current
+                    var value = start
+                    fun set(v: Int) {
+                        val c = v.coerceIn(0, count - 1)
+                        if (c == value) return
+                        value = c
+                        tick()
+                        preview(c)
+                    }
 
-            val first = withTimeoutOrNull(450) {
-                while (true) {
-                    val change = awaitPointerEvent().changes.first()
-                    if (!change.pressed) return@withTimeoutOrNull Press.Released
-                    if (abs(change.position.y - down.position.y) > slop) return@withTimeoutOrNull Press.Dragging
+                    val first =
+                        withTimeoutOrNull(450) {
+                            while (true) {
+                                val change = awaitPointerEvent().changes.first()
+                                if (!change.pressed) return@withTimeoutOrNull Press.Released
+                                if (abs(change.position.y - down.position.y) > slop)
+                                    return@withTimeoutOrNull Press.Dragging
+                            }
+                            @Suppress("UNREACHABLE_CODE") null
+                        }
+                    when (first) {
+                        Press.Released -> set(start + dir)
+                        Press.Dragging ->
+                            while (true) {
+                                val change = awaitPointerEvent().changes.first()
+                                if (!change.pressed) break
+                                change.consume()
+                                set(
+                                    ((1 - change.position.y / size.height) * (count - 1))
+                                        .roundToInt()
+                                )
+                            }
+                        null -> {
+                            var delay = 350L
+                            do {
+                                set(value + dir)
+                                val released =
+                                    withTimeoutOrNull(delay) {
+                                        while (awaitPointerEvent().changes.first().pressed) Unit
+                                    } != null
+                                delay = maxOf(50L, delay * 3 / 4)
+                            } while (!released)
+                        }
+                    }
+                    preview(null)
+                    if (value != start) commit(value)
                 }
-                @Suppress("UNREACHABLE_CODE")
-                null
             }
-            when (first) {
-                Press.Released -> set(start + dir)
-                Press.Dragging -> while (true) {
-                    val change = awaitPointerEvent().changes.first()
-                    if (!change.pressed) break
-                    change.consume()
-                    set(((1 - change.position.y / size.height) * (count - 1)).roundToInt())
-                }
-                null -> {
-                    var delay = 350L
-                    do {
-                        set(value + dir)
-                        val released = withTimeoutOrNull(delay) {
-                            while (awaitPointerEvent().changes.first().pressed) Unit
-                        } != null
-                        delay = maxOf(50L, delay * 3 / 4)
-                    } while (!released)
-                }
-            }
-            preview(null)
-            if (value != start) commit(value)
-        }
-    }
 
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Box(
-        modifier.heightIn(min = 200.dp).clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant).then(gestures),
+        modifier
+            .heightIn(min = 200.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .then(gestures)
     ) {
         val fraction = if (count > 1) index / (count - 1f) else 1f
-        if (enabled) Box(
-            Modifier.fillMaxWidth().fillMaxHeight(fraction.coerceIn(0f, 1f)).align(Alignment.BottomCenter)
-                .background(color.copy(alpha = 0.22f)),
-        )
+        if (enabled)
+            Box(
+                Modifier.fillMaxWidth()
+                    .fillMaxHeight(fraction.coerceIn(0f, 1f))
+                    .align(Alignment.BottomCenter)
+                    .background(color.copy(alpha = 0.22f))
+            )
         Column(
             Modifier.fillMaxSize().padding(vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -134,12 +153,13 @@ fun ValueField(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text,
-                    style = TextStyle(
-                        fontSize = 56.sp,
-                        lineHeight = 60.sp,
-                        color = if (enabled) MaterialTheme.colorScheme.onSurface else muted,
-                        drawStyle = if (hollow) Stroke(width = 3f) else null,
-                    ),
+                    style =
+                        TextStyle(
+                            fontSize = 56.sp,
+                            lineHeight = 60.sp,
+                            color = if (enabled) MaterialTheme.colorScheme.onSurface else muted,
+                            drawStyle = if (hollow) Stroke(width = 3f) else null,
+                        ),
                 )
                 Text(sub, color = muted, fontSize = 13.sp)
             }

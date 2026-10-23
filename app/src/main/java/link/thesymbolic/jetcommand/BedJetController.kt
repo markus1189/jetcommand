@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import java.time.LocalTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,8 +22,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -42,12 +43,11 @@ import link.thesymbolic.jetcommand.protocol.NightEvent
 import link.thesymbolic.jetcommand.protocol.NightLogStore
 import link.thesymbolic.jetcommand.protocol.NightRecorder
 import link.thesymbolic.jetcommand.protocol.Program
-import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 import link.thesymbolic.jetcommand.protocol.SimTransport
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
+import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.TappedTransport
-import java.time.LocalTime
 
 sealed interface Source {
     val label: String
@@ -57,7 +57,8 @@ sealed interface Source {
     }
 
     data class Device(val address: String, val name: String?) : Source {
-        override val label get() = name ?: address
+        override val label
+            get() = name ?: address
     }
 }
 
@@ -71,28 +72,38 @@ class BedJetStack(
     val recorder: NightRecorder,
     val scope: CoroutineScope,
 ) {
-    val label get() = source.label
+    val label
+        get() = source.label
 }
 
 /**
- * The process's single owner of the BedJet connection; the UI and [BedJetService] only observe and ask.
- * Everything runs on Main.immediate, the single thread [BedJetLink] and [BedJetDevice] require.
+ * The process's single owner of the BedJet connection; the UI and [BedJetService] only observe and
+ * ask. Everything runs on Main.immediate, the single thread [BedJetLink] and [BedJetDevice]
+ * require.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class BedJetController(context: Context, private val store: NightLogStore, private val library: ProgramLibrary) {
+class BedJetController(
+    context: Context,
+    private val store: NightLogStore,
+    private val library: ProgramLibrary,
+) {
     private val context = context.applicationContext
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val prefs = this.context.getSharedPreferences("jetcommand", Context.MODE_PRIVATE)
 
     private val _stack = MutableStateFlow<BedJetStack?>(null)
     val stack: StateFlow<BedJetStack?> = _stack.asStateFlow()
-    val linkState: StateFlow<LinkState> = _stack.flatMapLatest { it?.link?.state ?: flowOf(LinkState.Disconnected()) }
-        .stateIn(scope, SharingStarted.Eagerly, LinkState.Disconnected())
-    val status: StateFlow<StatusUpdate?> = _stack.flatMapLatest { it?.link?.status ?: flowOf(null) }
-        .stateIn(scope, SharingStarted.Eagerly, null)
+    val linkState: StateFlow<LinkState> =
+        _stack
+            .flatMapLatest { it?.link?.state ?: flowOf(LinkState.Disconnected()) }
+            .stateIn(scope, SharingStarted.Eagerly, LinkState.Disconnected())
+    val status: StateFlow<StatusUpdate?> =
+        _stack
+            .flatMapLatest { it?.link?.status ?: flowOf(null) }
+            .stateIn(scope, SharingStarted.Eagerly, null)
     /** The [ProgramLibrary] device key of the current stack. */
-    val deviceId: StateFlow<String?> = _stack.map { it?.source?.let(::idOf) }
-        .stateIn(scope, SharingStarted.Eagerly, null)
+    val deviceId: StateFlow<String?> =
+        _stack.map { it?.source?.let(::idOf) }.stateIn(scope, SharingStarted.Eagerly, null)
 
     private val _log = MutableStateFlow<List<String>>(emptyList())
     val log: StateFlow<List<String>> = _log.asStateFlow()
@@ -112,21 +123,35 @@ class BedJetController(context: Context, private val store: NightLogStore, priva
 
     init {
         val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
-        // Ends what [ProgramLibrary.started] knows: whatever runs next may have been started elsewhere.
+        // Ends what [ProgramLibrary.started] knows: whatever runs next may have been started
+        // elsewhere.
         scope.launch {
-            status.collect { if (it != null && it.extraFresh && it.status.extra?.programStep == 0) library.clearStarted() }
-        }
-        this.context.registerReceiver(object : BroadcastReceiver() {
-            override fun onReceive(c: Context, intent: Intent) {
-                if (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1) != BluetoothAdapter.STATE_ON) return
-                val link = _stack.value?.link ?: return
-                log(LogLevel.INFO, "Bluetooth on")
-                link.retryNow()
+            status.collect {
+                if (it != null && it.extraFresh && it.status.extra?.programStep == 0)
+                    library.clearStarted()
             }
-        }, filter, Context.RECEIVER_NOT_EXPORTED)
+        }
+        this.context.registerReceiver(
+            object : BroadcastReceiver() {
+                override fun onReceive(c: Context, intent: Intent) {
+                    if (
+                        intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1) !=
+                            BluetoothAdapter.STATE_ON
+                    )
+                        return
+                    val link = _stack.value?.link ?: return
+                    log(LogLevel.INFO, "Bluetooth on")
+                    link.retryNow()
+                }
+            },
+            filter,
+            Context.RECEIVER_NOT_EXPORTED,
+        )
     }
 
-    fun log(level: LogLevel, msg: String) = _log.update { (it + "${LocalTime.now().withNano(0)} ${level.name.first()} $msg").takeLast(100) }
+    fun log(level: LogLevel, msg: String) = _log.update {
+        (it + "${LocalTime.now().withNano(0)} ${level.name.first()} $msg").takeLast(100)
+    }
 
     fun connectDemo() = switchTo(Source.Demo)
 
@@ -134,7 +159,9 @@ class BedJetController(context: Context, private val store: NightLogStore, priva
 
     fun disconnect() = switchTo(null)
 
-    /** Once per process, from the UI: reconnects to the remembered device if nothing is connected. */
+    /**
+     * Once per process, from the UI: reconnects to the remembered device if nothing is connected.
+     */
     fun autoConnectOnce() {
         if (autoConnectTried) return
         autoConnectTried = true
@@ -145,7 +172,8 @@ class BedJetController(context: Context, private val store: NightLogStore, priva
     }
 
     fun hasConnectPermission() =
-        context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+        context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
+            PackageManager.PERMISSION_GRANTED
 
     /** Must be called while the app is in the foreground: it starts [BedJetService]. */
     private fun switchTo(source: Source?) {
@@ -153,7 +181,8 @@ class BedJetController(context: Context, private val store: NightLogStore, priva
         switching = scope.launch {
             previous?.join()
             _stack.value?.let { teardown(it) }
-            // Switching sources keeps the old (torn down) stack until the new one exists, so the service doesn't stop.
+            // Switching sources keeps the old (torn down) stack until the new one exists, so the
+            // service doesn't stop.
             if (source == null) {
                 _stack.value = null
                 return@launch
@@ -167,47 +196,70 @@ class BedJetController(context: Context, private val store: NightLogStore, priva
     }
 
     private fun build(source: Source): BedJetStack {
-        val scope = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
-        val raw: BedJetTransport = when (source) {
-            Source.Demo -> SimTransport(BedJetSim(slots = demoSlots()), scope)
-            is Source.Device -> {
-                val adapter = context.getSystemService(BluetoothManager::class.java).adapter
-                GattTransport(context, adapter.getRemoteDevice(source.address))
+        val scope =
+            CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
+        val raw: BedJetTransport =
+            when (source) {
+                Source.Demo -> SimTransport(BedJetSim(slots = demoSlots()), scope)
+                is Source.Device -> {
+                    val adapter = context.getSystemService(BluetoothManager::class.java).adapter
+                    GattTransport(context, adapter.getRemoteDevice(source.address))
+                }
             }
-        }
         lateinit var recorder: NightRecorder
         val transport = TappedTransport(raw) { recorder.command(it) }
-        // The user wants the link until they say otherwise: keep trying all night. Night 1's status-8 drops happened
-        // in range, yet the default 60 s cap plus 20 s connect timeouts left a 358 s gap; 10 s keeps it under ~30 s.
-        val config = BedJetLink.Config(maxReconnectAttempts = null, retryFailedConnect = true, reconnectMaxMs = 10_000)
+        // The user wants the link until they say otherwise: keep trying all night. Night 1's
+        // status-8 drops happened
+        // in range, yet the default 60 s cap plus 20 s connect timeouts left a 358 s gap; 10 s
+        // keeps it under ~30 s.
+        val config =
+            BedJetLink.Config(
+                maxReconnectAttempts = null,
+                retryFailedConnect = true,
+                reconnectMaxMs = 10_000,
+            )
         val link = BedJetLink(transport, scope, config, log = ::log)
         recorder = NightRecorder(link, store, scope)
         val device = BedJetDevice(link, scope)
-        scope.launch { device.notifications.collect { log(LogLevel.WARN, "Notification ${it.code}: ${it.text}") } }
-        val stack = BedJetStack(source, transport, raw as? SimTransport, link, device, recorder, scope)
+        scope.launch {
+            device.notifications.collect {
+                log(LogLevel.WARN, "Notification ${it.code}: ${it.text}")
+            }
+        }
+        val stack =
+            BedJetStack(source, transport, raw as? SimTransport, link, device, recorder, scope)
         refreshOnReady(stack)
         return stack
     }
 
-    /** Re-reads the slots on every transition to Ready; a Ready while a refresh still runs doesn't start another. */
+    /**
+     * Re-reads the slots on every transition to Ready; a Ready while a refresh still runs doesn't
+     * start another.
+     */
     private fun refreshOnReady(stack: BedJetStack) {
         var running: Job? = null
         stack.scope.launch {
             // StateFlow is distinct, so each Ready emission is a transition.
-            stack.link.state.filter { it == LinkState.Ready }.collect {
-                if (running?.isActive == true) return@collect
-                running = stack.scope.launch {
-                    guard("library refresh") { library.refresh(idOf(stack.source), stack.device) }
+            stack.link.state
+                .filter { it == LinkState.Ready }
+                .collect {
+                    if (running?.isActive == true) return@collect
+                    running =
+                        stack.scope.launch {
+                            guard("library refresh") {
+                                library.refresh(idOf(stack.source), stack.device)
+                            }
+                        }
                 }
-            }
         }
     }
 
-    private suspend fun teardown(stack: BedJetStack) = withContext(NonCancellable) {
-        stack.recorder.userDisconnecting()
-        runCatching { stack.link.disconnect() }
-        stack.scope.coroutineContext[Job]?.cancelAndJoin()
-    }
+    private suspend fun teardown(stack: BedJetStack) =
+        withContext(NonCancellable) {
+            stack.recorder.userDisconnecting()
+            runCatching { stack.link.disconnect() }
+            stack.scope.coroutineContext[Job]?.cancelAndJoin()
+        }
 
     /** Runs [block] on the current stack; failures go to the log, never up. */
     fun act(what: String, block: suspend (BedJetStack) -> Unit) {
@@ -231,7 +283,8 @@ class BedJetController(context: Context, private val store: NightLogStore, priva
         }
     }
 
-    // SharedPreferences, not DataStore: two strings, read once synchronously at startup to decide on auto-connect.
+    // SharedPreferences, not DataStore: two strings, read once synchronously at startup to decide
+    // on auto-connect.
     private fun loadRemembered(): Source.Device? {
         val address = prefs.getString(KEY_ADDRESS, null) ?: return null
         return Source.Device(address, prefs.getString(KEY_NAME, null))
@@ -246,13 +299,21 @@ class BedJetController(context: Context, private val store: NightLogStore, priva
         const val DEMO_ID = "demo"
 
         /** Two programs to keep or run, one empty slot. */
-        fun demoSlots() = listOf(
-            Program("Cool down", listOf(Step(Mode.TURBO, 19, 86, 0, 5), Step(Mode.COOL, 7, 40, 6, 0))),
-            Program("Twostep", listOf(Step(Mode.HEAT, 9, 70, 0, 30), Step(Mode.EXT_HEAT, 5, 62, 2, 0))),
-            null,
-        )
+        fun demoSlots() =
+            listOf(
+                Program(
+                    "Cool down",
+                    listOf(Step(Mode.TURBO, 19, 86, 0, 5), Step(Mode.COOL, 7, 40, 6, 0)),
+                ),
+                Program(
+                    "Twostep",
+                    listOf(Step(Mode.HEAT, 9, 70, 0, 30), Step(Mode.EXT_HEAT, 5, 62, 2, 0)),
+                ),
+                null,
+            )
 
         fun idOf(source: Source) = if (source is Source.Device) source.address else DEMO_ID
+
         private const val KEY_ADDRESS = "device.address"
         private const val KEY_NAME = "device.name"
     }

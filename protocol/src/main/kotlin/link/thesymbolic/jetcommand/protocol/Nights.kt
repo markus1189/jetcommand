@@ -3,8 +3,9 @@ package link.thesymbolic.jetcommand.protocol
 import kotlinx.coroutines.flow.Flow
 
 /**
- * One night: everything logged from [start] to [end]; [end] is the last event or sample, not a wall-clock bound.
- * [gaps], in time order, are the stretches nothing was watching: the link lost, or the app's process gone.
+ * One night: everything logged from [start] to [end]; [end] is the last event or sample, not a
+ * wall-clock bound. [gaps], in time order, are the stretches nothing was watching: the link lost,
+ * or the app's process gone.
  */
 data class NightSummary(
     val start: Long,
@@ -16,13 +17,22 @@ data class NightSummary(
     val killedAt: List<Long>,
 ) {
     data class Gap(val from: Long, val to: Long, val cause: Cause)
-    enum class Cause { LINK, APP }
+
+    enum class Cause {
+        LINK,
+        APP,
+    }
 }
 
-data class NightDetail(val summary: NightSummary, val events: List<NightEvent>, val samples: List<NightSample>)
+data class NightDetail(
+    val summary: NightSummary,
+    val events: List<NightEvent>,
+    val samples: List<NightSample>,
+)
 
 interface NightsSource {
     /** Newest first. */
     fun nights(): Flow<List<NightSummary>>
+
     suspend fun detail(night: NightSummary): NightDetail
 }

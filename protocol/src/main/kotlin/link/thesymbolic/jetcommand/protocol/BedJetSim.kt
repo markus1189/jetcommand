@@ -8,17 +8,18 @@ data class Memory(val name: String, val mode: Mode, val fan: Int, val temp: Int)
 
 /**
  * A BedJet that speaks the same bytes, for demo mode and tests: port of the web app's `BedJetSim`.
- * Only the device; connecting and notifying are the transport's job. Time moves only through
- * [tick] and [skipAhead], so callers own the clock.
+ * Only the device; connecting and notifying are the transport's job. Time moves only through [tick]
+ * and [skipAhead], so callers own the clock.
  */
 class BedJetSim(
     var deviceName: String = "BEDJET-DEMO",
     slots: List<Program?> = listOf(null, null, null),
-    memories: List<Memory> = listOf(
-        Memory("Cool down", Mode.COOL, fan = 9, temp = 44),
-        Memory("Warm up", Mode.HEAT, fan = 9, temp = 70),
-        Memory("Dry sheets", Mode.DRY, fan = 14, temp = 50),
-    ),
+    memories: List<Memory> =
+        listOf(
+            Memory("Cool down", Mode.COOL, fan = 9, temp = 44),
+            Memory("Warm up", Mode.HEAT, fan = 9, temp = 70),
+            Memory("Dry sheets", Mode.DRY, fan = 14, temp = 50),
+        ),
     /** Seconds since midnight on the unit's clock; null until `08 hh mm` sets it. */
     var clock: Int? = null,
 ) {
@@ -67,13 +68,18 @@ class BedJetSim(
 
     /** The payload the unit answers a `41 id tag` query with, without the id and tag header. */
     fun query(id: Int): ByteArray {
-        fun text(value: String) = ByteArray(value.length + 1) { if (it < value.length) value[it].code.toByte() else 0 }
-        fun nameBlock(names: List<String?>) = ByteArray(48).also { out ->
-            names.forEachIndexed { i, name ->
-                if (name == null) out[i * 16] = 0x01
-                else Command.sanitizeName(name).forEachIndexed { j, ch -> out[i * 16 + j] = ch.code.toByte() }
+        fun text(value: String) =
+            ByteArray(value.length + 1) { if (it < value.length) value[it].code.toByte() else 0 }
+        fun nameBlock(names: List<String?>) =
+            ByteArray(48).also { out ->
+                names.forEachIndexed { i, name ->
+                    if (name == null) out[i * 16] = 0x01
+                    else
+                        Command.sanitizeName(name).forEachIndexed { j, ch ->
+                            out[i * 16 + j] = ch.code.toByte()
+                        }
+                }
             }
-        }
         return when (id) {
             Query.DEVICE_NAME -> text(deviceName)
             Query.FIRMWARE -> text(firmware)
@@ -84,13 +90,17 @@ class BedJetSim(
                 val index = (id - 7) % 4
                 val steps = slots[slot]?.steps.orEmpty()
                 val frames = Command.writeProgram(slot, steps)
-                if (index < frames.size) frames[index].copyOfRange(2, 43) else byteArrayOf(steps.size.toByte())
+                if (index < frames.size) frames[index].copyOfRange(2, 43)
+                else byteArrayOf(steps.size.toByte())
             }
             else -> throw BedJetException(ErrorCode.BAD_RESPONSE)
         }
     }
 
-    /** What the real unit does when it cuts out: standby with a reason byte (status byte 18), no command sent. */
+    /**
+     * What the real unit does when it cuts out: standby with a reason byte (status byte 18), no
+     * command sent.
+     */
     fun cutOut(reason: Int) {
         run = null
         step = 0
@@ -100,7 +110,10 @@ class BedJetSim(
         shutdown = reason and 0xff
     }
 
-    /** One second: a running program or timer moves on, the air drifts one half-degree toward its goal. */
+    /**
+     * One second: a running program or timer moves on, the air drifts one half-degree toward its
+     * goal.
+     */
     fun tick() {
         advance(1)
         val goal = if (mode == Mode.STANDBY || mode == Mode.WAIT) ambient else target
@@ -111,48 +124,56 @@ class BedJetSim(
     fun skipAhead(minutes: Double) = advance(Math.round(minutes * 60).toInt())
 
     /** The 30-byte status notification. */
-    fun packet() = ByteArray(30).also { b ->
-        fun set(i: Int, v: Int) { b[i] = v.toByte() }
-        set(1, 0x56)
-        set(2, b.size)
-        set(3, 0x01)
-        set(4, remainingSeconds / 3600)
-        set(5, remainingSeconds / 60 % 60)
-        set(6, remainingSeconds % 60)
-        set(7, actual)
-        set(8, target)
-        set(9, mode.ordinal)
-        set(10, fan)
-        set(11, maxRuntime / 60)
-        set(12, maxRuntime % 60)
-        set(13, min)
-        set(14, max)
-        set(17, ambient)
-        set(18, shutdown)
-        set(27, 0x20 or 0x04 or (if (led) 0x10 else 0) or (if (muted) 0x01 else 0))
-        set(28, step)
-        set(29, notification)
-    }
+    fun packet() =
+        ByteArray(30).also { b ->
+            fun set(i: Int, v: Int) {
+                b[i] = v.toByte()
+            }
+            set(1, 0x56)
+            set(2, b.size)
+            set(3, 0x01)
+            set(4, remainingSeconds / 3600)
+            set(5, remainingSeconds / 60 % 60)
+            set(6, remainingSeconds % 60)
+            set(7, actual)
+            set(8, target)
+            set(9, mode.ordinal)
+            set(10, fan)
+            set(11, maxRuntime / 60)
+            set(12, maxRuntime % 60)
+            set(13, min)
+            set(14, max)
+            set(17, ambient)
+            set(18, shutdown)
+            set(27, 0x20 or 0x04 or (if (led) 0x10 else 0) or (if (muted) 0x01 else 0))
+            set(28, step)
+            set(29, notification)
+        }
 
     private fun press(code: Int) {
         when (code) {
             in Button.OFF..Button.EXT_HEAT -> {
                 run = null
                 step = 0
-                enterManual(listOf(Mode.STANDBY, Mode.COOL, Mode.HEAT, Mode.TURBO, Mode.DRY, Mode.EXT_HEAT)[code - 1])
+                enterManual(
+                    listOf(Mode.STANDBY, Mode.COOL, Mode.HEAT, Mode.TURBO, Mode.DRY, Mode.EXT_HEAT)[
+                        code - 1]
+                )
             }
-            Button.FAN_UP, Button.FAN_DOWN -> {
+            Button.FAN_UP,
+            Button.FAN_DOWN -> {
                 fan = (fan + if (code == Button.FAN_UP) 1 else -1).coerceIn(0, 19)
                 limitHeat()
             }
             in Button.TEMP_UP_C..Button.TEMP_DOWN_F -> {
                 if (!mode.usesTemperature) return
-                val delta = when (code) {
-                    Button.TEMP_UP_C -> 2
-                    Button.TEMP_DOWN_C -> -2
-                    Button.TEMP_UP_F -> 1
-                    else -> -1
-                }
+                val delta =
+                    when (code) {
+                        Button.TEMP_UP_C -> 2
+                        Button.TEMP_DOWN_C -> -2
+                        Button.TEMP_UP_F -> 1
+                        else -> -1
+                    }
                 target = (target + delta).coerceIn(min, max)
                 limitHeat()
             }
@@ -168,21 +189,27 @@ class BedJetSim(
                 val i = code - Button.SAVE_MEMORY_1
                 memories[i] = Memory(memories[i].name, mode, fan, target)
             }
-            Button.LED_ON, Button.LED_OFF -> led = code == Button.LED_ON
-            Button.MUTE, Button.UNMUTE -> muted = code == Button.MUTE
+            Button.LED_ON,
+            Button.LED_OFF -> led = code == Button.LED_ON
+            Button.MUTE,
+            Button.UNMUTE -> muted = code == Button.MUTE
             Button.ACK -> notification = Notification.NONE
-            in Button.START_PROGRAM until Button.START_PROGRAM + 3 -> start(code - Button.START_PROGRAM)
-            in Button.DELETE_PROGRAM until Button.DELETE_PROGRAM + 3 -> slots[code - Button.DELETE_PROGRAM] = null
+            in Button.START_PROGRAM until Button.START_PROGRAM + 3 ->
+                start(code - Button.START_PROGRAM)
+            in Button.DELETE_PROGRAM until Button.DELETE_PROGRAM + 3 ->
+                slots[code - Button.DELETE_PROGRAM] = null
         }
     }
 
     private fun start(slot: Int) {
         val program = slots[slot] ?: return
         // Like the real unit: refuse up front rather than stop partway through the night.
-        val now = clock ?: run {
-            notification = Notification.PROGRAM_NEEDS_CLOCK
-            return
-        }
+        val now =
+            clock
+                ?: run {
+                    notification = Notification.PROGRAM_NEEDS_CLOCK
+                    return
+                }
         if (validateProgram(program.steps, now / 60).any { it.code == ErrorCode.STEP_TOO_LONG }) {
             notification = Notification.PROGRAM_TOO_LONG
             return
@@ -202,9 +229,11 @@ class BedJetSim(
         }
         current.index += 1
         val next = program.steps[current.index]
-        val minutes = if (next.clock) {
-            Math.floorMod(next.totalMinutes - (clock ?: 0) / 60, 1440).takeIf { it != 0 } ?: 1440
-        } else next.totalMinutes
+        val minutes =
+            if (next.clock) {
+                Math.floorMod(next.totalMinutes - (clock ?: 0) / 60, 1440).takeIf { it != 0 }
+                    ?: 1440
+            } else next.totalMinutes
         current.left = minutes * 60
         enter(next.mode, minutes)
         fan = next.fan
@@ -214,13 +243,15 @@ class BedJetSim(
 
     private fun enterManual(mode: Mode) {
         enter(mode, if (mode == Mode.STANDBY) 0 else if (mode == Mode.TURBO) 10 else 60)
-        // Ceilings are illustrative, as in Lull's DemoLink: manual modes start at an hour and can be stretched.
-        maxRuntime = when (mode) {
-            Mode.STANDBY -> 0
-            Mode.TURBO -> 10
-            Mode.HEAT -> 240
-            else -> 720
-        }
+        // Ceilings are illustrative, as in Lull's DemoLink: manual modes start at an hour and can
+        // be stretched.
+        maxRuntime =
+            when (mode) {
+                Mode.STANDBY -> 0
+                Mode.TURBO -> 10
+                Mode.HEAT -> 240
+                else -> 720
+            }
         limitHeat()
     }
 
@@ -231,7 +262,9 @@ class BedJetSim(
         if (mode.usesTemperature) {
             val range = TEMP_RANGES.getValue(mode)
             min = range.min
-            max = if (mode == Mode.DRY) minOf(range.max, maxOf(range.min, ambient + 10)) else range.max
+            max =
+                if (mode == Mode.DRY) minOf(range.max, maxOf(range.min, ambient + 10))
+                else range.max
             target = target.coerceIn(min, max)
         } else {
             min = 20
@@ -240,7 +273,8 @@ class BedJetSim(
         }
     }
 
-    // Hotter air at a higher fan is cut off sooner, so manual Heat's ceiling follows the heat table.
+    // Hotter air at a higher fan is cut off sooner, so manual Heat's ceiling follows the heat
+    // table.
     private fun limitHeat() {
         if (mode != Mode.HEAT || run != null) return
         maxRuntime = minOf(240, longestStepMinutes(Mode.HEAT, target, fan))
@@ -288,11 +322,13 @@ class BedJetSim(
                 val slot = (target - 7) / 4
                 val index = (target - 7) % 4
                 val fragment = Reply.parseFragment(b.copyOfRange(2, b.size), index) ?: return
-                // Not cleared on completion: a later name frame for this slot re-commits these steps, as on the JS side.
+                // Not cleared on completion: a later name frame for this slot re-commits these
+                // steps, as on the JS side.
                 val steps = if (index == 0) mutableListOf() else pending[slot] ?: mutableListOf()
                 steps += fragment.steps
                 pending[slot] = steps
-                if (steps.size >= fragment.total) slots[slot] = Program(slots[slot]?.name ?: "", steps.toList())
+                if (steps.size >= fragment.total)
+                    slots[slot] = Program(slots[slot]?.name ?: "", steps.toList())
             }
         }
     }

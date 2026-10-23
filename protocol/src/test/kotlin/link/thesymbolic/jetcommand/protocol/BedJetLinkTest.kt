@@ -1,14 +1,5 @@
 package link.thesymbolic.jetcommand.protocol
 
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.currentTime
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import java.time.LocalTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -18,13 +9,28 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import link.thesymbolic.jetcommand.protocol.SimTransport.Fault
 import link.thesymbolic.jetcommand.protocol.SimTransport.Op
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class BedJetLinkTest {
-    private class Rig(val sim: BedJetSim, val transport: SimTransport, val link: BedJetLink, val device: BedJetDevice) {
+    private class Rig(
+        val sim: BedJetSim,
+        val transport: SimTransport,
+        val link: BedJetLink,
+        val device: BedJetDevice,
+    ) {
         val updates = mutableListOf<StatusUpdate>()
+
         fun reads(ch: Characteristic) = transport.ops.count { it == Op.Read(ch) }
     }
 
@@ -38,16 +44,25 @@ class BedJetLinkTest {
     ): Rig {
         val transport = SimTransport(sim, backgroundScope, mtu, hasReplyAlt)
         val link = BedJetLink(transport, backgroundScope, config, now = { currentTime })
-        val device = BedJetDevice(link, backgroundScope, autoAck, clock = { time }, now = { currentTime })
+        val device =
+            BedJetDevice(link, backgroundScope, autoAck, clock = { time }, now = { currentTime })
         return Rig(sim, transport, link, device).also { rig ->
-            backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { link.statuses.toList(rig.updates) }
+            backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                link.statuses.toList(rig.updates)
+            }
         }
     }
 
     private suspend fun TestScope.connected(rig: Rig) = rig.also { it.link.connect() }
 
-    private fun step(mode: Mode, fan: Int, temp: Int, hours: Int, minutes: Int, clock: Boolean = false) =
-        Step(mode, fan, temp, hours, minutes, clock)
+    private fun step(
+        mode: Mode,
+        fan: Int,
+        temp: Int,
+        hours: Int,
+        minutes: Int,
+        clock: Boolean = false,
+    ) = Step(mode, fan, temp, hours, minutes, clock)
 
     private suspend fun code(code: ErrorCode, block: suspend () -> Unit) =
         assertEquals(code, assertFailsWith<BedJetException> { block() }.code)
@@ -127,7 +142,8 @@ class BedJetLinkTest {
 
     @Test
     fun `a failed first connect retries when configured`() = runTest {
-        val r = rig(config = BedJetLink.Config(maxReconnectAttempts = null, retryFailedConnect = true))
+        val r =
+            rig(config = BedJetLink.Config(maxReconnectAttempts = null, retryFailedConnect = true))
         r.transport.inject(Fault.Fail(133), times = 3) { it == Op.Connect }
         code(ErrorCode.NOT_CONNECTED) { r.link.connect() }
         assertEquals(LinkState.Connecting(1), r.link.state.value)
@@ -140,7 +156,9 @@ class BedJetLinkTest {
         val r = connected(rig(config = BedJetLink.Config(maxReconnectAttempts = null)))
         var bluetoothOn = false
         // As on the phone with Bluetooth off: every connect fails at once.
-        r.transport.inject(Fault.Fail(0), times = Int.MAX_VALUE) { it == Op.Connect && !bluetoothOn }
+        r.transport.inject(Fault.Fail(0), times = Int.MAX_VALUE) {
+            it == Op.Connect && !bluetoothOn
+        }
         r.transport.loseLink()
         advanceTimeBy(1.hours)
         val waitingFor = r.link.reconnectAttempt
@@ -209,15 +227,32 @@ class BedJetLinkTest {
         val r = connected(rig())
         r.link.query(Query.DEVICE_NAME)
         r.link.query(Query.FIRMWARE)
-        val reads = r.transport.ops.filterIsInstance<Op.Read>().map { it.characteristic }
-            .filter { it == Characteristic.REPLY || it == Characteristic.REPLY_ALT }
+        val reads =
+            r.transport.ops
+                .filterIsInstance<Op.Read>()
+                .map { it.characteristic }
+                .filter { it == Characteristic.REPLY || it == Characteristic.REPLY_ALT }
         assertEquals(listOf(Characteristic.REPLY_ALT, Characteristic.REPLY_ALT), reads)
         assertEquals(Characteristic.REPLY_ALT, r.link.replySource)
     }
 
     @Test
     fun `without 2006 replies come from 2005, cut at the MTU`() = runTest {
-        val r = connected(rig(sim = BedJetSim(slots = listOf(Program("Night", List(5) { step(Mode.COOL, 5, 44, 1, 0) }), null, null)), hasReplyAlt = false))
+        val r =
+            connected(
+                rig(
+                    sim =
+                        BedJetSim(
+                            slots =
+                                listOf(
+                                    Program("Night", List(5) { step(Mode.COOL, 5, 44, 1, 0) }),
+                                    null,
+                                    null,
+                                )
+                        ),
+                    hasReplyAlt = false,
+                )
+            )
         assertEquals("V1.20 (demo)", r.device.firmware())
         assertEquals(Characteristic.REPLY, r.link.replySource)
         assertEquals(2, r.device.programNames().size, "48 bytes of names cut to 20")
@@ -226,7 +261,11 @@ class BedJetLinkTest {
         assertNull(replies[Characteristic.REPLY_ALT])
         // 5 steps don't fit a 22-byte read.
         code(ErrorCode.BAD_RESPONSE) { r.device.programSteps(0) }
-        assertEquals(1, r.reads(Characteristic.REPLY_ALT), "the missing characteristic is remembered")
+        assertEquals(
+            1,
+            r.reads(Characteristic.REPLY_ALT),
+            "the missing characteristic is remembered",
+        )
     }
 
     @Test
@@ -278,18 +317,26 @@ class BedJetLinkTest {
         r.transport.notifyStatus()
         runCurrent()
         assertEquals(1, r.reads(Characteristic.STATUS), "remainder is read at most every 2 s")
-        assertEquals(Notification.CLEAN_FILTER, r.updates[2].status.extra!!.notification, "last known extra is carried over")
+        assertEquals(
+            Notification.CLEAN_FILTER,
+            r.updates[2].status.extra!!.notification,
+            "last known extra is carried over",
+        )
         assertFalse(r.updates[2].extraFresh)
     }
 
     @Test
-    fun `even with a large MTU notifications are partial and the remainder keeps extra fresh`() = runTest {
-        val r = connected(rig(mtu = 500))
-        advanceTimeBy(10.seconds)
-        assertTrue(r.reads(Characteristic.STATUS) in 4..6, "remainder every 2 s, not per notification")
-        assertTrue(r.updates.count { it.extraFresh } in 4..6)
-        assertTrue(r.updates.count { !it.extraFresh } >= 30, "~4 notifications a second")
-    }
+    fun `even with a large MTU notifications are partial and the remainder keeps extra fresh`() =
+        runTest {
+            val r = connected(rig(mtu = 500))
+            advanceTimeBy(10.seconds)
+            assertTrue(
+                r.reads(Characteristic.STATUS) in 4..6,
+                "remainder every 2 s, not per notification",
+            )
+            assertTrue(r.updates.count { it.extraFresh } in 4..6)
+            assertTrue(r.updates.count { !it.extraFresh } >= 30, "~4 notifications a second")
+        }
 
     @Test
     fun `dropped notifications only thin out the stream`() = runTest {
@@ -305,11 +352,29 @@ class BedJetLinkTest {
 
     @Test
     fun `store and read back`() = runTest {
-        val r = connected(rig(sim = BedJetSim(slots = listOf(Program("old", listOf(step(Mode.DRY, 1, 50, 1, 0))), null, null))))
-        val steps = List(11) { i -> step(if (i % 2 == 1) Mode.HEAT else Mode.COOL, i, 50, 0, 20 + i) }
+        val r =
+            connected(
+                rig(
+                    sim =
+                        BedJetSim(
+                            slots =
+                                listOf(
+                                    Program("old", listOf(step(Mode.DRY, 1, 50, 1, 0))),
+                                    null,
+                                    null,
+                                )
+                        )
+                )
+            )
+        val steps =
+            List(11) { i -> step(if (i % 2 == 1) Mode.HEAT else Mode.COOL, i, 50, 0, 20 + i) }
         assertEquals("Deep Sleep", r.device.store(Program("Deep Sleep", steps), 1).name)
         assertEquals(
-            listOf(Program("old", listOf(step(Mode.DRY, 1, 50, 1, 0))), Program("Deep Sleep", steps), null),
+            listOf(
+                Program("old", listOf(step(Mode.DRY, 1, 50, 1, 0))),
+                Program("Deep Sleep", steps),
+                null,
+            ),
             r.device.storedPrograms(),
         )
         assertEquals("BEDJET-DEMO", r.device.deviceName())
@@ -318,7 +383,10 @@ class BedJetLinkTest {
     @Test
     fun `a step past the heat cut-off is not stored`() = runTest {
         val r = connected(rig())
-        val e = assertFailsWith<BedJetException> { r.device.store(Program("too hot", listOf(step(Mode.HEAT, 19, 80, 3, 0))), 0) }
+        val e =
+            assertFailsWith<BedJetException> {
+                r.device.store(Program("too hot", listOf(step(Mode.HEAT, 19, 80, 3, 0))), 0)
+            }
         assertEquals(ErrorCode.STEP_TOO_LONG, e.code)
         assertTrue(e.message!!.startsWith("Step 1"), e.message)
         assertNull(r.sim.slots[0])
@@ -329,7 +397,9 @@ class BedJetLinkTest {
     fun `link loss mid-store, reconnect, store again`() = runTest {
         val r = connected(rig())
         val steps = List(12) { step(Mode.COOL, 5, 44, 0, 30) }
-        r.transport.inject(Fault.LoseLink) { it is Op.Write && it.bytes.u(1) == Query.fragment(0, 1) }
+        r.transport.inject(Fault.LoseLink) {
+            it is Op.Write && it.bytes.u(1) == Query.fragment(0, 1)
+        }
         code(ErrorCode.NOT_CONNECTED) { r.device.store(Program("Night", steps), 0) }
         assertEquals(LinkState.Connecting(1), r.link.state.value)
         code(ErrorCode.NOT_CONNECTED) { r.device.store(Program("Night", steps), 0) }
@@ -341,10 +411,17 @@ class BedJetLinkTest {
     @Test
     fun `start program syncs the clock and runs step 1`() = runTest {
         val r = connected(rig(time = LocalTime.of(22, 15)))
-        r.device.store(Program("Night", listOf(step(Mode.COOL, 5, 44, 2, 0), step(Mode.WAIT, 19, 80, 0, 30))), 0)
+        r.device.store(
+            Program("Night", listOf(step(Mode.COOL, 5, 44, 2, 0), step(Mode.WAIT, 19, 80, 0, 30))),
+            0,
+        )
         assertNull(r.sim.clock)
         val status = r.device.startProgram(0)
-        assertEquals(22 * 60 + 15, r.sim.clock!! / 60, "synced, plus the seconds until the unit confirmed")
+        assertEquals(
+            22 * 60 + 15,
+            r.sim.clock!! / 60,
+            "synced, plus the seconds until the unit confirmed",
+        )
         assertEquals(Mode.COOL, status.mode)
         assertEquals(5, status.fanStep)
         assertEquals(44, status.targetTemp)
@@ -361,14 +438,32 @@ class BedJetLinkTest {
 
     @Test
     fun `refused program raises the typed error and the notification is acknowledged`() = runTest {
-        val r = connected(rig(sim = BedJetSim(slots = listOf(Program("too hot", listOf(step(Mode.HEAT, 19, 80, 3, 0))), null, null))))
+        val r =
+            connected(
+                rig(
+                    sim =
+                        BedJetSim(
+                            slots =
+                                listOf(
+                                    Program("too hot", listOf(step(Mode.HEAT, 19, 80, 3, 0))),
+                                    null,
+                                    null,
+                                )
+                        )
+                )
+            )
         val shown = mutableListOf<Int>()
-        backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { r.device.notifications.collect { shown += it.code } }
+        backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            r.device.notifications.collect { shown += it.code }
+        }
         val e = assertFailsWith<BedJetException> { r.device.startProgram(0) }
         assertEquals(ErrorCode.STEP_TOO_LONG, e.code)
         assertEquals(Notification.TEXT[Notification.PROGRAM_TOO_LONG], e.message)
         assertEquals(listOf(Notification.PROGRAM_TOO_LONG), shown)
-        assertTrue("01 80" in r.transport.writes && "01 52" in r.transport.writes, r.transport.writes.toString())
+        assertTrue(
+            "01 80" in r.transport.writes && "01 52" in r.transport.writes,
+            r.transport.writes.toString(),
+        )
         assertEquals(0, r.sim.notification)
         advanceTimeBy(3_000)
         assertEquals(0, r.device.status!!.status.extra!!.notification)
@@ -387,7 +482,9 @@ class BedJetLinkTest {
     fun `notifications are acknowledged automatically and shown once per code`() = runTest {
         val r = connected(rig())
         val shown = mutableListOf<DeviceNotification>()
-        backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { r.device.notifications.collect { shown += it } }
+        backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            r.device.notifications.collect { shown += it }
+        }
         r.sim.notification = Notification.CLEAN_FILTER
         advanceTimeBy(1_500)
         assertEquals(0, r.sim.notification)
@@ -399,11 +496,12 @@ class BedJetLinkTest {
     fun `a whole night in virtual time, phone away for part of it`() = runTest {
         val r = connected(rig(time = LocalTime.of(22, 0)))
         r.transport.chaos = SimTransport.Chaos(seed = 42, dropRate = 0.2)
-        val night = listOf(
-            step(Mode.COOL, 5, 44, 2, 0),
-            step(Mode.DRY, 9, 50, 1, 0),
-            step(Mode.WAIT, 19, 80, 6, 30, clock = true),
-        )
+        val night =
+            listOf(
+                step(Mode.COOL, 5, 44, 2, 0),
+                step(Mode.DRY, 9, 50, 1, 0),
+                step(Mode.WAIT, 19, 80, 6, 30, clock = true),
+            )
         r.device.store(Program("Night", night), 0)
         r.device.startProgram(0)
         advanceTimeBy(3.5.hours)
@@ -412,8 +510,11 @@ class BedJetLinkTest {
         assertEquals(3, r.sim.step, "the unit runs on without the phone")
         r.link.connect()
         advanceTimeBy(5.hours)
-        val steps = r.updates.filter { it.extraFresh }.map { it.status.extra!!.programStep }
-            .fold(listOf<Int>()) { seen, s -> if (seen.lastOrNull() == s) seen else seen + s }
+        val steps =
+            r.updates
+                .filter { it.extraFresh }
+                .map { it.status.extra!!.programStep }
+                .fold(listOf<Int>()) { seen, s -> if (seen.lastOrNull() == s) seen else seen + s }
         assertEquals(listOf(1, 2, 3, 0), steps)
         assertEquals(Mode.STANDBY, r.updates.last().status.mode)
     }

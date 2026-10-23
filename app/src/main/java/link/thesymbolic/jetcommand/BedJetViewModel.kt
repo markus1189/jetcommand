@@ -25,7 +25,10 @@ class BedJetViewModel(private val app: Application) : AndroidViewModel(app) {
     val remembered = controller.remembered
     val linkState = controller.linkState
     val status = controller.status
-    val nightLog = controller.nightLog(50).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val nightLog =
+        controller
+            .nightLog(50)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Read-back results by label, for the current stack. */
     val results = mutableStateMapOf<String, String>()
@@ -45,8 +48,11 @@ class BedJetViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun log(level: LogLevel, msg: String) = controller.log(level, msg)
 
-    @SuppressLint("MissingPermission") // only reachable from the scan list, shown behind RequireBluetoothPermissions
-    fun connectReal(device: BluetoothDevice, name: String?) = controller.connect(Source.Device(device.address, name))
+    @SuppressLint(
+        "MissingPermission"
+    ) // only reachable from the scan list, shown behind RequireBluetoothPermissions
+    fun connectReal(device: BluetoothDevice, name: String?) =
+        controller.connect(Source.Device(device.address, name))
 
     fun connectRemembered() = remembered.value?.let(controller::connect)
 
@@ -60,16 +66,18 @@ class BedJetViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun setMode(mode: Mode) = controller.setMode(mode)
 
-    fun setTemperature(halfC: Int) = act("temp ${formatTemp(halfC)}") { it.device.setTemperature(halfC) }
+    fun setTemperature(halfC: Int) =
+        act("temp ${formatTemp(halfC)}") { it.device.setTemperature(halfC) }
 
     fun setFan(step: Int) = act("fan ${fanPercent(step)} %") { it.device.setFan(step) }
 
     fun loadPrograms() = act("programs") { programs = it.device.programNames() }
 
-    fun startProgram(slot: Int) = act("start program ${slot + 1}") {
-        it.device.startProgram(slot)
-        controller.deviceId.value?.let { id -> app.library.noteStarted(id, slot) }
-    }
+    fun startProgram(slot: Int) =
+        act("start program ${slot + 1}") {
+            it.device.startProgram(slot)
+            controller.deviceId.value?.let { id -> app.library.noteStarted(id, slot) }
+        }
 
     fun hasConnectPermission() = controller.hasConnectPermission()
 

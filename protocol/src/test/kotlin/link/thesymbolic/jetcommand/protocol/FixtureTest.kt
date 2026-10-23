@@ -1,5 +1,7 @@
 package link.thesymbolic.jetcommand.protocol
 
+import kotlin.test.Test
+import kotlin.test.fail
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -14,69 +16,102 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import kotlin.test.Test
-import kotlin.test.fail
 
 /** Replays what the web app's codec and sim recorded (scripts/gen-fixtures.mjs). */
 class FixtureTest {
-    private val fixtures = Json.parseToJsonElement(
-        checkNotNull(javaClass.getResource("/fixtures.json")).readText(),
-    ).jsonObject
+    private val fixtures =
+        Json.parseToJsonElement(checkNotNull(javaClass.getResource("/fixtures.json")).readText())
+            .jsonObject
 
     private fun cases(key: String) = fixtures.getValue(key).jsonArray.map { it }
 
-    private val JsonElement.num: Int get() = jsonPrimitive.int
-    private val JsonElement.str: String get() = jsonPrimitive.content
+    private val JsonElement.num: Int
+        get() = jsonPrimitive.int
 
-    private fun step(json: JsonElement) = json.jsonObject.let {
-        Step(
-            mode = checkNotNull(Mode.of(it.getValue("mode").num)),
-            fan = it.getValue("fan").num,
-            temp = it.getValue("temp").num,
-            hours = it.getValue("hours").num,
-            minutes = it.getValue("minutes").num,
-            clock = it.getValue("clock").jsonPrimitive.boolean,
-        )
-    }
+    private val JsonElement.str: String
+        get() = jsonPrimitive.content
+
+    private fun step(json: JsonElement) =
+        json.jsonObject.let {
+            Step(
+                mode = checkNotNull(Mode.of(it.getValue("mode").num)),
+                fan = it.getValue("fan").num,
+                temp = it.getValue("temp").num,
+                hours = it.getValue("hours").num,
+                minutes = it.getValue("minutes").num,
+                clock = it.getValue("clock").jsonPrimitive.boolean,
+            )
+        }
 
     private fun stepJson(s: Step) = buildJsonObject {
-        put("mode", s.mode.ordinal); put("fan", s.fan); put("temp", s.temp)
-        put("hours", s.hours); put("minutes", s.minutes); put("clock", s.clock)
+        put("mode", s.mode.ordinal)
+        put("fan", s.fan)
+        put("temp", s.temp)
+        put("hours", s.hours)
+        put("minutes", s.minutes)
+        put("clock", s.clock)
     }
 
-    private fun statusJson(s: Status?): JsonElement = if (s == null) JsonNull else buildJsonObject {
-        put("partial", s.partial); put("length", s.length); put("remainingSeconds", s.remainingSeconds)
-        put("actualTemp", s.actualTemp); put("targetTemp", s.targetTemp); put("mode", s.mode.ordinal)
-        put("fanStep", s.fanStep); put("fanPercent", s.fanPercent); put("maxRuntimeMinutes", s.maxRuntimeMinutes)
-        put("minTemp", s.minTemp); put("maxTemp", s.maxTemp)
-        put("turboTime", JsonArray(s.turboTime.map(::JsonPrimitive)))
-        put("ambientTemp", s.ambientTemp); put("shutdownReason", s.shutdownReason)
-        put("dualZone", s.dualZone); put("updatePhase", s.updatePhase)
-        put("extra", s.extra?.let { e ->
+    private fun statusJson(s: Status?): JsonElement =
+        if (s == null) JsonNull
+        else
             buildJsonObject {
-                put("flags", e.flags); put("connTestPassed", e.connTestPassed); put("ledEnabled", e.ledEnabled)
-                put("unitsSetUp", e.unitsSetUp); put("beepsMuted", e.beepsMuted)
-                put("programStep", e.programStep); put("notification", e.notification)
+                put("partial", s.partial)
+                put("length", s.length)
+                put("remainingSeconds", s.remainingSeconds)
+                put("actualTemp", s.actualTemp)
+                put("targetTemp", s.targetTemp)
+                put("mode", s.mode.ordinal)
+                put("fanStep", s.fanStep)
+                put("fanPercent", s.fanPercent)
+                put("maxRuntimeMinutes", s.maxRuntimeMinutes)
+                put("minTemp", s.minTemp)
+                put("maxTemp", s.maxTemp)
+                put("turboTime", JsonArray(s.turboTime.map(::JsonPrimitive)))
+                put("ambientTemp", s.ambientTemp)
+                put("shutdownReason", s.shutdownReason)
+                put("dualZone", s.dualZone)
+                put("updatePhase", s.updatePhase)
+                put(
+                    "extra",
+                    s.extra?.let { e ->
+                        buildJsonObject {
+                            put("flags", e.flags)
+                            put("connTestPassed", e.connTestPassed)
+                            put("ledEnabled", e.ledEnabled)
+                            put("unitsSetUp", e.unitsSetUp)
+                            put("beepsMuted", e.beepsMuted)
+                            put("programStep", e.programStep)
+                            put("notification", e.notification)
+                        }
+                    } ?: JsonNull,
+                )
             }
-        } ?: JsonNull)
-    }
 
-    /** JS error names: BedJetError codes are camelCase ErrorCode names; RangeError is a refused argument. */
-    private fun errorName(e: Throwable) = when (e) {
-        is BedJetException -> e.code.name.lowercase().replace(Regex("_(.)")) { it.groupValues[1].uppercase() }
-        is IllegalArgumentException -> "RangeError"
-        else -> throw e
-    }
+    /**
+     * JS error names: BedJetError codes are camelCase ErrorCode names; RangeError is a refused
+     * argument.
+     */
+    private fun errorName(e: Throwable) =
+        when (e) {
+            is BedJetException ->
+                e.code.name.lowercase().replace(Regex("_(.)")) { it.groupValues[1].uppercase() }
+            is IllegalArgumentException -> "RangeError"
+            else -> throw e
+        }
 
-    private inline fun outcome(block: () -> JsonElement): JsonObject = try {
-        JsonObject(mapOf("out" to block()))
-    } catch (e: Exception) {
-        JsonObject(mapOf("error" to JsonPrimitive(errorName(e))))
-    }
+    private inline fun outcome(block: () -> JsonElement): JsonObject =
+        try {
+            JsonObject(mapOf("out" to block()))
+        } catch (e: Exception) {
+            JsonObject(mapOf("error" to JsonPrimitive(errorName(e))))
+        }
 
-    private fun expected(case: JsonObject) = JsonObject(case.filterKeys { it == "out" || it == "error" })
+    private fun expected(case: JsonObject) =
+        JsonObject(case.filterKeys { it == "out" || it == "error" })
 
-    private fun hexList(frames: List<ByteArray>) = JsonArray(frames.map { JsonPrimitive(it.toHex()) })
+    private fun hexList(frames: List<ByteArray>) =
+        JsonArray(frames.map { JsonPrimitive(it.toHex()) })
 
     private fun check(name: String, mismatches: List<String>) {
         if (mismatches.isNotEmpty()) {
@@ -85,102 +120,167 @@ class FixtureTest {
     }
 
     @Test
-    fun encoders() = check("encoders", cases("encoders").map { it.jsonObject }.mapNotNull { case ->
-        val args = case.getValue("args").jsonArray
-        val actual = outcome {
-            when (val fn = case.getValue("fn").str) {
-                "button" -> hexList(listOf(Command.button(args[0].num)))
-                "setMode" -> hexList(listOf(Command.setMode(checkNotNull(Mode.of(args[0].num)))))
-                "setRuntime" -> hexList(listOf(Command.setRuntime(args[0].num)))
-                "setTemperature" -> hexList(listOf(Command.setTemperature(args[0].num)))
-                "setFan" -> hexList(listOf(Command.setFan(args[0].num)))
-                "setClock" -> hexList(listOf(Command.setClock(args[0].num, args[1].num)))
-                "recallMemory" -> hexList(listOf(Command.recallMemory(args[0].num)))
-                "saveMemory" -> hexList(listOf(Command.saveMemory(args[0].num)))
-                "startProgram" -> hexList(listOf(Command.startProgram(args[0].num)))
-                "deleteProgram" -> hexList(listOf(Command.deleteProgram(args[0].num)))
-                "query" -> hexList(listOf(Command.query(args[0].num, args[1].num)))
-                "nameFrame" -> hexList(listOf(Command.nameFrame(args[0].num, args[1].str)))
-                "writeProgram" -> hexList(Command.writeProgram(args[0].num, args[1].jsonArray.map(::step)))
-                else -> error("unknown encoder $fn")
-            }
-        }
-        if (actual != expected(case)) "${case["fn"]}$args: expected ${expected(case)}, got $actual" else null
-    })
-
-    @Test
-    fun parsers() = check("parsers", cases("parsers").map { it.jsonObject }.mapNotNull { case ->
-        val args = case.getValue("args").jsonArray
-        val bytes = hexToBytes(args[0].str)
-        val actual: JsonElement = when (val fn = case.getValue("fn").str) {
-            "parseStatus" -> statusJson(Reply.parseStatus(bytes))
-            "parseFragment" -> Reply.parseFragment(bytes, args[1].num)?.let {
-                buildJsonObject { put("total", it.total); put("steps", JsonArray(it.steps.map(::stepJson))) }
-            } ?: JsonNull
-            "parseText" -> JsonPrimitive(Reply.parseText(bytes))
-            "parseNames" -> JsonArray(Reply.parseNames(bytes).map(::JsonPrimitive))
-            else -> error("unknown parser $fn")
-        }
-        val want = case.getValue("out")
-        if (actual != want) "${case["fn"]}$args: expected $want, got $actual" else null
-    })
-
-    @Test
-    fun heatHours() = check("heatHours", cases("heatHours").mapNotNull { row ->
-        val (mode, temp, fan, want) = row.jsonArray.map { it.num }
-        val got = heatHours(checkNotNull(Mode.of(mode)), temp, fan)
-        if (got != want) "heatHours($mode, $temp, $fan): expected $want, got $got" else null
-    })
-
-    @Test
-    fun validation() = check("validation", cases("validations").map { it.jsonObject }.mapNotNull { case ->
-        val steps = case.getValue("steps").jsonArray.map(::step)
-        val got = JsonArray(validateProgram(steps, case.getValue("now").num).map {
-            buildJsonObject {
-                put("index", it.index)
-                put("code", errorName(BedJetException(it.code)))
-                put("message", it.message)
-            }
-        })
-        val want = case.getValue("out")
-        if (got != want) "validateProgram(now=${case["now"]}, $steps):\n  expected $want\n  got      $got" else null
-    })
-
-    @Test
-    fun formatTemp() = check("formatTemp", cases("formatTemp").mapNotNull { row ->
-        val (halfC, unit, want) = row.jsonArray
-        val got = formatTemp(halfC.num, TempUnit.valueOf(unit.str))
-        if (got != want.str) "formatTemp($halfC, $unit): expected $want, got $got" else null
-    })
-
-    @Test
-    fun simScenarios() = check("sim", cases("scenarios").map { it.jsonObject }.mapNotNull { scenario ->
-        val sim = BedJetSim()
-        scenario.getValue("trace").jsonArray.withIndex().firstNotNullOfOrNull { (i, entry) ->
-            val case = entry.jsonObject
-            val op = case.getValue("op").jsonObject
-            val actual: JsonObject? = when {
-                "send" in op -> {
-                    var result = JsonObject(mapOf("out" to JsonNull))
-                    for (frame in op.getValue("send").jsonArray) {
-                        result = outcome { sim.send(hexToBytes(frame.str)); JsonNull }.takeIf { "error" in it } ?: result
+    fun encoders() =
+        check(
+            "encoders",
+            cases("encoders")
+                .map { it.jsonObject }
+                .mapNotNull { case ->
+                    val args = case.getValue("args").jsonArray
+                    val actual = outcome {
+                        when (val fn = case.getValue("fn").str) {
+                            "button" -> hexList(listOf(Command.button(args[0].num)))
+                            "setMode" ->
+                                hexList(listOf(Command.setMode(checkNotNull(Mode.of(args[0].num)))))
+                            "setRuntime" -> hexList(listOf(Command.setRuntime(args[0].num)))
+                            "setTemperature" -> hexList(listOf(Command.setTemperature(args[0].num)))
+                            "setFan" -> hexList(listOf(Command.setFan(args[0].num)))
+                            "setClock" ->
+                                hexList(listOf(Command.setClock(args[0].num, args[1].num)))
+                            "recallMemory" -> hexList(listOf(Command.recallMemory(args[0].num)))
+                            "saveMemory" -> hexList(listOf(Command.saveMemory(args[0].num)))
+                            "startProgram" -> hexList(listOf(Command.startProgram(args[0].num)))
+                            "deleteProgram" -> hexList(listOf(Command.deleteProgram(args[0].num)))
+                            "query" -> hexList(listOf(Command.query(args[0].num, args[1].num)))
+                            "nameFrame" ->
+                                hexList(listOf(Command.nameFrame(args[0].num, args[1].str)))
+                            "writeProgram" ->
+                                hexList(
+                                    Command.writeProgram(args[0].num, args[1].jsonArray.map(::step))
+                                )
+                            else -> error("unknown encoder $fn")
+                        }
                     }
-                    result
-                }
-                "query" in op -> outcome { JsonPrimitive(sim.query(op.getValue("query").num).toHex()) }
-                "tick" in op -> null.also { repeat(op.getValue("tick").num) { sim.tick() } }
-                "skip" in op -> null.also { sim.skipAhead(op.getValue("skip").jsonPrimitive.double) }
-                "cutOut" in op -> null.also { sim.cutOut(op.getValue("cutOut").num) }
-                else -> error("unknown op $op")
-            }
-            val packet = sim.packet().toHex()
-            when {
-                actual != null && actual != expected(case) ->
-                    "${scenario["name"]} #$i $op: expected ${expected(case)}, got $actual"
-                packet != case.getValue("packet").str ->
-                    "${scenario["name"]} #$i $op: packet\n  expected ${case["packet"]}\n  got      \"$packet\""
-                else -> null
-            }
-        }
-    })
+                    if (actual != expected(case))
+                        "${case["fn"]}$args: expected ${expected(case)}, got $actual"
+                    else null
+                },
+        )
+
+    @Test
+    fun parsers() =
+        check(
+            "parsers",
+            cases("parsers")
+                .map { it.jsonObject }
+                .mapNotNull { case ->
+                    val args = case.getValue("args").jsonArray
+                    val bytes = hexToBytes(args[0].str)
+                    val actual: JsonElement =
+                        when (val fn = case.getValue("fn").str) {
+                            "parseStatus" -> statusJson(Reply.parseStatus(bytes))
+                            "parseFragment" ->
+                                Reply.parseFragment(bytes, args[1].num)?.let {
+                                    buildJsonObject {
+                                        put("total", it.total)
+                                        put("steps", JsonArray(it.steps.map(::stepJson)))
+                                    }
+                                } ?: JsonNull
+                            "parseText" -> JsonPrimitive(Reply.parseText(bytes))
+                            "parseNames" -> JsonArray(Reply.parseNames(bytes).map(::JsonPrimitive))
+                            else -> error("unknown parser $fn")
+                        }
+                    val want = case.getValue("out")
+                    if (actual != want) "${case["fn"]}$args: expected $want, got $actual" else null
+                },
+        )
+
+    @Test
+    fun heatHours() =
+        check(
+            "heatHours",
+            cases("heatHours").mapNotNull { row ->
+                val (mode, temp, fan, want) = row.jsonArray.map { it.num }
+                val got = heatHours(checkNotNull(Mode.of(mode)), temp, fan)
+                if (got != want) "heatHours($mode, $temp, $fan): expected $want, got $got" else null
+            },
+        )
+
+    @Test
+    fun validation() =
+        check(
+            "validation",
+            cases("validations")
+                .map { it.jsonObject }
+                .mapNotNull { case ->
+                    val steps = case.getValue("steps").jsonArray.map(::step)
+                    val got =
+                        JsonArray(
+                            validateProgram(steps, case.getValue("now").num).map {
+                                buildJsonObject {
+                                    put("index", it.index)
+                                    put("code", errorName(BedJetException(it.code)))
+                                    put("message", it.message)
+                                }
+                            }
+                        )
+                    val want = case.getValue("out")
+                    if (got != want)
+                        "validateProgram(now=${case["now"]}, $steps):\n  expected $want\n  got      $got"
+                    else null
+                },
+        )
+
+    @Test
+    fun formatTemp() =
+        check(
+            "formatTemp",
+            cases("formatTemp").mapNotNull { row ->
+                val (halfC, unit, want) = row.jsonArray
+                val got = formatTemp(halfC.num, TempUnit.valueOf(unit.str))
+                if (got != want.str) "formatTemp($halfC, $unit): expected $want, got $got" else null
+            },
+        )
+
+    @Test
+    fun simScenarios() =
+        check(
+            "sim",
+            cases("scenarios")
+                .map { it.jsonObject }
+                .mapNotNull { scenario ->
+                    val sim = BedJetSim()
+                    scenario.getValue("trace").jsonArray.withIndex().firstNotNullOfOrNull {
+                        (i, entry) ->
+                        val case = entry.jsonObject
+                        val op = case.getValue("op").jsonObject
+                        val actual: JsonObject? =
+                            when {
+                                "send" in op -> {
+                                    var result = JsonObject(mapOf("out" to JsonNull))
+                                    for (frame in op.getValue("send").jsonArray) {
+                                        result =
+                                            outcome {
+                                                sim.send(hexToBytes(frame.str))
+                                                JsonNull
+                                            }
+                                                .takeIf { "error" in it } ?: result
+                                    }
+                                    result
+                                }
+                                "query" in op ->
+                                    outcome {
+                                        JsonPrimitive(sim.query(op.getValue("query").num).toHex())
+                                    }
+                                "tick" in op ->
+                                    null.also { repeat(op.getValue("tick").num) { sim.tick() } }
+                                "skip" in op ->
+                                    null.also {
+                                        sim.skipAhead(op.getValue("skip").jsonPrimitive.double)
+                                    }
+                                "cutOut" in op ->
+                                    null.also { sim.cutOut(op.getValue("cutOut").num) }
+                                else -> error("unknown op $op")
+                            }
+                        val packet = sim.packet().toHex()
+                        when {
+                            actual != null && actual != expected(case) ->
+                                "${scenario["name"]} #$i $op: expected ${expected(case)}, got $actual"
+                            packet != case.getValue("packet").str ->
+                                "${scenario["name"]} #$i $op: packet\n  expected ${case["packet"]}\n  got      \"$packet\""
+                            else -> null
+                        }
+                    }
+                },
+        )
 }

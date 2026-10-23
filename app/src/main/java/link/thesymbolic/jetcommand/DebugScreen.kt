@@ -39,8 +39,8 @@ import link.thesymbolic.jetcommand.ble.BedJetScanner
 import link.thesymbolic.jetcommand.ble.RequireBluetoothPermissions
 import link.thesymbolic.jetcommand.ble.ScannedDevice
 import link.thesymbolic.jetcommand.protocol.Button as Btn
-import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.Limits
+import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Notification
@@ -66,7 +66,9 @@ fun DebugScreen(vm: BedJetViewModel) {
             Button(onClick = vm::connectDemo, Modifier.fillMaxWidth()) { Text("Demo BedJet") }
             RequireBluetoothPermissions {
                 remembered?.let { d ->
-                    Button(onClick = vm::connectRemembered, Modifier.fillMaxWidth()) { Text("Connect ${d.label} (${d.address})") }
+                    Button(onClick = vm::connectRemembered, Modifier.fillMaxWidth()) {
+                        Text("Connect ${d.label} (${d.address})")
+                    }
                 }
                 ScanList(vm)
             }
@@ -77,11 +79,18 @@ fun DebugScreen(vm: BedJetViewModel) {
         Text("Night log", fontWeight = FontWeight.Bold)
         val time = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT) }
         nightLog.forEach {
-            Text("${time.format(java.util.Date(it.at))} ${it.kind} ${it.detail}", fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 13.sp)
+            Text(
+                "${time.format(java.util.Date(it.at))} ${it.kind} ${it.detail}",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                lineHeight = 13.sp,
+            )
         }
         HorizontalDivider()
         Text("Log", fontWeight = FontWeight.Bold)
-        log.asReversed().forEach { Text(it, fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 13.sp) }
+        log.asReversed().forEach {
+            Text(it, fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 13.sp)
+        }
     }
 }
 
@@ -112,18 +121,25 @@ private fun ScanList(vm: BedJetViewModel) {
     error?.let { Text("Error: $it") }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = { scanning = !scanning }) { Text(if (scanning) "Stop scan" else "Scan") }
-        Row { Checkbox(showAll, { showAll = it }); Text("All devices", Modifier.padding(top = 12.dp)) }
+        Row {
+            Checkbox(showAll, { showAll = it })
+            Text("All devices", Modifier.padding(top = 12.dp))
+        }
     }
-    found.values.sortedByDescending { it.rssi }.forEach { d ->
-        Text(
-            "${d.name ?: "(no name)"}  ${d.address}  ${d.rssi} dBm",
-            Modifier.fillMaxWidth().clickable {
-                scanning = false
-                vm.connectReal(d.device, d.name)
-            }.padding(vertical = 12.dp),
-        )
-        HorizontalDivider()
-    }
+    found.values
+        .sortedByDescending { it.rssi }
+        .forEach { d ->
+            Text(
+                "${d.name ?: "(no name)"}  ${d.address}  ${d.rssi} dBm",
+                Modifier.fillMaxWidth()
+                    .clickable {
+                        scanning = false
+                        vm.connectReal(d.device, d.name)
+                    }
+                    .padding(vertical = 12.dp),
+            )
+            HorizontalDivider()
+        }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -133,7 +149,9 @@ private fun Buttons(content: @Composable () -> Unit) =
 
 @Composable
 private fun B(label: String, onClick: () -> Unit) =
-    OutlinedButton(onClick, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)) { Text(label, fontSize = 13.sp) }
+    OutlinedButton(onClick, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)) {
+        Text(label, fontSize = 13.sp)
+    }
 
 @Composable
 private fun Connected(vm: BedJetViewModel, s: BedJetStack) {
@@ -147,40 +165,57 @@ private fun Connected(vm: BedJetViewModel, s: BedJetStack) {
         if (link is LinkState.Disconnected) B("Connect") { vm.act("connect") { it.link.connect() } }
     }
     Text(
-        "Link: " + when (val l = link) {
-            LinkState.Ready -> "Ready"
-            is LinkState.Connecting -> if (l.reconnectAttempt > 0) "Reconnecting (attempt ${l.reconnectAttempt})" else "Connecting"
-            is LinkState.Disconnected -> if (l.gaveUp) "Disconnected (gave up)" else "Disconnected"
-        },
+        "Link: " +
+            when (val l = link) {
+                LinkState.Ready -> "Ready"
+                is LinkState.Connecting ->
+                    if (l.reconnectAttempt > 0) "Reconnecting (attempt ${l.reconnectAttempt})"
+                    else "Connecting"
+                is LinkState.Disconnected ->
+                    if (l.gaveUp) "Disconnected (gave up)" else "Disconnected"
+            }
     )
     // replySource is a plain var: re-read whenever a status recomposes this.
-    Text("MTU: ${(transport as? TransportState.Connected)?.mtu ?: "-"}   Replies from: ${s.link.replySource?.uuid?.substring(4, 8) ?: "-"}")
+    Text(
+        "MTU: ${(transport as? TransportState.Connected)?.mtu ?: "-"}   Replies from: ${s.link.replySource?.uuid?.substring(4, 8) ?: "-"}"
+    )
     val u = update
-    // The unit notifies ~4/s but the remainder is read every 2 s, so the latest update is almost never the fresh one.
+    // The unit notifies ~4/s but the remainder is read every 2 s, so the latest update is almost
+    // never the fresh one.
     var freshAt by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(u) { if (u?.extraFresh == true) freshAt = System.currentTimeMillis() }
-    // link.status drops repeats of an unchanged status, so the age needs its own clock to keep moving.
-    val nowMs by produceState(System.currentTimeMillis()) {
-        while (true) {
-            delay(250)
-            value = System.currentTimeMillis()
+    // link.status drops repeats of an unchanged status, so the age needs its own clock to keep
+    // moving.
+    val nowMs by
+        produceState(System.currentTimeMillis()) {
+            while (true) {
+                delay(250)
+                value = System.currentTimeMillis()
+            }
         }
-    }
     if (u == null) Text("Status: -")
     else {
         val st = u.status
         val x = st.extra
-        Text("Mode ${st.mode.label}   actual ${formatTemp(st.actualTemp)}   target ${formatTemp(st.targetTemp)}   fan ${st.fanPercent}%")
-        Text("Remaining ${st.remainingSeconds / 3600}:%02d:%02d   ambient ${formatTemp(st.ambientTemp)}".format(st.remainingSeconds / 60 % 60, st.remainingSeconds % 60))
+        Text(
+            "Mode ${st.mode.label}   actual ${formatTemp(st.actualTemp)}   target ${formatTemp(st.targetTemp)}   fan ${st.fanPercent}%"
+        )
+        Text(
+            "Remaining ${st.remainingSeconds / 3600}:%02d:%02d   ambient ${formatTemp(st.ambientTemp)}"
+                .format(st.remainingSeconds / 60 % 60, st.remainingSeconds % 60)
+        )
         Text(
             "Program step ${x?.programStep ?: "-"}   extra ${freshAt?.let { "%.1f s old".format((nowMs - it) / 1000.0) } ?: "never read"}" +
-                (x?.notification?.takeIf { it != 0 }?.let { "\nNotification $it: ${Notification.TEXT[it] ?: "?"}" } ?: ""),
+                (x?.notification
+                    ?.takeIf { it != 0 }
+                    ?.let { "\nNotification $it: ${Notification.TEXT[it] ?: "?"}" } ?: "")
         )
     }
 
     Text("Mode", fontWeight = FontWeight.Bold)
     Buttons {
-        listOf(Mode.STANDBY, Mode.HEAT, Mode.COOL, Mode.DRY, Mode.TURBO, Mode.EXT_HEAT).forEach { m ->
+        listOf(Mode.STANDBY, Mode.HEAT, Mode.COOL, Mode.DRY, Mode.TURBO, Mode.EXT_HEAT).forEach { m
+            ->
             B(m.label) { vm.act("mode ${m.label}") { it.device.setMode(m) } }
         }
     }
@@ -196,15 +231,32 @@ private fun Connected(vm: BedJetViewModel, s: BedJetStack) {
     Buttons {
         B("Name") { vm.act("name") { vm.results["Name"] = it.device.deviceName() } }
         B("Firmware") { vm.act("firmware") { vm.results["Firmware"] = it.device.firmware() } }
-        B("Memories") { vm.act("memories") { vm.results["Memories"] = it.device.memoryNames().joinToString(" | ") } }
-        B("Programs") { vm.act("programs") { vm.results["Programs"] = it.device.programNames().joinToString(" | ") { n -> n ?: "-" } } }
+        B("Memories") {
+            vm.act("memories") {
+                vm.results["Memories"] = it.device.memoryNames().joinToString(" | ")
+            }
+        }
+        B("Programs") {
+            vm.act("programs") {
+                vm.results["Programs"] =
+                    it.device.programNames().joinToString(" | ") { n -> n ?: "-" }
+            }
+        }
         (0 until Limits.SLOTS).forEach { slot ->
             B("Slot $slot") {
-                vm.act("slot $slot") { vm.results["Slot $slot"] = it.device.programSteps(slot).joinToString("; ", transform = ::stepText).ifEmpty { "(empty)" } }
+                vm.act("slot $slot") {
+                    vm.results["Slot $slot"] =
+                        it.device
+                            .programSteps(slot)
+                            .joinToString("; ", transform = ::stepText)
+                            .ifEmpty { "(empty)" }
+                }
             }
         }
     }
-    vm.results.entries.sortedBy { it.key }.forEach { (k, v) -> Text("$k: $v", fontFamily = FontFamily.Monospace, fontSize = 12.sp) }
+    vm.results.entries
+        .sortedBy { it.key }
+        .forEach { (k, v) -> Text("$k: $v", fontFamily = FontFamily.Monospace, fontSize = 12.sp) }
 
     s.sim?.let { sim -> DemoControls(vm, sim) }
 }

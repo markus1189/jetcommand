@@ -14,8 +14,9 @@ import link.thesymbolic.jetcommand.protocol.nightOf
 import link.thesymbolic.jetcommand.protocol.nightWindow
 
 /**
- * Regroups the whole log on every write (a sample a minute): events are a few hundred a night and samples are
- * read as times only, so this stays cheap for months; cache finished nights if it ever shows up.
+ * Regroups the whole log on every write (a sample a minute): events are a few hundred a night and
+ * samples are read as times only, so this stays cheap for months; cache finished nights if it ever
+ * shows up.
  */
 class RoomNightsSource(
     private val dao: NightEventDao,
@@ -25,8 +26,9 @@ class RoomNightsSource(
     override fun nights(): Flow<List<NightSummary>> =
         // The tick ends "ongoing" when the log goes quiet, which no write would signal.
         combine(dao.allEvents(), dao.allSampleTimes(), minuteTicks()) { events, samples, _ ->
-            groupNights(events.mapNotNull { it.toEvent() }, samples, zone(), now())
-        }.conflate()
+                groupNights(events.mapNotNull { it.toEvent() }, samples, zone(), now())
+            }
+            .conflate()
 
     private fun minuteTicks() = flow {
         while (true) {

@@ -1,4 +1,5 @@
-// Port of the web app's `BedJetWebLink`, minus the browser: device picking and remembering are the transport's job.
+// Port of the web app's `BedJetWebLink`, minus the browser: device picking and remembering are the
+// transport's job.
 package link.thesymbolic.jetcommand.protocol
 
 import kotlinx.coroutines.CancellationException
@@ -23,25 +24,34 @@ import kotlinx.coroutines.withTimeoutOrNull
 sealed interface LinkState {
     /** [gaveUp]: auto-reconnect ran out of attempts. */
     data class Disconnected(val gaveUp: Boolean = false) : LinkState
+
     /** [reconnectAttempt] is 0 for a connect the caller asked for. */
     data class Connecting(val reconnectAttempt: Int = 0) : LinkState
+
     data object Ready : LinkState
 }
 
 /**
- * A parsed status. Bytes 27–29 ([Status.extra]) only arrive with the remainder of a split packet; when this
- * notification lacked them, [Status.extra] is the last known value and [extraFresh] is false.
+ * A parsed status. Bytes 27–29 ([Status.extra]) only arrive with the remainder of a split packet;
+ * when this notification lacked them, [Status.extra] is the last known value and [extraFresh] is
+ * false.
  */
 data class StatusUpdate(val status: Status, val extraFresh: Boolean)
 
-enum class LogLevel { INFO, SUCCESS, WARN, ERROR }
+enum class LogLevel {
+    INFO,
+    SUCCESS,
+    WARN,
+    ERROR,
+}
 
 /**
- * The BedJet protocol over a [BedJetTransport]: one GATT operation at a time, tagged queries with retries,
- * split status packets put back together, reconnects after a lost link.
+ * The BedJet protocol over a [BedJetTransport]: one GATT operation at a time, tagged queries with
+ * retries, split status packets put back together, reconnects after a lost link.
  *
- * Confine [scope] to one thread (Main, or a `limitedParallelism(1)` dispatcher): status handling and reconnects
- * run there without locks, as the JS ran on one event loop. [now] (ms) only rate-limits remainder reads.
+ * Confine [scope] to one thread (Main, or a `limitedParallelism(1)` dispatcher): status handling
+ * and reconnects run there without locks, as the JS ran on one event loop. [now] (ms) only
+ * rate-limits remainder reads.
  */
 class BedJetLink(
     private val transport: BedJetTransport,
@@ -65,12 +75,17 @@ class BedJetLink(
         val retryFailedConnect: Boolean = false,
     )
 
-    private val scope = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
+    private val scope =
+        CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
 
     private val _state = MutableStateFlow<LinkState>(LinkState.Disconnected())
     val state: StateFlow<LinkState> = _state.asStateFlow()
 
-    private val _statuses = MutableSharedFlow<StatusUpdate>(extraBufferCapacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    private val _statuses =
+        MutableSharedFlow<StatusUpdate>(
+            extraBufferCapacity = 64,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        )
     /** Every status as it is received or completed; [status] holds the latest. */
     val statuses: SharedFlow<StatusUpdate> = _statuses
     private val _status = MutableStateFlow<StatusUpdate?>(null)
@@ -79,10 +94,13 @@ class BedJetLink(
     /** [Characteristic.REPLY_ALT] or [Characteristic.REPLY] once a bio reply has matched. */
     var replySource: Characteristic? = null
         private set
+
     var deviceName: String? = null
         private set
+
     var reconnectAttempt = 0
         private set
+
     /** Why the link last dropped; set before the state leaves [LinkState.Ready]. */
     var lastDropReason: String? = null
         private set
@@ -125,8 +143,9 @@ class BedJetLink(
     }
 
     /**
-     * Cuts a pending reconnect's wait short and restarts the backoff, for when the cause of the failures has
-     * likely gone (Bluetooth back on). No-op unless a reconnect is waiting or the link gave up while still wanted.
+     * Cuts a pending reconnect's wait short and restarts the backoff, for when the cause of the
+     * failures has likely gone (Bluetooth back on). No-op unless a reconnect is waiting or the link
+     * gave up while still wanted.
      */
     fun retryNow() {
         if (!wanted || !config.autoReconnect) return
@@ -163,7 +182,8 @@ class BedJetLink(
             val tag = tag
             val request = Command.query(id, tag)
             // The reply characteristic keeps its previous contents until the unit has answered, so
-            // only an echo of this request id and tag counts. Same tag on every retry, as the official app does.
+            // only an echo of this request id and tag counts. Same tag on every retry, as the
+            // official app does.
             for (attempt in 1..config.queryAttempts) {
                 write(request)
                 for (ch in replyChars()) {
@@ -175,12 +195,18 @@ class BedJetLink(
                 }
                 if (attempt < config.queryAttempts) delay(config.queryRetryMs)
             }
-            log(LogLevel.WARN, "No reply to query 0x${id.toString(16)} tag $tag after ${config.queryAttempts} attempts")
+            log(
+                LogLevel.WARN,
+                "No reply to query 0x${id.toString(16)} tag $tag after ${config.queryAttempts} attempts",
+            )
             throw BedJetException(ErrorCode.BAD_RESPONSE)
         }
     }
 
-    /** Reads 2005 and 2006 as they are, without a query; null for a missing or unreadable characteristic. */
+    /**
+     * Reads 2005 and 2006 as they are, without a query; null for a missing or unreadable
+     * characteristic.
+     */
     suspend fun readReplies(): Map<Characteristic, ByteArray?> {
         requireReady()
         return serial {
@@ -218,7 +244,9 @@ class BedJetLink(
             attached = true
             deviceName = "BedJet"
             try {
-                Reply.parseText(serial { read(Characteristic.NAME) }).takeIf { it.isNotEmpty() }?.let { deviceName = it }
+                Reply.parseText(serial { read(Characteristic.NAME) })
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { deviceName = it }
             } catch (e: BedJetException) {
                 log(LogLevel.WARN, "Could not read device name: ${e.message}")
             }
@@ -259,7 +287,11 @@ class BedJetLink(
             return
         }
         reconnectAttempt += 1
-        val wait = minOf(config.reconnectBaseMs shl (reconnectAttempt - 1).coerceAtMost(30), config.reconnectMaxMs)
+        val wait =
+            minOf(
+                config.reconnectBaseMs shl (reconnectAttempt - 1).coerceAtMost(30),
+                config.reconnectMaxMs,
+            )
         log(LogLevel.WARN, "Reconnect $reconnectAttempt/${max ?: "∞"} in ${wait / 1000} s")
         runReconnect(wait)
     }
@@ -290,13 +322,17 @@ class BedJetLink(
     /** The unit handles one GATT operation at a time, so everything goes through one queue. */
     private suspend fun <T> serial(work: suspend () -> T): T = queue.withLock { work() }
 
-    private suspend fun <T : Any> gatt(block: suspend () -> T): T = try {
-        withTimeoutOrNull(config.timeoutMs) { block() } ?: throw BedJetException(ErrorCode.TIMEOUT)
-    } catch (e: TransportException) {
-        throw wrap(e, ErrorCode.BAD_RESPONSE)
-    }
+    private suspend fun <T : Any> gatt(block: suspend () -> T): T =
+        try {
+            withTimeoutOrNull(config.timeoutMs) { block() }
+                ?: throw BedJetException(ErrorCode.TIMEOUT)
+        } catch (e: TransportException) {
+            throw wrap(e, ErrorCode.BAD_RESPONSE)
+        }
 
-    private suspend fun write(bytes: ByteArray) = gatt { transport.write(Characteristic.COMMAND, bytes) }
+    private suspend fun write(bytes: ByteArray) = gatt {
+        transport.write(Characteristic.COMMAND, bytes)
+    }
 
     private suspend fun read(ch: Characteristic) = gatt { transport.read(ch) }
 
@@ -306,15 +342,21 @@ class BedJetLink(
         return try {
             read(ch)
         } catch (e: BedJetException) {
-            if ((e.cause as? TransportException)?.kind != TransportException.Kind.MISSING_CHARACTERISTIC) throw e
+            if (
+                (e.cause as? TransportException)?.kind !=
+                    TransportException.Kind.MISSING_CHARACTERISTIC
+            )
+                throw e
             if (missing.isEmpty()) log(LogLevel.WARN, "No bio reply characteristic $ch")
             missing += ch
             null
         }
     }
 
-    // 2006 first: on Chrome/Android a 2005 read stops at 22 bytes (ATT MTU 23, no long read), while 2006 returns
-    // the whole reply (probe on firmware V1.20, 2026-10-21). 2005 stays as fallback for units without 2006.
+    // 2006 first: on Chrome/Android a 2005 read stops at 22 bytes (ATT MTU 23, no long read), while
+    // 2006 returns
+    // the whole reply (probe on firmware V1.20, 2026-10-21). 2005 stays as fallback for units
+    // without 2006.
     private fun replyChars() = listOf(Characteristic.REPLY_ALT, Characteristic.REPLY)
 
     private fun noteReplySource(ch: Characteristic) {
@@ -331,21 +373,29 @@ class BedJetLink(
     }
 
     private fun receiveHead(bytes: ByteArray) {
-        val status = Reply.parseStatus(bytes) ?: return log(LogLevel.WARN, "Unparseable status: ${bytes.toHex()}")
-        val update = if (status.extra != null) {
-            lastExtra = status.extra
-            lastHead = null
-            StatusUpdate(status, extraFresh = true)
-        } else {
-            // Bytes 27–29 lag behind: show the last known ones and fetch the remainder now and then.
-            lastHead = bytes
-            val t = now()
-            if (bytes.u(0) == 1 && !remainderPending && t - lastRemainderRead >= config.remainderIntervalMs) {
-                lastRemainderRead = t
-                readRemainder()
+        val status =
+            Reply.parseStatus(bytes)
+                ?: return log(LogLevel.WARN, "Unparseable status: ${bytes.toHex()}")
+        val update =
+            if (status.extra != null) {
+                lastExtra = status.extra
+                lastHead = null
+                StatusUpdate(status, extraFresh = true)
+            } else {
+                // Bytes 27–29 lag behind: show the last known ones and fetch the remainder now and
+                // then.
+                lastHead = bytes
+                val t = now()
+                if (
+                    bytes.u(0) == 1 &&
+                        !remainderPending &&
+                        t - lastRemainderRead >= config.remainderIntervalMs
+                ) {
+                    lastRemainderRead = t
+                    readRemainder()
+                }
+                StatusUpdate(status.copy(extra = lastExtra), extraFresh = false)
             }
-            StatusUpdate(status.copy(extra = lastExtra), extraFresh = false)
-        }
         emit(update)
     }
 
@@ -368,7 +418,11 @@ class BedJetLink(
         remainderPending = false
         val head = lastHead ?: return
         val status = Reply.parseStatus(head + rest)
-        if (status?.extra == null) return log(LogLevel.WARN, "Status remainder didn't complete the packet: ${rest.toHex()}")
+        if (status?.extra == null)
+            return log(
+                LogLevel.WARN,
+                "Status remainder didn't complete the packet: ${rest.toHex()}",
+            )
         lastExtra = status.extra
         emit(StatusUpdate(status, extraFresh = true))
     }
@@ -384,11 +438,13 @@ class BedJetLink(
 
     private fun wrap(e: Throwable, fallback: ErrorCode): BedJetException {
         if (e is BedJetException) return e
-        val code = when ((e as? TransportException)?.kind) {
-            TransportException.Kind.NOT_CONNECTED, TransportException.Kind.DISCONNECTED -> ErrorCode.NOT_CONNECTED
-            TransportException.Kind.TIMEOUT -> ErrorCode.TIMEOUT
-            else -> fallback
-        }
+        val code =
+            when ((e as? TransportException)?.kind) {
+                TransportException.Kind.NOT_CONNECTED,
+                TransportException.Kind.DISCONNECTED -> ErrorCode.NOT_CONNECTED
+                TransportException.Kind.TIMEOUT -> ErrorCode.TIMEOUT
+                else -> fallback
+            }
         return BedJetException(code, "${code.text} (${e.message})", e)
     }
 }

@@ -1,5 +1,6 @@
 package link.thesymbolic.jetcommand.protocol
 
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -13,13 +14,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
-import kotlin.random.Random
 
 /**
- * A [BedJetTransport] over a [BedJetSim] that behaves like the real unit on the wire, for demo mode and tests.
+ * A [BedJetTransport] over a [BedJetSim] that behaves like the real unit on the wire, for demo mode
+ * and tests.
  *
- * Device time is [scope]'s clock: the sim ticks once a second and, while connected, notifies its status 4 times a second. It keeps
- * running while disconnected, as a BedJet does when the phone leaves. Under `runTest` pass `backgroundScope`.
+ * Device time is [scope]'s clock: the sim ticks once a second and, while connected, notifies its
+ * status 4 times a second. It keeps running while disconnected, as a BedJet does when the phone
+ * leaves. Under `runTest` pass `backgroundScope`.
  */
 class SimTransport(
     val sim: BedJetSim,
@@ -29,21 +31,30 @@ class SimTransport(
 ) : BedJetTransport {
     sealed interface Op {
         data object Connect : Op
+
         data class Write(val characteristic: Characteristic, val bytes: ByteArray) : Op
+
         data class Read(val characteristic: Characteristic) : Op
     }
 
     sealed interface Fault {
-        /** On [Op.Connect] a [TransportException.Kind.CONNECT_FAILED], else an operation failure. */
+        /**
+         * On [Op.Connect] a [TransportException.Kind.CONNECT_FAILED], else an operation failure.
+         */
         data class Fail(val gattStatus: Int = 133) : Fault
+
         /** Never completes, until the link drops. */
         data object Hang : Fault
+
         /** The link drops during the operation. */
         data object LoseLink : Fault
+
         data class Delay(val ms: Long) : Fault
     }
 
-    /** The real unit's reply characteristics keep their previous contents for a while after a query. */
+    /**
+     * The real unit's reply characteristics keep their previous contents for a while after a query.
+     */
     data class ReplyLatency(val staleReads: Int = 0, val delayMs: Long = 0)
 
     /** Seeded random faults on top of the scripted ones. */
@@ -64,19 +75,26 @@ class SimTransport(
             field = value
             random = value?.let { Random(it.seed) }
         }
+
     private var random: Random? = null
     private val rules = mutableListOf<Rule>()
 
     private val _ops = mutableListOf<Op>()
     /** Every operation attempted, in order. */
-    val ops: List<Op> get() = _ops.toList()
-    val writes get() = ops.filterIsInstance<Op.Write>().map { it.bytes.toHex() }
+    val ops: List<Op>
+        get() = _ops.toList()
+
+    val writes
+        get() = ops.filterIsInstance<Op.Write>().map { it.bytes.toHex() }
 
     private var connection: Job? = null
     private var reply = byteArrayOf(0, 0)
+
     private class PendingReply(val bytes: ByteArray, var staleReads: Int, var timeReady: Boolean)
+
     private var pendingReply: PendingReply? = null
-    // The real unit sends 20-byte heads even at MTU 500 (V1.20, 2026-10-22), so the MTU never makes a packet whole.
+    // The real unit sends 20-byte heads even at MTU 500 (V1.20, 2026-10-22), so the MTU never makes
+    // a packet whole.
     private val headSize = 20
 
     init {
@@ -141,7 +159,11 @@ class SimTransport(
             when (characteristic) {
                 Characteristic.COMMAND -> command(bytes)
                 Characteristic.NAME -> sim.deviceName = Reply.parseText(bytes)
-                else -> throw TransportException(TransportException.Kind.OPERATION_FAILED, gattStatus = 3)
+                else ->
+                    throw TransportException(
+                        TransportException.Kind.OPERATION_FAILED,
+                        gattStatus = 3,
+                    )
             }
         }
     }
@@ -149,9 +171,16 @@ class SimTransport(
     override suspend fun read(characteristic: Characteristic): ByteArray =
         perform(Op.Read(characteristic), connected()) {
             when (characteristic) {
-                Characteristic.STATUS -> sim.packet().let { if (headSize < it.size) it.copyOfRange(headSize, it.size) else it }
+                Characteristic.STATUS ->
+                    sim.packet().let {
+                        if (headSize < it.size) it.copyOfRange(headSize, it.size) else it
+                    }
                 Characteristic.NAME -> sim.deviceName.toByteArray(Charsets.ISO_8859_1)
-                Characteristic.COMMAND -> throw TransportException(TransportException.Kind.OPERATION_FAILED, gattStatus = 2)
+                Characteristic.COMMAND ->
+                    throw TransportException(
+                        TransportException.Kind.OPERATION_FAILED,
+                        gattStatus = 2,
+                    )
                 Characteristic.REPLY -> currentReply().let { it.copyOf(minOf(it.size, mtu - 1)) }
                 Characteristic.REPLY_ALT ->
                     if (hasReplyAlt) currentReply()
@@ -159,23 +188,27 @@ class SimTransport(
             }
         }
 
-    private fun connected() = connection ?: throw TransportException(TransportException.Kind.NOT_CONNECTED)
+    private fun connected() =
+        connection ?: throw TransportException(TransportException.Kind.NOT_CONNECTED)
 
     private fun command(bytes: ByteArray) {
         if (bytes.size >= 3 && bytes.u(0) == 0x41) {
-            val answer = try {
-                byteArrayOf(bytes[1], bytes[2]) + sim.query(bytes.u(1))
-            } catch (_: BedJetException) {
-                return // the real unit doesn't answer unknown ids; the old reply stays
-            }
+            val answer =
+                try {
+                    byteArrayOf(bytes[1], bytes[2]) + sim.query(bytes.u(1))
+                } catch (_: BedJetException) {
+                    return // the real unit doesn't answer unknown ids; the old reply stays
+                }
             // A retry of the request still waiting for its answer doesn't restart the wait.
             if (pendingReply?.bytes?.let { it[0] == bytes[1] && it[1] == bytes[2] } == true) return
-            val pending = PendingReply(answer, replyLatency.staleReads, timeReady = replyLatency.delayMs <= 0)
+            val pending =
+                PendingReply(answer, replyLatency.staleReads, timeReady = replyLatency.delayMs <= 0)
             pendingReply = pending
-            if (!pending.timeReady) scope.launch {
-                delay(replyLatency.delayMs)
-                pending.timeReady = true
-            }
+            if (!pending.timeReady)
+                scope.launch {
+                    delay(replyLatency.delayMs)
+                    pending.timeReady = true
+                }
             return
         }
         try {
@@ -196,11 +229,13 @@ class SimTransport(
     }
 
     private fun faultFor(op: Op): Fault? {
-        rules.firstOrNull { it.times > 0 && it.where(op) }?.let { rule ->
-            rule.times--
-            if (rule.times == 0) rules.remove(rule)
-            return rule.fault
-        }
+        rules
+            .firstOrNull { it.times > 0 && it.where(op) }
+            ?.let { rule ->
+                rule.times--
+                if (rule.times == 0) rules.remove(rule)
+                return rule.fault
+            }
         val c = chaos ?: return null
         return if (random!!.nextDouble() < c.failRate) Fault.Fail() else null
     }
@@ -208,7 +243,9 @@ class SimTransport(
     private suspend fun <T> perform(op: Op, conn: Job?, body: () -> T): T {
         _ops += op
         val fault = faultFor(op)
-        val kind = if (op == Op.Connect) TransportException.Kind.CONNECT_FAILED else TransportException.Kind.OPERATION_FAILED
+        val kind =
+            if (op == Op.Connect) TransportException.Kind.CONNECT_FAILED
+            else TransportException.Kind.OPERATION_FAILED
         return coroutineScope {
             val work = async {
                 delay(latencyMs)
@@ -222,17 +259,19 @@ class SimTransport(
                     is Fault.Delay -> delay(fault.ms)
                     null -> Unit
                 }
-                if (conn != null && connection !== conn) throw TransportException(TransportException.Kind.DISCONNECTED)
+                if (conn != null && connection !== conn)
+                    throw TransportException(TransportException.Kind.DISCONNECTED)
                 body()
             }
             if (conn == null) work.await()
-            else select {
-                work.onAwait { it }
-                conn.onJoin {
-                    work.cancel()
-                    throw TransportException(TransportException.Kind.DISCONNECTED)
+            else
+                select {
+                    work.onAwait { it }
+                    conn.onJoin {
+                        work.cancel()
+                        throw TransportException(TransportException.Kind.DISCONNECTED)
+                    }
                 }
-            }
         }
     }
 }

@@ -1,15 +1,5 @@
 package link.thesymbolic.jetcommand.protocol
 
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.currentTime
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import java.time.LocalTime
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -19,14 +9,31 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import link.thesymbolic.jetcommand.protocol.SimTransport.Fault
 import link.thesymbolic.jetcommand.protocol.SimTransport.Op
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryTest {
-    private class Rig(val sim: BedJetSim, val transport: SimTransport, val device: BedJetDevice, val store: InMemoryLibraryStore, val lib: ProgramLibrary) {
+    private class Rig(
+        val sim: BedJetSim,
+        val transport: SimTransport,
+        val device: BedJetDevice,
+        val store: InMemoryLibraryStore,
+        val lib: ProgramLibrary,
+    ) {
         suspend fun views() = lib.slots(DEV).first()
+
         suspend fun status(slot: Int) = views()[slot].status
+
         suspend fun refresh() = lib.refresh(DEV, device)
     }
 
@@ -34,13 +41,21 @@ class LibraryTest {
         val sim = BedJetSim(slots = slots)
         val transport = SimTransport(sim, backgroundScope)
         val link = BedJetLink(transport, backgroundScope, now = { currentTime })
-        val device = BedJetDevice(link, backgroundScope, clock = { LocalTime.of(22, 0) }, now = { currentTime })
+        val device =
+            BedJetDevice(
+                link,
+                backgroundScope,
+                clock = { LocalTime.of(22, 0) },
+                now = { currentTime },
+            )
         link.connect()
         val store = InMemoryLibraryStore()
         return Rig(sim, transport, device, store, ProgramLibrary(store, now = { currentTime }))
     }
 
-    private fun cool(fan: Int, hours: Int = 1, minutes: Int = 0) = Step(Mode.COOL, fan, 40, hours, minutes)
+    private fun cool(fan: Int, hours: Int = 1, minutes: Int = 0) =
+        Step(Mode.COOL, fan, 40, hours, minutes)
+
     private val clockStep = Step(Mode.COOL, 14, 40, 6, 30, clock = true)
     private val a = Program("Alpha", listOf(cool(5), clockStep))
     private val a2 = Program("Alpha", listOf(cool(6), clockStep))
@@ -54,7 +69,13 @@ class LibraryTest {
 
     @Test
     fun `steps round-trip through the wire form, clock flag included`() {
-        val steps = listOf(cool(5), clockStep, Step(Mode.WAIT, 19, 80, 0, 10), Step(Mode.HEAT, 0, 66, 11, 59))
+        val steps =
+            listOf(
+                cool(5),
+                clockStep,
+                Step(Mode.WAIT, 19, 80, 0, 10),
+                Step(Mode.HEAT, 0, 66, 11, 59),
+            )
         val bytes = encodeSteps(steps)
         assertEquals(20, bytes.size)
         assertContentEquals(byteArrayOf(4, 14, 40, 0x86.toByte(), 30), bytes.copyOfRange(5, 10))
@@ -67,7 +88,10 @@ class LibraryTest {
         assertEquals(a.fingerprint(), a.copy(name = "Alphaé").fingerprint())
         assertNotEquals(a.fingerprint(), a2.fingerprint())
         assertNotEquals(a.fingerprint(), a.copy(name = "Alph").fingerprint())
-        assertNotEquals(a.fingerprint(), a.copy(steps = listOf(cool(5), clockStep.copy(clock = false))).fingerprint())
+        assertNotEquals(
+            a.fingerprint(),
+            a.copy(steps = listOf(cool(5), clockStep.copy(clock = false))).fingerprint(),
+        )
     }
 
     // ---- statuses ----
@@ -273,7 +297,9 @@ class LibraryTest {
         val alpha = r.lib.create(a)
         r.refresh()
         // Fragments land, the link drops on the name frame.
-        r.transport.inject(Fault.LoseLink) { it is Op.Write && it.bytes.size == 19 && it.bytes[0] == 0x40.toByte() }
+        r.transport.inject(Fault.LoseLink) {
+            it is Op.Write && it.bytes.size == 19 && it.bytes[0] == 0x40.toByte()
+        }
         assertFailsWith<BedJetException> { r.lib.push(DEV, r.device, 2, alpha.id) }
         advanceTimeBy(5_000)
         r.refresh()
@@ -335,13 +361,27 @@ class LibraryTest {
         val refresh = async { r.refresh() }
         advanceTimeBy(250)
         val mark = r.transport.ops.size
-        val inFlight = r.transport.ops.filterIsInstance<Op.Write>().last { it.bytes[0] == 0x41.toByte() }.bytes.toList()
+        val inFlight =
+            r.transport.ops
+                .filterIsInstance<Op.Write>()
+                .last { it.bytes[0] == 0x41.toByte() }
+                .bytes
+                .toList()
         var fanDone = false
-        launch { r.device.setFan(11); fanDone = true }
+        launch {
+            r.device.setFan(11)
+            fanDone = true
+        }
         while (!fanDone) advanceTimeBy(10)
         assertFalse(refresh.isCompleted, "refresh finished before the command")
-        val before = r.transport.ops.drop(mark).takeWhile { !(it is Op.Write && it.bytes.contentEquals(Command.setFan(11))) }
-        val otherQueries = before.filterIsInstance<Op.Write>().filter { it.bytes[0] == 0x41.toByte() && it.bytes.toList() != inFlight }
+        val before =
+            r.transport.ops.drop(mark).takeWhile {
+                !(it is Op.Write && it.bytes.contentEquals(Command.setFan(11)))
+            }
+        val otherQueries =
+            before.filterIsInstance<Op.Write>().filter {
+                it.bytes[0] == 0x41.toByte() && it.bytes.toList() != inFlight
+            }
         assertEquals(emptyList(), otherQueries.map { it.bytes.toHex() })
         refresh.await()
         runCurrent()
