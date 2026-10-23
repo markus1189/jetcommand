@@ -56,6 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalTime
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -75,11 +76,13 @@ fun NowScreen(
     programs: ProgramsSource,
     snackbar: SnackbarHostState,
     openDiagnostics: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val stack by vm.stack.collectAsState()
     val link by vm.linkState.collectAsState()
     val update by vm.status.collectAsState()
     val remembered by vm.remembered.collectAsState()
+    // Outlives the Off button, which leaves the composition as soon as it turns the unit off.
     val scope = rememberCoroutineScope()
     val st = update?.status?.takeIf { link == LinkState.Ready }
     // A status arrives about every second; a growing age is the first sign the link went quiet.
@@ -95,7 +98,7 @@ fun NowScreen(
     val age = ((now - lastStatusAt) / 1_000).takeIf { st != null }
 
     Column(
-        Modifier.fillMaxSize().padding(16.dp),
+        modifier.fillMaxSize().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -134,40 +137,44 @@ fun NowScreen(
         Spacer(Modifier.height(16.dp))
 
         // Off sits apart from the fields so a sleepy thumb aiming for − doesn't land on it.
-        if (st.mode != Mode.STANDBY) {
-            OutlinedButton(
-                onClick = {
-                    val previous = st.mode
-                    vm.setMode(Mode.STANDBY)
-                    scope.launch {
-                        // The snackbar's Short is ~4 s and Long ~10 s; time it out ourselves for ~5
-                        // s.
-                        val result =
-                            withTimeoutOrNull(5_000) {
-                                snackbar.showSnackbar(
-                                    "Turned off",
-                                    actionLabel = "Undo",
-                                    duration = SnackbarDuration.Indefinite,
-                                )
-                            }
-                        if (result == null) snackbar.currentSnackbarData?.dismiss()
-                        // WAIT can't be set by a button; programs aren't restored either.
-                        if (
-                            result == SnackbarResult.ActionPerformed &&
-                                Btn.forMode(previous) != null
+        if (st.mode != Mode.STANDBY) TurnOffButton(st.mode, vm::setMode, snackbar, scope)
+        else Spacer(Modifier.height(52.dp))
+    }
+}
+
+@Composable
+private fun TurnOffButton(
+    mode: Mode,
+    setMode: (Mode) -> Unit,
+    snackbar: SnackbarHostState,
+    scope: CoroutineScope,
+) {
+    OutlinedButton(
+        onClick = {
+            val previous = mode
+            setMode(Mode.STANDBY)
+            scope.launch {
+                // The snackbar's Short is ~4 s and Long ~10 s; time it out ourselves for ~5
+                // s.
+                val result =
+                    withTimeoutOrNull(5_000) {
+                        snackbar.showSnackbar(
+                            "Turned off",
+                            actionLabel = "Undo",
+                            duration = SnackbarDuration.Indefinite,
                         )
-                            vm.setMode(previous)
                     }
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors =
-                    ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    ),
-            ) {
-                Text("Turn BedJet off", fontSize = 16.sp)
+                if (result == null) snackbar.currentSnackbarData?.dismiss()
+                // WAIT can't be set by a button; programs aren't restored either.
+                if (result == SnackbarResult.ActionPerformed && Btn.forMode(previous) != null)
+                    setMode(previous)
             }
-        } else Spacer(Modifier.height(52.dp))
+        },
+        modifier = Modifier.fillMaxWidth().height(52.dp),
+        colors =
+            ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+    ) {
+        Text("Turn BedJet off", fontSize = 16.sp)
     }
 }
 
@@ -203,32 +210,7 @@ private fun rememberPending(): Pending {
 private fun ColumnScope.Connected(vm: BedJetViewModel, st: Status, source: ProgramsSource) {
     LaunchedEffect(Unit) { vm.loadPrograms() }
 
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        MODES.forEach { m ->
-            val c = modeColor(m)
-            val on = m == st.mode
-            Box(
-                Modifier.weight(1f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (on) c else c.copy(alpha = 0.14f))
-                    .border(
-                        if (on) 2.dp else 1.dp,
-                        if (on) MaterialTheme.colorScheme.onSurface else c,
-                        RoundedCornerShape(12.dp),
-                    )
-                    .clickable(enabled = !on) { vm.setMode(m) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    shortLabel(m),
-                    color = if (on) Color(0xFF0E1116) else c,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-        }
-    }
+    ModeRow(st.mode, vm::setMode)
 
     Spacer(Modifier.height(12.dp))
     val r = st.remainingSeconds
@@ -249,6 +231,46 @@ private fun ColumnScope.Connected(vm: BedJetViewModel, st: Status, source: Progr
     }
     Spacer(Modifier.height(12.dp))
 
+    ValueFields(st, vm::setTemperature, vm::setFan)
+    ProgramButtons(vm.programs, vm::startProgram)
+}
+
+@Composable
+private fun ModeRow(mode: Mode, setMode: (Mode) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        MODES.forEach { m ->
+            val c = modeColor(m)
+            val on = m == mode
+            Box(
+                Modifier.weight(1f)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (on) c else c.copy(alpha = 0.14f))
+                    .border(
+                        if (on) 2.dp else 1.dp,
+                        if (on) MaterialTheme.colorScheme.onSurface else c,
+                        RoundedCornerShape(12.dp),
+                    )
+                    .clickable(enabled = !on) { setMode(m) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    shortLabel(m),
+                    color = if (on) Color(0xFF0E1116) else c,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.ValueFields(
+    st: Status,
+    setTemperature: (Int) -> Unit,
+    setFan: (Int) -> Unit,
+) {
     val temp = rememberPending()
     val fan = rememberPending()
     val (range, _) = tempRange(st.mode, st)
@@ -277,7 +299,7 @@ private fun ColumnScope.Connected(vm: BedJetViewModel, st: Status, source: Progr
             onPreview = { temp.preview = it },
             onCommit = {
                 temp.sent = range.min + it
-                vm.setTemperature(range.min + it)
+                setTemperature(range.min + it)
             },
             modifier = Modifier.weight(1f).fillMaxHeight(),
         )
@@ -294,13 +316,16 @@ private fun ColumnScope.Connected(vm: BedJetViewModel, st: Status, source: Progr
             onPreview = { fan.preview = it },
             onCommit = {
                 fan.sent = it
-                vm.setFan(it)
+                setFan(it)
             },
             modifier = Modifier.weight(1f).fillMaxHeight(),
         )
     }
+}
 
-    val programs = vm.programs.withIndex().filter { it.value != null }
+@Composable
+private fun ColumnScope.ProgramButtons(names: List<String?>, start: (Int) -> Unit) {
+    val programs = names.withIndex().filter { it.value != null }
     if (programs.isNotEmpty()) {
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -310,7 +335,7 @@ private fun ColumnScope.Connected(vm: BedJetViewModel, st: Status, source: Progr
                         .height(60.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable { vm.startProgram(slot) },
+                        .clickable { start(slot) },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
@@ -419,7 +444,7 @@ private fun ProgramIcon() {
  * asked for it.
  */
 @Composable
-private fun NotificationsPrompt() {
+private fun ColumnScope.NotificationsPrompt() {
     if (Build.VERSION.SDK_INT < 33) return
     val context = LocalContext.current
     fun granted() =
