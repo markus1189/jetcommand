@@ -35,6 +35,7 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.activity.compose)
     implementation(libs.room.runtime)
+    implementation(libs.vico.compose.m3)
     ksp(libs.room.compiler)
     debugImplementation(libs.compose.ui.tooling)
 }
