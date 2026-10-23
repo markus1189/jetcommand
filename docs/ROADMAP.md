@@ -35,14 +35,16 @@ appears.
 | 5 | Full-stack debug screen, Demo BedJet | done |
 | 6 | Real-device test (checklist below) | done (API 31/32 path untested) |
 | 7 | Foreground service owning the link + night log (Room) | done on the emulator; overnight on a real unit open |
-| 8 | Real UI: status/controls, program editor + library, night log + review | iteration 1 (night loop: Now screen, lock-screen notification controls, bottom nav, dark theme) on the user's phone 2026-10-22, first real night pending; then a design round; editor, library, nights open |
+| 8 | Real UI: status/controls, program editor + library, night log + review | iteration 1 (night loop: Now screen, lock-screen notification controls, bottom nav, dark theme) on the user's phone 2026-10-22; night 1: service SIGKILLed at 22:55 as FGS (likely Samsung battery optimisation), night 2 pending; then a design round; editor, library, nights open |
 | 9 | Notification actions → exact-alarm program chaining → morning review (WorkManager) → CompanionDeviceManager auto-connect → QS tile/widget → Health Connect | |
 | 10 | Import of the PWA's backup text format | |
 
 ## Next
 
-1. Evaluate the first real night (2026-10-22/23) on the phone: night log (drops, reconnects, presses; Settings → Diagnostics, or `run-as link.thesymbolic.jetcommand` on `databases/night-log.db` plus its `-wal`), whether Samsung killed the service, battery (`dumpsys batterystats`, reset at 19:14 that evening; uid of the app via `dumpsys package`).
-2. Design round on iteration 1 with the user's notes from the night.
+1. Night 2 (battery now Unrestricted): did the service survive? Check `dumpsys activity exit-info link.thesymbolic.jetcommand` first (logcat rotates past a kill by morning), then the night log (`run-as link.thesymbolic.jetcommand`, `databases/night-log.db` plus `-wal`): `PROCESS` rows, drops, reconnects; battery for uid u0a280.
+2. Cap the reconnect backoff: night 1 had a 358 s gap after a status-8 drop.
+3. If the service died again: START_STICKY plus a restart path, or CompanionDeviceManager.
+4. Design round on iteration 1 with the user's notes from the nights.
 
 ## Known gaps
 
