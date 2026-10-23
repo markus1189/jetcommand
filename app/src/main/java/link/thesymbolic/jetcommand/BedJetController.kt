@@ -1,6 +1,7 @@
 package link.thesymbolic.jetcommand
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
@@ -8,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import androidx.core.content.edit
 import java.time.LocalTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -145,7 +147,9 @@ class BedJetController(
                 }
             },
             filter,
-            Context.RECEIVER_NOT_EXPORTED,
+            // Inlined API-33 constant; earlier releases ignore the flag, and STATE_CHANGED is a
+            // protected broadcast anyway.
+            @SuppressLint("InlinedApi") Context.RECEIVER_NOT_EXPORTED,
         )
     }
 
@@ -291,7 +295,10 @@ class BedJetController(
     }
 
     private fun remember(device: Source.Device) {
-        prefs.edit().putString(KEY_ADDRESS, device.address).putString(KEY_NAME, device.name).apply()
+        prefs.edit {
+            putString(KEY_ADDRESS, device.address)
+            putString(KEY_NAME, device.name)
+        }
         _remembered.value = device
     }
 
