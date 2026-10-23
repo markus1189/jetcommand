@@ -280,6 +280,7 @@ class LibraryTest {
         r.refresh()
         r.lib.run(DEV, r.device, 0, alpha.id)
         assertTrue(r.device.status!!.status.extra!!.programStep > 0)
+        assertEquals(StartedSlot(DEV, 0), r.lib.started.value)
         r.device.stopProgram()
         r.device.waitForStatus { it.extraFresh && it.status.extra!!.programStep == 0 }
         val writes = r.transport.writes.size

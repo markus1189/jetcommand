@@ -4,6 +4,8 @@ package link.thesymbolic.jetcommand.protocol
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -85,6 +87,8 @@ sealed interface SlotStatus {
 
 data class SlotView(val state: SlotState, val status: SlotStatus)
 
+data class StartedSlot(val device: String, val slot: Int)
+
 enum class Resolution { TAKE_THEIRS, KEEP_MINE, SPLIT_OFF }
 
 /** Persistence only; every rule lives in [ProgramLibrary]. Room in the app, [InMemoryLibraryStore] in tests. */
@@ -108,6 +112,18 @@ interface LibraryStore {
  * BLE address, or "demo" for the Demo BedJet.
  */
 class ProgramLibrary(private val store: LibraryStore, private val now: () -> Long = System::currentTimeMillis) {
+    private val _started = MutableStateFlow<StartedSlot?>(null)
+    /** The slot this app last started, until [clearStarted]: the status names only the step, not the slot. */
+    val started: StateFlow<StartedSlot?> = _started.asStateFlow()
+
+    fun noteStarted(device: String, slot: Int) {
+        _started.value = StartedSlot(device, slot)
+    }
+
+    fun clearStarted() {
+        _started.value = null
+    }
+
     fun entries(): Flow<List<LibraryEntry>> = store.entries()
 
     /** Always three, slot order. */
@@ -175,6 +191,7 @@ class ProgramLibrary(private val store: LibraryStore, private val now: () -> Lon
         val status = view(store.slot(device, slot) ?: blank(device, slot)).status
         if (!(status is SlotStatus.InSync && status.entry.id == programId)) push(device, bedJet, slot, programId)
         bedJet.startProgram(slot)
+        noteStarted(device, slot)
     }
 
     suspend fun resolve(device: String, slot: Int, resolution: Resolution) {

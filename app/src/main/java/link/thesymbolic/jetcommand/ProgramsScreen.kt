@@ -1,5 +1,12 @@
 package link.thesymbolic.jetcommand
 
+import link.thesymbolic.jetcommand.protocol.StartedSlot
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
+import link.thesymbolic.jetcommand.protocol.BedJetException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -67,6 +74,9 @@ interface ProgramsSource {
     val device: StateFlow<String?>
     /** A link is up, so slot actions can reach the unit. */
     val live: StateFlow<Boolean>
+    /** Failed actions, as text for the user. */
+    val errors: SharedFlow<String>
+    val started: StateFlow<StartedSlot?>
     fun entries(): Flow<List<LibraryEntry>>
     fun slots(device: String): Flow<List<SlotView>>
     suspend fun revisions(programId: String): List<ProgramRevision>
@@ -99,9 +109,19 @@ class LibraryPrograms(
     override suspend fun revisions(programId: String) = library.revisions(programId)
     override suspend fun rankSlots(device: String, programId: String) = library.rankSlots(device, programId)
 
+    override val errors = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    override val started = library.started
+
     private fun onUnit(what: String, block: suspend ProgramLibrary.(String, BedJetStack) -> Unit) {
         val id = controller.deviceId.value ?: return controller.log(LogLevel.ERROR, "$what: no device")
-        controller.act(what) { stack -> library.block(id, stack) }
+        controller.act(what) { stack ->
+            try {
+                library.block(id, stack)
+            } catch (e: BedJetException) {
+                errors.tryEmit(e.message ?: e.code.text)
+                throw e
+            }
+        }
     }
 
     override fun run(slot: Int, programId: String) = onUnit("run program in slot ${slot + 1}") { id, s -> run(id, s.device, slot, programId) }
@@ -110,7 +130,11 @@ class LibraryPrograms(
     private fun local(what: String, block: suspend ProgramLibrary.(String) -> Unit) {
         val id = device.value ?: return
         scope.launch {
-            runCatching { library.block(id) }.onFailure { controller.log(LogLevel.ERROR, "$what: ${it::class.simpleName} ${it.message}") }
+            runCatching { library.block(id) }.onFailure {
+                if (it is CancellationException) throw it
+                controller.log(LogLevel.ERROR, "$what: ${it::class.simpleName} ${it.message}")
+                errors.tryEmit("Couldn't $what.")
+            }
         }
     }
 
@@ -133,6 +157,9 @@ fun ProgramsScreen(source: ProgramsSource) {
     val live by source.live.collectAsState()
     val entries by remember(source) { source.entries() }.collectAsState(emptyList())
     val slots by remember(source, device) { device?.let(source::slots) ?: flowOf(emptyList()) }.collectAsState(emptyList())
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(source) { source.errors.collect { snackbar.showSnackbar(it) } }
+    Box(Modifier.fillMaxSize()) {
     when (val r = route) {
         Route.List -> ProgramsList(
             entries, slots, live,
@@ -147,6 +174,8 @@ fun ProgramsScreen(source: ProgramsSource) {
         is Route.Conflict -> slots.getOrNull(r.slot)?.takeIf { it.status is SlotStatus.ChangedOutside }?.let { v ->
             ConflictScreen(source, v, back = { route = Route.List })
         } ?: LaunchedEffect(r) { route = Route.List }
+    }
+    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -335,6 +364,8 @@ private fun LibraryRow(e: LibraryEntry, slots: List<SlotView>, start: LocalTime,
 class FakePrograms : ProgramsSource {
     override val device = MutableStateFlow<String?>("demo")
     override val live = MutableStateFlow(true)
+    override val errors = MutableSharedFlow<String>()
+    override val started = MutableStateFlow<StartedSlot?>(null)
     private val day = 86_400_000L
     private val t0 = System.currentTimeMillis()
 

@@ -271,17 +271,18 @@ private fun ColumnScope.Connected(vm: BedJetViewModel, st: Status, source: Progr
 }
 
 /**
- * The program the unit is running, from the slot cache. The status carries only the step number, so it's the one
- * cached program long enough for it; null when none or several fit.
+ * The program the unit is running, from the slot cache. The status carries only the step number: the slot this app
+ * started, else the one cached program long enough for the step; null when none or several fit.
  */
 @Composable
 private fun runningProgram(source: ProgramsSource, step: Int): Program? {
     if (step <= 0) return null
     val device by source.device.collectAsState()
-    // Until the library lands on main its bodies throw; the Now screen must not go down with a missing strip.
-    val flow = remember(source, device) { device?.let { runCatching { source.slots(it) }.getOrNull() } ?: flowOf(emptyList()) }
-    val slots by flow.collectAsState(emptyList())
-    return slots.mapNotNull { it.state.program }.filter { it.steps.size >= step }.singleOrNull()
+    val started by source.started.collectAsState()
+    val slots by remember(source, device) { device?.let(source::slots) ?: flowOf(emptyList()) }.collectAsState(emptyList())
+    val fits = { p: Program? -> p?.takeIf { it.steps.size >= step } }
+    started?.takeIf { it.device == device }?.let { s -> fits(slots.getOrNull(s.slot)?.state?.program)?.let { return it } }
+    return slots.mapNotNull { fits(it.state.program) }.singleOrNull()
 }
 
 /** "Twostep · step 2/5", the next step and when it starts, and the strip with a now-line. */

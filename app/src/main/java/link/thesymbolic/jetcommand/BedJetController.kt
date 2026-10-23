@@ -41,6 +41,9 @@ import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.NightEvent
 import link.thesymbolic.jetcommand.protocol.NightLogStore
 import link.thesymbolic.jetcommand.protocol.NightRecorder
+import link.thesymbolic.jetcommand.protocol.Program
+import link.thesymbolic.jetcommand.protocol.ProgramTemplates
+import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 import link.thesymbolic.jetcommand.protocol.SimTransport
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
@@ -110,6 +113,10 @@ class BedJetController(context: Context, private val store: NightLogStore, priva
 
     init {
         val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
+        // Ends what [ProgramLibrary.started] knows: whatever runs next may have been started elsewhere.
+        scope.launch {
+            status.collect { if (it != null && it.extraFresh && it.status.extra?.programStep == 0) library.clearStarted() }
+        }
         this.context.registerReceiver(object : BroadcastReceiver() {
             override fun onReceive(c: Context, intent: Intent) {
                 if (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1) != BluetoothAdapter.STATE_ON) return
@@ -163,7 +170,7 @@ class BedJetController(context: Context, private val store: NightLogStore, priva
     private fun build(source: Source): BedJetStack {
         val scope = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
         val raw: BedJetTransport = when (source) {
-            Source.Demo -> SimTransport(BedJetSim(), scope)
+            Source.Demo -> SimTransport(BedJetSim(slots = demoSlots()), scope)
             is Source.Device -> {
                 val adapter = context.getSystemService(BluetoothManager::class.java).adapter
                 GattTransport(context, adapter.getRemoteDevice(source.address))
@@ -238,6 +245,13 @@ class BedJetController(context: Context, private val store: NightLogStore, priva
 
     companion object {
         const val DEMO_ID = "demo"
+
+        /** One slot the seeded library recognises, one it doesn't, one empty: the slot states worth seeing. */
+        fun demoSlots() = listOf(
+            ProgramTemplates.all[2],
+            Program("Twostep", listOf(Step(Mode.HEAT, 9, 70, 0, 30), Step(Mode.EXT_HEAT, 5, 62, 2, 0))),
+            null,
+        )
 
         fun idOf(source: Source) = if (source is Source.Device) source.address else DEMO_ID
         private const val KEY_ADDRESS = "device.address"

@@ -18,7 +18,7 @@ import link.thesymbolic.jetcommand.protocol.fanPercent
 import link.thesymbolic.jetcommand.protocol.formatTemp
 
 /** The UI's view of [BedJetController]; the connection lives there, not here. */
-class BedJetViewModel(app: Application) : AndroidViewModel(app) {
+class BedJetViewModel(private val app: Application) : AndroidViewModel(app) {
     private val controller = app.controller
     val stack = controller.stack
     val log = controller.log
@@ -66,7 +66,10 @@ class BedJetViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadPrograms() = act("programs") { programs = it.device.programNames() }
 
-    fun startProgram(slot: Int) = act("start program ${slot + 1}") { it.device.startProgram(slot) }
+    fun startProgram(slot: Int) = act("start program ${slot + 1}") {
+        it.device.startProgram(slot)
+        controller.deviceId.value?.let { id -> app.library.noteStarted(id, slot) }
+    }
 
     fun hasConnectPermission() = controller.hasConnectPermission()
 

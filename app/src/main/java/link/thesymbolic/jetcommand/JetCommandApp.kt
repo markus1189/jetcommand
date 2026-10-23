@@ -9,7 +9,10 @@ import link.thesymbolic.jetcommand.library.RoomLibraryStore
 import link.thesymbolic.jetcommand.night.NightLogDatabase
 import link.thesymbolic.jetcommand.night.RoomNightLogStore
 import link.thesymbolic.jetcommand.night.RoomNightsSource
+import kotlinx.coroutines.launch
+import link.thesymbolic.jetcommand.protocol.Origin
 import link.thesymbolic.jetcommand.protocol.ProcessLog
+import link.thesymbolic.jetcommand.protocol.ProgramTemplates
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 
 class JetCommandApp : Application() {
@@ -25,9 +28,20 @@ class JetCommandApp : Application() {
         val dao = NightLogDatabase.open(this).events()
         library = ProgramLibrary(RoomLibraryStore(LibraryDatabase.open(this)))
         controller = BedJetController(this, RoomNightLogStore(dao), library)
+        seedLibrary()
         nights = RoomNightsSource(dao)
         logExits()
         controller.lifecycle(ProcessLog.STARTED)
+    }
+
+    // Once per install, so a library the user emptied stays empty.
+    private fun seedLibrary() {
+        val prefs = getSharedPreferences("jetcommand", MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_SEEDED, false)) return
+        controller.scope.launch {
+            ProgramTemplates.all.asReversed().forEach { library.create(it, Origin.TEMPLATE) }
+            prefs.edit().putBoolean(KEY_SEEDED, true).apply()
+        }
     }
 
     // The system's record survives the process; logcat's kill lines rotate out within hours.
@@ -50,6 +64,7 @@ class JetCommandApp : Application() {
 
     private companion object {
         const val KEY_EXIT_SEEN = "exit.seen"
+        const val KEY_SEEDED = "library.seeded"
 
         fun reasonName(reason: Int) = when (reason) {
             ApplicationExitInfo.REASON_EXIT_SELF -> "self"
