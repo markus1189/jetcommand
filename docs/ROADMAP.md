@@ -38,7 +38,7 @@ appears.
 | 5 | Full-stack debug screen, Demo BedJet | done |
 | 6 | Real-device test (checklist below) | done (API 31/32 path untested) |
 | 7 | Foreground service owning the link + night log (Room) | done on the emulator; overnight on a real unit open |
-| 8 | Real UI: status/controls, program editor + library, night log + review | iteration 1 (night loop: Now screen, lock-screen notification controls, bottom nav, dark theme) on the user's phone 2026-10-22; night 1: service SIGKILLed at 22:55 as FGS (likely Samsung battery optimisation), night 2 pending; then a design round; nights tab on the emulator 2026-10-23; editor, library open |
+| 8 | Real UI: status/controls, program editor + library, night log + review | iteration 1 (night loop: Now screen, lock-screen notification controls, bottom nav, dark theme) on the user's phone 2026-10-22; night 1: service SIGKILLed at 22:55 as FGS (likely Samsung battery optimisation), night 2 pending; then a design round; nights tab on the emulator 2026-10-23; program library (slot sync, picker, conflicts, step strip) on the emulator 2026-10-23; editor open |
 | 9 | Notification actions → exact-alarm program chaining → morning review (WorkManager) → CompanionDeviceManager auto-connect → QS tile/widget → Health Connect | |
 | 10 | ~~Import of the PWA's backup text format~~ | dropped 2026-10-23 |
 
@@ -66,6 +66,9 @@ Protocol: `BEDJET_PROTOCOL.md:99-198`. Design canvas: https://claude.ai/artifact
 - Service is `START_NOT_STICKY` and there is no boot receiver: if the process is killed overnight, the connection stays down until the app is opened (auto-connects to the remembered device then).
 - Without BLUETOOTH_CONNECT the demo runs without the service (Android 14+ refuses a connectedDevice FGS).
 - Night log keeps every event forever; no pruning yet.
+- Programs have no start time yet (revision column planned, not in `ProgramRevision`): detail screens place clock-time steps from now.
+- Conflict screen and Interrupted retry are covered by `LibraryTest` only; the demo can't change a slot behind the app's back.
+- The library's first read on a real unit is untested: expect its slots as "Not in your library" until kept.
 - Background service costs ≈ 2 mAh/h (30 min measured on the phone, before change-only notification posts); the user charges the phone overnight, so night battery is not tracked.
 - Status changes that happen while the link is down are stamped when the phone sees them after the reconnect.
 - `BedJetLink.replySource` is a plain var and the link doesn't expose the MTU; the debug screen works around both.
