@@ -41,7 +41,7 @@ appears.
 
 ## Next
 
-1. Night 2 (battery now Unrestricted): did the service survive? Check `dumpsys activity exit-info link.thesymbolic.jetcommand` first (logcat rotates past a kill by morning), then the night log (`run-as link.thesymbolic.jetcommand`, `databases/night-log.db` plus `-wal`): `PROCESS` rows, drops, reconnects; battery for uid u0a280; reconnect gaps should now stay under ~30 s (wait capped at 10 s).
+1. Night 2 (battery now Unrestricted): did the service survive? Check `dumpsys activity exit-info link.thesymbolic.jetcommand` first (logcat rotates past a kill by morning), then the night log (`run-as link.thesymbolic.jetcommand`, `databases/night-log.db` plus `-wal`): `PROCESS` rows, drops, reconnects; reconnect gaps should now stay under ~30 s (wait capped at 10 s).
 2. If the service died again: START_STICKY plus a restart path, or CompanionDeviceManager.
 3. Design round on iteration 1 with the user's notes from the nights.
 
@@ -50,7 +50,7 @@ appears.
 - Service is `START_NOT_STICKY` and there is no boot receiver: if the process is killed overnight, the connection stays down until the app is opened (auto-connects to the remembered device then).
 - Without BLUETOOTH_CONNECT the demo runs without the service (Android 14+ refuses a connectedDevice FGS).
 - Night log keeps every event forever; no pruning yet.
-- Background service costs ≈ 2 mAh/h (30 min measured on the phone, before change-only notification posts).
+- Background service costs ≈ 2 mAh/h (30 min measured on the phone, before change-only notification posts); the user charges the phone overnight, so night battery is not tracked.
 - Status changes that happen while the link is down are stamped when the phone sees them after the reconnect.
 - `BedJetLink.replySource` is a plain var and the link doesn't expose the MTU; the debug screen works around both.
 - Validation/verify errors carry only a message, not the JS read-back details.
