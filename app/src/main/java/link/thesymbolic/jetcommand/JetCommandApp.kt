@@ -4,10 +4,11 @@ import android.app.ActivityManager
 import android.app.Application
 import android.app.ApplicationExitInfo
 import android.content.ComponentCallbacks2
+import link.thesymbolic.jetcommand.library.LibraryDatabase
+import link.thesymbolic.jetcommand.library.RoomLibraryStore
 import link.thesymbolic.jetcommand.night.NightLogDatabase
 import link.thesymbolic.jetcommand.night.RoomNightLogStore
 import link.thesymbolic.jetcommand.night.RoomNightsSource
-import link.thesymbolic.jetcommand.protocol.InMemoryLibraryStore
 import link.thesymbolic.jetcommand.protocol.ProcessLog
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 
@@ -22,9 +23,9 @@ class JetCommandApp : Application() {
     override fun onCreate() {
         super.onCreate()
         val dao = NightLogDatabase.open(this).events()
-        controller = BedJetController(this, RoomNightLogStore(dao))
+        library = ProgramLibrary(RoomLibraryStore(LibraryDatabase.open(this)))
+        controller = BedJetController(this, RoomNightLogStore(dao), library)
         nights = RoomNightsSource(dao)
-        library = ProgramLibrary(InMemoryLibraryStore())
         logExits()
         controller.lifecycle(ProcessLog.STARTED)
     }

@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -40,6 +41,7 @@ import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.NightEvent
 import link.thesymbolic.jetcommand.protocol.NightLogStore
 import link.thesymbolic.jetcommand.protocol.NightRecorder
+import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 import link.thesymbolic.jetcommand.protocol.SimTransport
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
 import link.thesymbolic.jetcommand.protocol.TappedTransport
@@ -75,7 +77,7 @@ class BedJetStack(
  * Everything runs on Main.immediate, the single thread [BedJetLink] and [BedJetDevice] require.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class BedJetController(context: Context, private val store: NightLogStore) {
+class BedJetController(context: Context, private val store: NightLogStore, private val library: ProgramLibrary) {
     private val context = context.applicationContext
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val prefs = this.context.getSharedPreferences("jetcommand", Context.MODE_PRIVATE)
@@ -87,7 +89,7 @@ class BedJetController(context: Context, private val store: NightLogStore) {
     val status: StateFlow<StatusUpdate?> = _stack.flatMapLatest { it?.link?.status ?: flowOf(null) }
         .stateIn(scope, SharingStarted.Eagerly, null)
     /** The [ProgramLibrary] device key of the current stack. */
-    val deviceId: StateFlow<String?> = _stack.map { it?.source?.let { s -> if (s is Source.Device) s.address else DEMO_ID } }
+    val deviceId: StateFlow<String?> = _stack.map { it?.source?.let(::idOf) }
         .stateIn(scope, SharingStarted.Eagerly, null)
 
     private val _log = MutableStateFlow<List<String>>(emptyList())
@@ -176,7 +178,30 @@ class BedJetController(context: Context, private val store: NightLogStore) {
         recorder = NightRecorder(link, store, scope)
         val device = BedJetDevice(link, scope)
         scope.launch { device.notifications.collect { log(LogLevel.WARN, "Notification ${it.code}: ${it.text}") } }
-        return BedJetStack(source, transport, raw as? SimTransport, link, device, recorder, scope)
+        val stack = BedJetStack(source, transport, raw as? SimTransport, link, device, recorder, scope)
+        refreshOnReady(stack)
+        return stack
+    }
+
+    /** Re-reads the slots on every transition to Ready; a Ready while a refresh still runs doesn't start another. */
+    private fun refreshOnReady(stack: BedJetStack) {
+        var running: Job? = null
+        stack.scope.launch {
+            // StateFlow is distinct, so each Ready emission is a transition.
+            stack.link.state.filter { it == LinkState.Ready }.collect {
+                if (running?.isActive == true) return@collect
+                running = stack.scope.launch {
+                    guard("library refresh") {
+                        // Error, not Exception: a TODO() in the library must not take the process down.
+                        try {
+                            library.refresh(idOf(stack.source), stack.device)
+                        } catch (e: NotImplementedError) {
+                            log(LogLevel.ERROR, "library refresh: not implemented")
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private suspend fun teardown(stack: BedJetStack) = withContext(NonCancellable) {
@@ -220,6 +245,8 @@ class BedJetController(context: Context, private val store: NightLogStore) {
 
     companion object {
         const val DEMO_ID = "demo"
+
+        fun idOf(source: Source) = if (source is Source.Device) source.address else DEMO_ID
         private const val KEY_ADDRESS = "device.address"
         private const val KEY_NAME = "device.name"
     }
