@@ -152,117 +152,125 @@ private const val RUN_MS = 10 * 60_000L
  */
 private const val CAUSED_MS = 5_000L
 
-fun importantRows(d: NightDetail, text: NightText): List<EventRow> {
-    val ev = d.events
-    val commands = ev.filter { it.kind == Kind.COMMAND }
-    fun pressed(e: NightEvent) = commands.any { it.at in e.at - CAUSED_MS..e.at }
-    val rows = mutableListOf<EventRow>()
-    val folded = mutableSetOf<NightEvent>()
-    var i = 0
-    while (i < ev.size) {
-        val e = ev[i]
-        when (e.kind) {
-            Kind.CONNECTED -> {
-                val started =
-                    ev.any {
-                        it.kind == Kind.PROCESS &&
-                            it.detail == ProcessLog.STARTED &&
-                            it.at in e.at - 60_000..e.at
-                    } && rows.isNotEmpty()
-                val mode =
-                    ev.drop(i + 1).firstOrNull { it.kind == Kind.MODE && it.at - e.at < 60_000 }
-                val modeNote = mode?.takeIf { started }?.let { " · BedJet ${it.detail}" } ?: ""
-                rows +=
-                    EventRow(
-                        e.at,
-                        (if (started) "App started · Connected" else "Connected") + modeNote,
-                    )
+fun importantRows(d: NightDetail, text: NightText): List<EventRow> = ImportantRows(d, text).build()
+
+private class ImportantRows(private val d: NightDetail, private val text: NightText) {
+    private val ev = d.events
+    private val commands = ev.filter { it.kind == Kind.COMMAND }
+    private val rows = mutableListOf<EventRow>()
+    private val folded = mutableSetOf<NightEvent>()
+
+    private fun pressed(e: NightEvent) = commands.any { it.at in e.at - CAUSED_MS..e.at }
+
+    fun build(): List<EventRow> {
+        ev.indices.forEach { i ->
+            val e = ev[i]
+            when (e.kind) {
+                Kind.CONNECTED -> connected(i, e)
+                Kind.LOST -> lost(i, e)
+                Kind.FAN,
+                Kind.TARGET -> if (pressed(e) && e !in folded) change(i, e)
+                Kind.MODE -> if (pressed(e)) rows += EventRow(e.at, "Mode ${e.detail}")
+                Kind.PROCESS -> if (e.detail.startsWith("exit")) exit(e)
+                else -> plain(e)?.let { rows += it }
             }
-            Kind.LOST -> {
-                val back =
-                    ev.drop(i + 1).firstOrNull {
-                        it.kind == Kind.RECONNECTED ||
-                            it.kind == Kind.CONNECTED ||
-                            it.kind == Kind.GAVE_UP
-                    }
-                rows +=
-                    if (back?.kind == Kind.RECONNECTED)
-                        EventRow(e.at, " · back after ${duration(back.at - e.at)}", lead = "Lost")
-                    else EventRow(e.at, " · ${e.detail}", lead = "Lost")
-            }
-            Kind.FAN,
-            Kind.TARGET ->
-                if (pressed(e) && e !in folded) {
-                    val run = mutableListOf(e)
-                    var j = i + 1
-                    while (j < ev.size && ev[j].at - run.last().at <= RUN_MS) {
-                        if (ev[j].kind == e.kind && pressed(ev[j])) run += ev[j]
-                        else if (
-                            ev[j].kind in setOf(Kind.FAN, Kind.TARGET, Kind.MODE) &&
-                                ev[j].kind != e.kind &&
-                                pressed(ev[j])
-                        )
-                            break
-                        j++
-                    }
-                    val before = ev.take(i).lastOrNull { it.kind == e.kind }?.value
-                    val after = run.last().value
-                    val presses = commands.count { c ->
-                        c.at in e.at - CAUSED_MS..run.last().at &&
-                            (if (e.kind == Kind.FAN) c.detail.startsWith("fan")
-                            else !c.detail.startsWith("fan"))
-                    }
-                    fun show(v: Int?) =
-                        if (v == null) "?"
-                        else if (e.kind == Kind.FAN) "${fanPercent(v)}"
-                        else formatTemp(v, withUnit = false)
-                    val unit = if (e.kind == Kind.FAN) "%" else "°C"
-                    val label = if (e.kind == Kind.FAN) "Fan" else "Target"
-                    val change =
-                        if (before != null) "${show(before)} → ${show(after)} $unit"
-                        else "${show(after)} $unit"
-                    val note =
-                        when {
-                            presses <= 1 -> null
-                            run.last().at - e.at >= 60_000 ->
-                                " · $presses presses until ${text.time(run.last().at)}"
-                            else -> " · $presses presses"
-                        }
-                    rows += EventRow(e.at, "$label $change", note = note)
-                    folded += run
-                }
-            Kind.MODE -> if (pressed(e)) rows += EventRow(e.at, "Mode ${e.detail}")
-            Kind.PROCESS ->
-                if (e.detail.startsWith("exit")) {
-                    val killed = e.at in d.summary.killedAt
-                    rows +=
-                        EventRow(
-                            e.at,
-                            if (killed) "App killed by Android"
-                            else
-                                "App ended · ${e.detail.removePrefix(ProcessLog.EXIT_PREFIX).substringBefore(" importance")}",
-                            warn = killed,
-                        )
-                    d.summary.gaps
-                        .firstOrNull { it.cause == NightSummary.Cause.APP && it.from == e.at }
-                        ?.let {
-                            rows +=
-                                EventRow(
-                                    null,
-                                    "${duration(it.to - it.from)} unobserved",
-                                    muted = true,
-                                )
-                        }
-                }
-            Kind.DISCONNECTED -> rows += EventRow(e.at, "Disconnected ${e.detail}")
-            Kind.GAVE_UP -> rows += EventRow(e.at, "Reconnect stopped", warn = true)
-            Kind.SHUTDOWN -> rows += EventRow(e.at, "BedJet shut down · ${e.detail}", warn = true)
-            Kind.NOTIFICATION -> rows += EventRow(e.at, "BedJet: ${e.detail}")
-            else -> {}
         }
-        i++
+        return rows
     }
-    return rows
+
+    /** Rows shown for every event of their kind, unconditionally. */
+    private fun plain(e: NightEvent): EventRow? =
+        when (e.kind) {
+            Kind.DISCONNECTED -> EventRow(e.at, "Disconnected ${e.detail}")
+            Kind.GAVE_UP -> EventRow(e.at, "Reconnect stopped", warn = true)
+            Kind.SHUTDOWN -> EventRow(e.at, "BedJet shut down · ${e.detail}", warn = true)
+            Kind.NOTIFICATION -> EventRow(e.at, "BedJet: ${e.detail}")
+            else -> null
+        }
+
+    private fun connected(i: Int, e: NightEvent) {
+        val started =
+            ev.any {
+                it.kind == Kind.PROCESS &&
+                    it.detail == ProcessLog.STARTED &&
+                    it.at in e.at - 60_000..e.at
+            } && rows.isNotEmpty()
+        val mode = ev.drop(i + 1).firstOrNull { it.kind == Kind.MODE && it.at - e.at < 60_000 }
+        val modeNote = mode?.takeIf { started }?.let { " · BedJet ${it.detail}" } ?: ""
+        rows += EventRow(e.at, (if (started) "App started · Connected" else "Connected") + modeNote)
+    }
+
+    private fun lost(i: Int, e: NightEvent) {
+        val back =
+            ev.drop(i + 1).firstOrNull {
+                it.kind == Kind.RECONNECTED || it.kind == Kind.CONNECTED || it.kind == Kind.GAVE_UP
+            }
+        rows +=
+            if (back?.kind == Kind.RECONNECTED)
+                EventRow(e.at, " · back after ${duration(back.at - e.at)}", lead = "Lost")
+            else EventRow(e.at, " · ${e.detail}", lead = "Lost")
+    }
+
+    /** Pressed changes of [e]'s kind from [i] on, until a pressed change of another kind. */
+    private fun run(i: Int, e: NightEvent): List<NightEvent> {
+        val run = mutableListOf(e)
+        var j = i + 1
+        while (j < ev.size && ev[j].at - run.last().at <= RUN_MS) {
+            if (ev[j].kind == e.kind && pressed(ev[j])) run += ev[j]
+            else if (
+                ev[j].kind in setOf(Kind.FAN, Kind.TARGET, Kind.MODE) &&
+                    ev[j].kind != e.kind &&
+                    pressed(ev[j])
+            )
+                break
+            j++
+        }
+        return run
+    }
+
+    private fun change(i: Int, e: NightEvent) {
+        val run = run(i, e)
+        val before = ev.take(i).lastOrNull { it.kind == e.kind }?.value
+        val after = run.last().value
+        val presses = commands.count { c ->
+            c.at in e.at - CAUSED_MS..run.last().at &&
+                (if (e.kind == Kind.FAN) c.detail.startsWith("fan")
+                else !c.detail.startsWith("fan"))
+        }
+        fun show(v: Int?) =
+            if (v == null) "?"
+            else if (e.kind == Kind.FAN) "${fanPercent(v)}" else formatTemp(v, withUnit = false)
+        val unit = if (e.kind == Kind.FAN) "%" else "°C"
+        val label = if (e.kind == Kind.FAN) "Fan" else "Target"
+        val change =
+            if (before != null) "${show(before)} → ${show(after)} $unit" else "${show(after)} $unit"
+        val note =
+            when {
+                presses <= 1 -> null
+                run.last().at - e.at >= 60_000 ->
+                    " · $presses presses until ${text.time(run.last().at)}"
+                else -> " · $presses presses"
+            }
+        rows += EventRow(e.at, "$label $change", note = note)
+        folded += run
+    }
+
+    private fun exit(e: NightEvent) {
+        val killed = e.at in d.summary.killedAt
+        rows +=
+            EventRow(
+                e.at,
+                if (killed) "App killed by Android"
+                else
+                    "App ended · ${e.detail.removePrefix(ProcessLog.EXIT_PREFIX).substringBefore(" importance")}",
+                warn = killed,
+            )
+        d.summary.gaps
+            .firstOrNull { it.cause == NightSummary.Cause.APP && it.from == e.at }
+            ?.let {
+                rows += EventRow(null, "${duration(it.to - it.from)} unobserved", muted = true)
+            }
+    }
 }
 
 fun allRows(d: NightDetail): List<EventRow> =

@@ -33,7 +33,7 @@ private val requested =
  * button.
  */
 @Composable
-fun RequireBluetoothPermissions(content: @Composable () -> Unit) {
+fun RequireBluetoothPermissions(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val context = LocalContext.current
     fun granted() = bluetoothPermissions.all {
         context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
@@ -46,7 +46,7 @@ fun RequireBluetoothPermissions(content: @Composable () -> Unit) {
     LaunchedEffect(Unit) { if (!ok) launcher.launch(requested) }
     if (ok) content()
     else
-        Column(Modifier.padding(16.dp)) {
+        Column(modifier.padding(16.dp)) {
             Text("Bluetooth scan and connect permissions are needed to find and control a BedJet.")
             Button(onClick = { launcher.launch(requested) }) { Text("Grant") }
         }

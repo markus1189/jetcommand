@@ -1,9 +1,11 @@
 package link.thesymbolic.jetcommand
 
+import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.app.Application
 import android.app.ApplicationExitInfo
 import android.content.ComponentCallbacks2
+import androidx.core.content.edit
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import link.thesymbolic.jetcommand.library.LibraryDatabase
@@ -16,24 +18,24 @@ import link.thesymbolic.jetcommand.protocol.ProcessLog
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 
 class JetCommandApp : Application() {
-    lateinit var controller: BedJetController
+    lateinit var bedJetController: BedJetController
         private set
 
     lateinit var nights: RoomNightsSource
         private set
 
-    lateinit var library: ProgramLibrary
+    lateinit var programLibrary: ProgramLibrary
         private set
 
     override fun onCreate() {
         super.onCreate()
         val dao = NightLogDatabase.open(this).events()
-        library = ProgramLibrary(RoomLibraryStore(LibraryDatabase.open(this)))
-        controller = BedJetController(this, RoomNightLogStore(dao), library)
+        programLibrary = ProgramLibrary(RoomLibraryStore(LibraryDatabase.open(this)))
+        bedJetController = BedJetController(this, RoomNightLogStore(dao), programLibrary)
         dropSeededTemplates()
         nights = RoomNightsSource(dao)
         logExits()
-        controller.lifecycle(ProcessLog.STARTED)
+        bedJetController.lifecycle(ProcessLog.STARTED)
     }
 
     // Builds from 2026-10-23 seeded the official app's suggestions; the user didn't want them.
@@ -43,8 +45,8 @@ class JetCommandApp : Application() {
     private fun dropSeededTemplates() {
         val prefs = getSharedPreferences("jetcommand", MODE_PRIVATE)
         if (!prefs.getBoolean(KEY_SEEDED, false)) return
-        controller.scope.launch {
-            library
+        bedJetController.scope.launch {
+            programLibrary
                 .entries()
                 .first()
                 .filter {
@@ -52,8 +54,8 @@ class JetCommandApp : Application() {
                         it.current.rev == 1 &&
                         it.current.origin == Origin.TEMPLATE
                 }
-                .forEach { library.delete(it.id) }
-            prefs.edit().remove(KEY_SEEDED).apply()
+                .forEach { programLibrary.delete(it.id) }
+            prefs.edit { remove(KEY_SEEDED) }
         }
     }
 
@@ -68,49 +70,52 @@ class JetCommandApp : Application() {
         exits
             .sortedBy { it.timestamp }
             .forEach {
-                controller.lifecycle(
+                bedJetController.lifecycle(
                     "${ProcessLog.EXIT_PREFIX}${reasonName(it.reason)} importance ${it.importance}: ${it.description}",
                     it.timestamp,
                 )
             }
-        exits.maxOfOrNull { it.timestamp }?.let { prefs.edit().putLong(KEY_EXIT_SEEN, it).apply() }
+        exits.maxOfOrNull { it.timestamp }?.let { prefs.edit { putLong(KEY_EXIT_SEEN, it) } }
     }
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
         // UI_HIDDEN fires on every trip to the home screen.
         if (level != ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN)
-            controller.lifecycle("trim memory $level")
+            bedJetController.lifecycle("trim memory $level")
     }
 
     private companion object {
         const val KEY_EXIT_SEEN = "exit.seen"
         const val KEY_SEEDED = "library.seeded"
 
-        fun reasonName(reason: Int) =
-            when (reason) {
-                ApplicationExitInfo.REASON_EXIT_SELF -> "self"
-                ApplicationExitInfo.REASON_SIGNALED -> "signaled"
-                ApplicationExitInfo.REASON_LOW_MEMORY -> "low memory"
-                ApplicationExitInfo.REASON_CRASH -> "crash"
-                ApplicationExitInfo.REASON_CRASH_NATIVE -> "native crash"
-                ApplicationExitInfo.REASON_ANR -> "anr"
-                ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "init failure"
-                ApplicationExitInfo.REASON_PERMISSION_CHANGE -> "permission change"
-                ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "excessive resource usage"
-                ApplicationExitInfo.REASON_USER_REQUESTED -> "user requested"
-                ApplicationExitInfo.REASON_USER_STOPPED -> "user stopped"
-                ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "dependency died"
-                ApplicationExitInfo.REASON_OTHER -> "other"
-                ApplicationExitInfo.REASON_FREEZER -> "freezer"
-                ApplicationExitInfo.REASON_PACKAGE_STATE_CHANGE -> "package state change"
-                ApplicationExitInfo.REASON_PACKAGE_UPDATED -> "package updated"
-                else -> "reason $reason"
-            }
+        // Inlined int constants used as keys: newer reasons simply never occur on older releases.
+        @SuppressLint("InlinedApi")
+        val REASONS =
+            mapOf(
+                ApplicationExitInfo.REASON_EXIT_SELF to "self",
+                ApplicationExitInfo.REASON_SIGNALED to "signaled",
+                ApplicationExitInfo.REASON_LOW_MEMORY to "low memory",
+                ApplicationExitInfo.REASON_CRASH to "crash",
+                ApplicationExitInfo.REASON_CRASH_NATIVE to "native crash",
+                ApplicationExitInfo.REASON_ANR to "anr",
+                ApplicationExitInfo.REASON_INITIALIZATION_FAILURE to "init failure",
+                ApplicationExitInfo.REASON_PERMISSION_CHANGE to "permission change",
+                ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE to "excessive resource usage",
+                ApplicationExitInfo.REASON_USER_REQUESTED to "user requested",
+                ApplicationExitInfo.REASON_USER_STOPPED to "user stopped",
+                ApplicationExitInfo.REASON_DEPENDENCY_DIED to "dependency died",
+                ApplicationExitInfo.REASON_OTHER to "other",
+                ApplicationExitInfo.REASON_FREEZER to "freezer",
+                ApplicationExitInfo.REASON_PACKAGE_STATE_CHANGE to "package state change",
+                ApplicationExitInfo.REASON_PACKAGE_UPDATED to "package updated",
+            )
+
+        fun reasonName(reason: Int) = REASONS[reason] ?: "reason $reason"
     }
 }
 
 val android.content.Context.controller
-    get() = (applicationContext as JetCommandApp).controller
+    get() = (applicationContext as JetCommandApp).bedJetController
 val android.content.Context.library
-    get() = (applicationContext as JetCommandApp).library
+    get() = (applicationContext as JetCommandApp).programLibrary
