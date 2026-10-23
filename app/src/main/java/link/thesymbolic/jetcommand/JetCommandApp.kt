@@ -7,12 +7,16 @@ import android.content.ComponentCallbacks2
 import link.thesymbolic.jetcommand.night.NightLogDatabase
 import link.thesymbolic.jetcommand.night.RoomNightLogStore
 import link.thesymbolic.jetcommand.night.RoomNightsSource
+import link.thesymbolic.jetcommand.protocol.InMemoryLibraryStore
 import link.thesymbolic.jetcommand.protocol.ProcessLog
+import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 
 class JetCommandApp : Application() {
     lateinit var controller: BedJetController
         private set
     lateinit var nights: RoomNightsSource
+        private set
+    lateinit var library: ProgramLibrary
         private set
 
     override fun onCreate() {
@@ -20,6 +24,7 @@ class JetCommandApp : Application() {
         val dao = NightLogDatabase.open(this).events()
         controller = BedJetController(this, RoomNightLogStore(dao))
         nights = RoomNightsSource(dao)
+        library = ProgramLibrary(InMemoryLibraryStore())
         logExits()
         controller.lifecycle(ProcessLog.STARTED)
     }
@@ -68,3 +73,4 @@ class JetCommandApp : Application() {
 }
 
 val android.content.Context.controller get() = (applicationContext as JetCommandApp).controller
+val android.content.Context.library get() = (applicationContext as JetCommandApp).library

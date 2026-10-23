@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -84,6 +85,9 @@ class BedJetController(context: Context, private val store: NightLogStore) {
     val linkState: StateFlow<LinkState> = _stack.flatMapLatest { it?.link?.state ?: flowOf(LinkState.Disconnected()) }
         .stateIn(scope, SharingStarted.Eagerly, LinkState.Disconnected())
     val status: StateFlow<StatusUpdate?> = _stack.flatMapLatest { it?.link?.status ?: flowOf(null) }
+        .stateIn(scope, SharingStarted.Eagerly, null)
+    /** The [ProgramLibrary] device key of the current stack. */
+    val deviceId: StateFlow<String?> = _stack.map { it?.source?.let { s -> if (s is Source.Device) s.address else DEMO_ID } }
         .stateIn(scope, SharingStarted.Eagerly, null)
 
     private val _log = MutableStateFlow<List<String>>(emptyList())
@@ -214,8 +218,9 @@ class BedJetController(context: Context, private val store: NightLogStore) {
         _remembered.value = device
     }
 
-    private companion object {
-        const val KEY_ADDRESS = "device.address"
-        const val KEY_NAME = "device.name"
+    companion object {
+        const val DEMO_ID = "demo"
+        private const val KEY_ADDRESS = "device.address"
+        private const val KEY_NAME = "device.name"
     }
 }
