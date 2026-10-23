@@ -64,128 +64,134 @@ fun NightReviewScreen(
     night: NightSummary,
     text: NightText,
     onBack: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var detail by remember { mutableStateOf<NightDetail?>(null) }
     LaunchedEffect(night) { detail = source.detail(night) }
     val d = detail
     var important by remember { mutableStateOf(true) }
-    val cursor = remember { mutableStateOf<Double?>(null) }
-    val context = LocalContext.current
-    val tabular = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum")
 
     LazyColumn(
-        Modifier.fillMaxSize(),
+        modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(BackIcon, contentDescription = "Back to nights")
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        if (night.ongoing) "Tonight" else text.title(night),
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                    Text(
-                        text.span(night),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                IconButton(
-                    enabled = d != null,
-                    onClick = {
-                        val send =
-                            Intent(Intent.ACTION_SEND)
-                                .setType("text/plain")
-                                .putExtra(
-                                    Intent.EXTRA_SUBJECT,
-                                    "JetCommand night ${text.title(night)}",
-                                )
-                                .putExtra(
-                                    Intent.EXTRA_TEXT,
-                                    shareText(d ?: return@IconButton, text),
-                                )
-                        context.startActivity(Intent.createChooser(send, "Share night log"))
-                    },
-                ) {
-                    Icon(
-                        ShareIcon,
-                        contentDescription = "Share log as text",
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-        }
+        item { ReviewHeader(night, d, text, onBack) }
         if (d == null) return@LazyColumn
-        items(killedCallouts(d, text)) { (title, body) ->
-            Column(
-                Modifier.fillMaxWidth()
-                    .background(CalloutBg, RoundedCornerShape(16.dp))
-                    .border(1.dp, ChipWarnBorder, RoundedCornerShape(16.dp))
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(title, style = MaterialTheme.typography.titleSmall, color = Amber)
-                Text(body, style = MaterialTheme.typography.bodySmall, color = CalloutText)
-            }
-        }
+        items(killedCallouts(d, text)) { (title, body) -> Callout(title, body) }
         item { StatTiles(d) }
-        item {
-            Column(
-                Modifier.fillMaxWidth()
-                    .background(
-                        MaterialTheme.colorScheme.surfaceContainer,
-                        RoundedCornerShape(16.dp),
-                    )
-                    .padding(horizontal = 12.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text("Timeline", style = MaterialTheme.typography.titleSmall)
-                // Above the chart, so the finger scrubbing it doesn't cover the values.
-                val x = cursor.value
-                Text(
-                    if (x == null) "Touch and drag the chart to read the values at a time."
-                    else
-                        (night.start + (x * 60_000).toLong()).let {
-                            readout(sampleAt(d.samples, it), it, text)
-                        },
-                    style = tabular,
-                    color =
-                        if (x == null) MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.onSurface,
-                    minLines = 2,
-                )
-                NightTimeline(d, text, cursor)
-                Legend()
-            }
-        }
-        item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Events",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f),
-                )
-                listOf("Important" to true, "All" to false).forEach { (label, value) ->
-                    FilterChip(
-                        selected = important == value,
-                        onClick = { important = value },
-                        label = { Text(label) },
-                        modifier = Modifier.padding(start = 6.dp),
-                        colors =
-                            FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            ),
-                    )
-                }
-            }
-        }
+        item { TimelineCard(night, d, text) }
+        item { EventsHeader(important) { important = it } }
         val rows = if (important) importantRows(d, text) else allRows(d)
         items(rows) { EventLine(it, text, seconds = !important) }
+    }
+}
+
+@Composable
+private fun ReviewHeader(
+    night: NightSummary,
+    d: NightDetail?,
+    text: NightText,
+    onBack: () -> Unit,
+) {
+    val context = LocalContext.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onBack) { Icon(BackIcon, contentDescription = "Back to nights") }
+        Column(Modifier.weight(1f)) {
+            Text(
+                if (night.ongoing) "Tonight" else text.title(night),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Text(
+                text.span(night),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(
+            enabled = d != null,
+            onClick = {
+                val send =
+                    Intent(Intent.ACTION_SEND)
+                        .setType("text/plain")
+                        .putExtra(Intent.EXTRA_SUBJECT, "JetCommand night ${text.title(night)}")
+                        .putExtra(Intent.EXTRA_TEXT, shareText(d ?: return@IconButton, text))
+                context.startActivity(Intent.createChooser(send, "Share night log"))
+            },
+        ) {
+            Icon(
+                ShareIcon,
+                contentDescription = "Share log as text",
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun Callout(title: String, body: String) {
+    Column(
+        Modifier.fillMaxWidth()
+            .background(CalloutBg, RoundedCornerShape(16.dp))
+            .border(1.dp, ChipWarnBorder, RoundedCornerShape(16.dp))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.titleSmall, color = Amber)
+        Text(body, style = MaterialTheme.typography.bodySmall, color = CalloutText)
+    }
+}
+
+@Composable
+private fun TimelineCard(
+    night: NightSummary,
+    d: NightDetail,
+    text: NightText,
+) {
+    val cursor = remember { mutableStateOf<Double?>(null) }
+    Column(
+        Modifier.fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("Timeline", style = MaterialTheme.typography.titleSmall)
+        // Above the chart, so the finger scrubbing it doesn't cover the values.
+        val x = cursor.value
+        Text(
+            if (x == null) "Touch and drag the chart to read the values at a time."
+            else
+                (night.start + (x * 60_000).toLong()).let {
+                    readout(sampleAt(d.samples, it), it, text)
+                },
+            style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+            color =
+                if (x == null) MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.onSurface,
+            minLines = 2,
+        )
+        NightTimeline(d, text, cursor)
+        Legend()
+    }
+}
+
+@Composable
+private fun EventsHeader(important: Boolean, setImportant: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("Events", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+        listOf("Important" to true, "All" to false).forEach { (label, value) ->
+            FilterChip(
+                selected = important == value,
+                onClick = { setImportant(value) },
+                label = { Text(label) },
+                modifier = Modifier.padding(start = 6.dp),
+                colors =
+                    FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
+            )
+        }
     }
 }
 

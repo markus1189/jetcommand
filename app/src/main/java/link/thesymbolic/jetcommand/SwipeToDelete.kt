@@ -60,6 +60,7 @@ fun SwipeToDelete(
     setOpen: (Boolean) -> Unit,
     onDelete: () -> Unit,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     content: @Composable (Modifier) -> Unit,
 ) {
     val panelPx = with(LocalDensity.current) { PanelWidth.toPx() }
@@ -80,7 +81,7 @@ fun SwipeToDelete(
     LaunchedEffect(isOpen) {
         if (!isOpen && state.settledValue == Reveal.Open) state.animateTo(Reveal.Closed)
     }
-    Box(Modifier.clip(RoundedCornerShape(16.dp)).background(DeleteBg)) {
+    Box(modifier.clip(RoundedCornerShape(16.dp)).background(DeleteBg)) {
         Column(
             Modifier.matchParentSize()
                 .wrapContentWidth(Alignment.End)
@@ -107,8 +108,8 @@ fun SwipeToDelete(
 
 /** The design's trash glyph (24-unit viewBox), drawn so the app needs no icon dependency. */
 @Composable
-fun TrashIcon(size: Dp, color: Color = DeleteFg) =
-    Canvas(Modifier.size(size)) {
+fun TrashIcon(size: Dp, modifier: Modifier = Modifier, color: Color = DeleteFg) =
+    Canvas(modifier.size(size)) {
         val u = this.size.width / 24f
         val p =
             Path().apply {

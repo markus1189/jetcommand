@@ -70,15 +70,17 @@ fun ProgramChart(spans: List<Span>, start: LocalTime, modifier: Modifier = Modif
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     cursor = minuteAt(down.position.x)
-                    while (true) {
-                        val e = awaitPointerEvent()
-                        val c = e.changes.firstOrNull() ?: break
-                        if (!c.pressed) break
-                        // Only horizontal drags scrub; the column's vertical scroll keeps the rest.
-                        val d = c.position - c.previousPosition
-                        if (kotlin.math.abs(d.x) >= kotlin.math.abs(d.y)) c.consume()
-                        cursor = minuteAt(c.position.x)
-                    }
+                    do {
+                        val c = awaitPointerEvent().changes.firstOrNull()
+                        val pressed = c?.pressed == true
+                        if (c != null && pressed) {
+                            // Only horizontal drags scrub; the column's vertical scroll keeps the
+                            // rest.
+                            val d = c.position - c.previousPosition
+                            if (kotlin.math.abs(d.x) >= kotlin.math.abs(d.y)) c.consume()
+                            cursor = minuteAt(c.position.x)
+                        }
+                    } while (pressed)
                     cursor = null
                 }
             }
@@ -146,19 +148,7 @@ private fun DrawScope.drawProfile(
         else fanY(fanPercent(s.step.fan))
     }
 
-    // Time axis: whole hours, every second one when the program is long.
-    drawLine(AxisColor, Offset(left, 220 * u), Offset(size.width, 220 * u), u)
-    val every =
-        when {
-            total > 600 -> 180
-            total > 300 -> 120
-            else -> 60
-        }
-    var m = (60 - start.minute) % 60
-    while (m <= total - 20) {
-        text(clockAt(start, m), Offset(x(m) - 14 * u, 226 * u), Label, 10)
-        m += every
-    }
+    drawTimeAxis(start, total, left, u, x, tm)
 
     if (cursor != null && at != null) {
         val cx = x(cursor)
@@ -201,5 +191,33 @@ private fun DrawScope.stepLine(
         val b = Offset(x(s.to), v)
         drawLine(color, a, b, 2 * u)
         prev = b
+    }
+}
+
+/** Whole hours, every second one when the program is long. */
+private fun DrawScope.drawTimeAxis(
+    start: LocalTime,
+    total: Int,
+    left: Float,
+    u: Float,
+    x: (Number) -> Float,
+    tm: TextMeasurer,
+) {
+    drawLine(AxisColor, Offset(left, 220 * u), Offset(size.width, 220 * u), u)
+    val every =
+        when {
+            total > 600 -> 180
+            total > 300 -> 120
+            else -> 60
+        }
+    var m = (60 - start.minute) % 60
+    while (m <= total - 20) {
+        drawText(
+            tm,
+            clockAt(start, m),
+            Offset(x(m) - 14 * u, 226 * u),
+            TextStyle(color = Label, fontSize = 10.sp),
+        )
+        m += every
     }
 }
