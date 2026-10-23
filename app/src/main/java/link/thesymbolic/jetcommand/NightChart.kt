@@ -76,6 +76,7 @@ private val AxisWidth = 36.dp
  * are separate panels. [cursor] is the scrubbed minute, shared so all panels draw it; null when the
  * finger is up.
  */
+@Suppress("ComposeMutableParameters") // shared on purpose: scrubbing redraws without recomposing
 @Composable
 fun NightTimeline(
     d: NightDetail,
@@ -397,6 +398,9 @@ private fun scrubChart(
         getXStep = { _, _, _ -> 1.0 },
     )
 
+@Suppress(
+    "ComposeMutableParameters"
+) // written by the marker listener, read by CursorLine at draw time
 @Composable
 private fun Lanes(
     m: TimelineData,

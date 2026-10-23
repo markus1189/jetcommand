@@ -13,50 +13,6 @@
     </issue>
 
     <issue
-        id="ComposeViewModelForwarding"
-        message="Forwarding a ViewModel through multiple @Composable functions should be avoided. Consider using state hoisting.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#hoist-all-the-things for more information."
-        errorLine1="                ScanList(vm)"
-        errorLine2="                ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/link/thesymbolic/jetcommand/DebugScreen.kt"
-            line="75"
-            column="17"/>
-    </issue>
-
-    <issue
-        id="ComposeViewModelForwarding"
-        message="Forwarding a ViewModel through multiple @Composable functions should be avoided. Consider using state hoisting.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#hoist-all-the-things for more information."
-        errorLine1="            Connected(vm, s)"
-        errorLine2="            ~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/link/thesymbolic/jetcommand/DebugScreen.kt"
-            line="78"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="ComposeViewModelForwarding"
-        message="Forwarding a ViewModel through multiple @Composable functions should be avoided. Consider using state hoisting.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#hoist-all-the-things for more information."
-        errorLine1="    s.sim?.let { sim -> DemoControls(vm, sim) }"
-        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/link/thesymbolic/jetcommand/DebugScreen.kt"
-            line="171"
-            column="25"/>
-    </issue>
-
-    <issue
-        id="ComposeViewModelForwarding"
-        message="Forwarding a ViewModel through multiple @Composable functions should be avoided. Consider using state hoisting.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#hoist-all-the-things for more information."
-        errorLine1="        Connected(vm, st, programs)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/link/thesymbolic/jetcommand/NowScreen.kt"
-            line="136"
-            column="9"/>
-    </issue>
-
-    <issue
         id="LogConditional"
         message="The log call Log.d(...) should be conditional: surround with `if (Log.isLoggable(...))` or `if (BuildConfig.DEBUG) { ... }`"
         errorLine1="            .also { Log.d(TAG, &quot;read $characteristic ${it.size}: ${it.toHex()}&quot;) }"
@@ -87,28 +43,6 @@
             file="src/main/AndroidManifest.xml"
             line="11"
             column="6"/>
-    </issue>
-
-    <issue
-        id="ComposeMutableParameters"
-        message="Using mutable objects as state in Compose will cause your users to see incorrect or stale data in your app. Mutable objects that are not observable, such as ArrayList&lt;T> or a mutable data class, cannot be observed by Compose to trigger recomposition when they change.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#do-not-use-inherently-mutable-types-as-parameters for more information."
-        errorLine1="    cursor: MutableState&lt;Double?>,"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/link/thesymbolic/jetcommand/NightChart.kt"
-            line="83"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="ComposeMutableParameters"
-        message="Using mutable objects as state in Compose will cause your users to see incorrect or stale data in your app. Mutable objects that are not observable, such as ArrayList&lt;T> or a mutable data class, cannot be observed by Compose to trigger recomposition when they change.&#xA;&#xA;See https://slackhq.github.io/compose-lints/rules/#do-not-use-inherently-mutable-types-as-parameters for more information."
-        errorLine1="    cursor: MutableState&lt;Double?>,"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/link/thesymbolic/jetcommand/NightChart.kt"
-            line="404"
-            column="13"/>
     </issue>
 
 </issues>
