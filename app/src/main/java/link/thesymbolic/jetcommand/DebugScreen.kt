@@ -1,6 +1,7 @@
 package link.thesymbolic.jetcommand
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -72,10 +73,17 @@ fun DebugScreen(vm: BedJetViewModel, modifier: Modifier = Modifier) {
                         Text("Connect ${d.label} (${d.address})")
                     }
                 }
-                ScanList(vm)
+                ScanList(vm::connectReal)
             }
         } else {
-            Connected(vm, s)
+            Connected(
+                s,
+                vm::disconnect,
+                vm::act,
+                vm.results,
+                { k, v -> vm.results[k] = v },
+                vm::log,
+            )
         }
         HorizontalDivider()
         Text("Night log", fontWeight = FontWeight.Bold)
@@ -98,7 +106,7 @@ fun DebugScreen(vm: BedJetViewModel, modifier: Modifier = Modifier) {
 
 @SuppressLint("MissingPermission") // composed only inside RequireBluetoothPermissions
 @Composable
-private fun ColumnScope.ScanList(vm: BedJetViewModel) {
+private fun ColumnScope.ScanList(connectReal: (BluetoothDevice, String?) -> Unit) {
     val context = LocalContext.current
     val scanner = remember { BedJetScanner(context) }
     var scanning by remember { mutableStateOf(false) }
@@ -136,7 +144,7 @@ private fun ColumnScope.ScanList(vm: BedJetViewModel) {
                 Modifier.fillMaxWidth()
                     .clickable {
                         scanning = false
-                        vm.connectReal(d.device, d.name)
+                        connectReal(d.device, d.name)
                     }
                     .padding(vertical = 12.dp),
             )
@@ -156,19 +164,26 @@ private fun B(label: String, onClick: () -> Unit) =
     }
 
 @Composable
-private fun ColumnScope.Connected(vm: BedJetViewModel, s: BedJetStack) {
+private fun ColumnScope.Connected(
+    s: BedJetStack,
+    disconnect: () -> Unit,
+    act: (String, suspend (BedJetStack) -> Unit) -> Unit,
+    results: Map<String, String>,
+    record: (String, String) -> Unit,
+    log: (LogLevel, String) -> Unit,
+) {
     val link by s.link.state.collectAsState()
     val transport by s.transport.state.collectAsState()
     val update by s.link.status.collectAsState()
 
-    LinkHeader(s, link, vm::disconnect) { vm.act("connect") { it.link.connect() } }
+    LinkHeader(s, link, disconnect) { act("connect") { it.link.connect() } }
     // replySource is a plain var: re-read whenever a status recomposes this.
     Text(
         "MTU: ${(transport as? TransportState.Connected)?.mtu ?: "-"}   Replies from: ${s.link.replySource?.uuid?.substring(4, 8) ?: "-"}"
     )
     StatusLines(update)
-    Commands(vm::act, vm.results) { k, v -> vm.results[k] = v }
-    s.sim?.let { sim -> DemoControls(vm, sim) }
+    Commands(act, results, record)
+    s.sim?.let { sim -> DemoControls(sim, log) }
 }
 
 @Composable
@@ -286,12 +301,12 @@ private fun ColumnScope.Commands(
 }
 
 @Composable
-private fun ColumnScope.DemoControls(vm: BedJetViewModel, sim: SimTransport) {
+private fun ColumnScope.DemoControls(sim: SimTransport, log: (LogLevel, String) -> Unit) {
     var dropping by remember(sim) { mutableStateOf(false) }
     Text("Demo faults", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
     Buttons {
         B("Lose link") {
-            vm.log(LogLevel.INFO, "Demo: link lost")
+            log(LogLevel.INFO, "Demo: link lost")
             sim.loseLink()
         }
         B(if (dropping) "Notifications: dropped" else "Notifications: on") {
@@ -299,7 +314,7 @@ private fun ColumnScope.DemoControls(vm: BedJetViewModel, sim: SimTransport) {
             sim.dropNotifications = if (dropping) Int.MAX_VALUE else 0
         }
         B("Fail next connect (133)") {
-            vm.log(LogLevel.INFO, "Demo: next connect fails with 133")
+            log(LogLevel.INFO, "Demo: next connect fails with 133")
             sim.inject(SimTransport.Fault.Fail(133)) { it == SimTransport.Op.Connect }
         }
         B("Skip 30 min") {

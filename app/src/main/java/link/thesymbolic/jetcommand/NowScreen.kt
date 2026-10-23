@@ -85,17 +85,7 @@ fun NowScreen(
     // Outlives the Off button, which leaves the composition as soon as it turns the unit off.
     val scope = rememberCoroutineScope()
     val st = update?.status?.takeIf { link == LinkState.Ready }
-    // A status arrives about every second; a growing age is the first sign the link went quiet.
-    var lastStatusAt by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(update) { lastStatusAt = SystemClock.elapsedRealtime() }
-    val now by
-        produceState(SystemClock.elapsedRealtime()) {
-            while (true) {
-                delay(1_000)
-                value = SystemClock.elapsedRealtime()
-            }
-        }
-    val age = ((now - lastStatusAt) / 1_000).takeIf { st != null }
+    val age = rememberStatusAge(update).takeIf { st != null }
 
     Column(
         modifier.fillMaxSize().padding(16.dp),
@@ -133,13 +123,38 @@ fun NowScreen(
         }
 
         Spacer(Modifier.height(8.dp))
-        Connected(vm, st, programs)
+        Connected(
+            st,
+            programs,
+            vm.programs,
+            vm::loadPrograms,
+            vm::setMode,
+            vm::setTemperature,
+            vm::setFan,
+            vm::startProgram,
+        )
         Spacer(Modifier.height(16.dp))
 
         // Off sits apart from the fields so a sleepy thumb aiming for − doesn't land on it.
         if (st.mode != Mode.STANDBY) TurnOffButton(st.mode, vm::setMode, snackbar, scope)
         else Spacer(Modifier.height(52.dp))
     }
+}
+
+/** Seconds since [update] last changed, ticking once a second. */
+@Composable
+private fun rememberStatusAge(update: Any?): Long {
+    // A status arrives about every second; a growing age is the first sign the link went quiet.
+    var lastStatusAt by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(update) { lastStatusAt = SystemClock.elapsedRealtime() }
+    val now by
+        produceState(SystemClock.elapsedRealtime()) {
+            while (true) {
+                delay(1_000)
+                value = SystemClock.elapsedRealtime()
+            }
+        }
+    return (now - lastStatusAt) / 1_000
 }
 
 @Composable
@@ -207,10 +222,19 @@ private fun rememberPending(): Pending {
 }
 
 @Composable
-private fun ColumnScope.Connected(vm: BedJetViewModel, st: Status, source: ProgramsSource) {
-    LaunchedEffect(Unit) { vm.loadPrograms() }
+private fun ColumnScope.Connected(
+    st: Status,
+    source: ProgramsSource,
+    programNames: List<String?>,
+    loadPrograms: () -> Unit,
+    setMode: (Mode) -> Unit,
+    setTemperature: (Int) -> Unit,
+    setFan: (Int) -> Unit,
+    startProgram: (Int) -> Unit,
+) {
+    LaunchedEffect(Unit) { loadPrograms() }
 
-    ModeRow(st.mode, vm::setMode)
+    ModeRow(st.mode, setMode)
 
     Spacer(Modifier.height(12.dp))
     val r = st.remainingSeconds
@@ -231,8 +255,8 @@ private fun ColumnScope.Connected(vm: BedJetViewModel, st: Status, source: Progr
     }
     Spacer(Modifier.height(12.dp))
 
-    ValueFields(st, vm::setTemperature, vm::setFan)
-    ProgramButtons(vm.programs, vm::startProgram)
+    ValueFields(st, setTemperature, setFan)
+    ProgramButtons(programNames, startProgram)
 }
 
 @Composable
