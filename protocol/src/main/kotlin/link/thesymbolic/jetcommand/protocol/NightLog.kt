@@ -18,8 +18,12 @@ data class NightEvent(val at: Long, val kind: Kind, val detail: String, val valu
     }
 }
 
+/** Temperatures in the status's raw units ([formatTemp]); [room] is the unit's ambient sensor, [air] its outlet. */
+data class NightSample(val at: Long, val room: Int, val air: Int, val target: Int, val fanStep: Int, val mode: Mode)
+
 interface NightLogStore {
     suspend fun append(event: NightEvent)
+    suspend fun appendSample(sample: NightSample)
     /** Newest first. */
     fun recent(limit: Int): Flow<List<NightEvent>>
 }
@@ -27,8 +31,12 @@ interface NightLogStore {
 class InMemoryNightLogStore : NightLogStore {
     private val events = MutableStateFlow<List<NightEvent>>(emptyList())
     val all: List<NightEvent> get() = events.value
+    val samples = mutableListOf<NightSample>()
     override suspend fun append(event: NightEvent) {
         events.value += event
+    }
+    override suspend fun appendSample(sample: NightSample) {
+        samples += sample
     }
     override fun recent(limit: Int) = events.map { it.asReversed().take(limit) }
 }
@@ -44,15 +52,20 @@ class TappedTransport(private val inner: BedJetTransport, private val onCommand:
 /**
  * Turns one link's states and statuses into [NightEvent]s: changes only, since the unit notifies ~4/s.
  * Step and notification come from complete packets only; the first status after a reconnect is diffed against
- * the last one before the loss, so what changed in the gap is recorded once. Same threading rule as [BedJetLink].
+ * the last one before the loss, so what changed in the gap is recorded once. Samples are taken from arriving
+ * statuses at most once per [sampleMs], so a dropped link leaves a gap rather than repeated stale values.
+ * Same threading rule as [BedJetLink].
  */
 class NightRecorder(
     private val link: BedJetLink,
     private val store: NightLogStore,
     scope: CoroutineScope,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val sampleMs: Long = 60_000,
 ) {
     private val queue = Channel<NightEvent>(Channel.UNLIMITED)
+    private val sampleQueue = Channel<NightSample>(Channel.UNLIMITED)
+    private var nextSampleAt = Long.MIN_VALUE
     private var everReady = false
     private var userDisconnect = false
     private var lostAt: Long? = null
@@ -66,6 +79,7 @@ class NightRecorder(
     init {
         // One writer keeps the store in event order even when append suspends on another thread.
         scope.launch { for (e in queue) store.append(e) }
+        scope.launch { for (s in sampleQueue) store.appendSample(s) }
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             var previous: LinkState = link.state.value
             link.state.collect { state ->
@@ -105,6 +119,11 @@ class NightRecorder(
 
     private fun onStatus(update: StatusUpdate) {
         val s = update.status
+        val now = clock()
+        if (now >= nextSampleAt) {
+            sampleQueue.trySend(NightSample(now, s.ambientTemp, s.actualTemp, s.targetTemp, s.fanStep, s.mode))
+            nextSampleAt = now + sampleMs
+        }
         if (s.mode != mode) record(NightEvent.Kind.MODE, s.mode.label, s.mode.ordinal).also { mode = s.mode }
         if (s.targetTemp != target) record(NightEvent.Kind.TARGET, formatTemp(s.targetTemp), s.targetTemp).also { target = s.targetTemp }
         if (s.fanStep != fan) record(NightEvent.Kind.FAN, "${s.fanPercent}%", s.fanStep).also { fan = s.fanStep }

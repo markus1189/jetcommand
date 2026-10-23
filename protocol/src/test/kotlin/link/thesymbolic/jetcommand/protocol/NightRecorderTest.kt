@@ -65,6 +65,12 @@ class NightRecorderTest {
         assertTrue(events.any { it.kind == Kind.COMMAND && it.detail.startsWith("start program 0") })
         assertTrue(events.any { it.kind == Kind.COMMAND && it.detail.startsWith("clock 22:00") })
         assertEquals(events.sortedBy { it.at }, events, "in time order")
+
+        val samples = store.samples
+        assertTrue(samples.zipWithNext().all { (a, b) -> b.at - a.at >= 60_000 })
+        assertTrue(samples.none { it.at in lostAt + 1 until back.at }, "no samples while the link was down")
+        // Connected for 1 h before the loss and ~4 h after it.
+        assertTrue(samples.size in 295..305, "${samples.size}")
     }
 
     @Test
