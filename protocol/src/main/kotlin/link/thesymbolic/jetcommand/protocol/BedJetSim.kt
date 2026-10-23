@@ -165,26 +165,8 @@ class BedJetSim(
                 fan = (fan + if (code == Button.FAN_UP) 1 else -1).coerceIn(0, 19)
                 limitHeat()
             }
-            in Button.TEMP_UP_C..Button.TEMP_DOWN_F -> {
-                if (!mode.usesTemperature) return
-                val delta =
-                    when (code) {
-                        Button.TEMP_UP_C -> 2
-                        Button.TEMP_DOWN_C -> -2
-                        Button.TEMP_UP_F -> 1
-                        else -> -1
-                    }
-                target = (target + delta).coerceIn(min, max)
-                limitHeat()
-            }
-            in Button.MEMORY_1..Button.MEMORY_3 -> {
-                val memory = memories[code - Button.MEMORY_1]
-                run = null
-                step = 0
-                fan = memory.fan
-                target = memory.temp
-                enterManual(memory.mode)
-            }
+            in Button.TEMP_UP_C..Button.TEMP_DOWN_F -> nudgeTarget(code)
+            in Button.MEMORY_1..Button.MEMORY_3 -> recall(memories[code - Button.MEMORY_1])
             in Button.SAVE_MEMORY_1..Button.SAVE_MEMORY_3 -> {
                 val i = code - Button.SAVE_MEMORY_1
                 memories[i] = Memory(memories[i].name, mode, fan, target)
@@ -199,6 +181,27 @@ class BedJetSim(
             in Button.DELETE_PROGRAM until Button.DELETE_PROGRAM + 3 ->
                 slots[code - Button.DELETE_PROGRAM] = null
         }
+    }
+
+    private fun nudgeTarget(code: Int) {
+        if (!mode.usesTemperature) return
+        val delta =
+            when (code) {
+                Button.TEMP_UP_C -> 2
+                Button.TEMP_DOWN_C -> -2
+                Button.TEMP_UP_F -> 1
+                else -> -1
+            }
+        target = (target + delta).coerceIn(min, max)
+        limitHeat()
+    }
+
+    private fun recall(memory: Memory) {
+        run = null
+        step = 0
+        fan = memory.fan
+        target = memory.temp
+        enterManual(memory.mode)
     }
 
     private fun start(slot: Int) {

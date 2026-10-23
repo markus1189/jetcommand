@@ -17,6 +17,7 @@ import link.thesymbolic.jetcommand.protocol.SimTransport.Op
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NightRecorderTest {
+    @Suppress("LongMethod") // one scripted night; splitting it would scatter the timeline
     @Test
     fun `a full night - program, an hour without link, reconnect, no duplicates from 4 notifications per second`() =
         runTest {

@@ -170,6 +170,12 @@ class NightRecorder(
             )
             nextSampleAt = now + sampleMs
         }
+        recordSettings(s)
+        val x = s.extra ?: return
+        if (update.extraFresh) recordExtra(x)
+    }
+
+    private fun recordSettings(s: Status) {
         if (s.mode != mode)
             record(NightEvent.Kind.MODE, s.mode.label, s.mode.ordinal).also { mode = s.mode }
         if (s.targetTemp != target)
@@ -182,8 +188,9 @@ class NightRecorder(
             shutdown = s.shutdownReason
             if (shutdown != 0) record(NightEvent.Kind.SHUTDOWN, "reason $shutdown", shutdown)
         }
-        val x = s.extra ?: return
-        if (!update.extraFresh) return
+    }
+
+    private fun recordExtra(x: StatusExtra) {
         if (x.programStep != step) {
             if (x.programStep != 0 || step != null) {
                 record(
@@ -236,19 +243,7 @@ fun describeCommand(b: ByteArray): String {
     if (b.size < 2) return "frame"
     val code = b.u(1)
     return when (b.u(0)) {
-        0x01 ->
-            BUTTON_NAMES[code]
-                ?: when (code) {
-                    in Button.MEMORY_1..Button.MEMORY_3 ->
-                        "recall memory ${code - Button.MEMORY_1 + 1}"
-                    in Button.SAVE_MEMORY_1..Button.SAVE_MEMORY_3 ->
-                        "save memory ${code - Button.SAVE_MEMORY_1 + 1}"
-                    in Button.START_PROGRAM until Button.START_PROGRAM + Limits.SLOTS ->
-                        "start program ${code - Button.START_PROGRAM}"
-                    in Button.DELETE_PROGRAM until Button.DELETE_PROGRAM + Limits.SLOTS ->
-                        "delete program ${code - Button.DELETE_PROGRAM}"
-                    else -> "button"
-                }
+        0x01 -> describeButton(code)
         0x02 -> "runtime ${code}:%02d".format(if (b.size > 2) b.u(2) else 0)
         0x03 -> "target ${formatTemp(code)}"
         0x07 -> "fan ${fanPercent(code)}%"
@@ -257,3 +252,16 @@ fun describeCommand(b: ByteArray): String {
         else -> "frame"
     }
 }
+
+private fun describeButton(code: Int): String =
+    BUTTON_NAMES[code]
+        ?: when (code) {
+            in Button.MEMORY_1..Button.MEMORY_3 -> "recall memory ${code - Button.MEMORY_1 + 1}"
+            in Button.SAVE_MEMORY_1..Button.SAVE_MEMORY_3 ->
+                "save memory ${code - Button.SAVE_MEMORY_1 + 1}"
+            in Button.START_PROGRAM until Button.START_PROGRAM + Limits.SLOTS ->
+                "start program ${code - Button.START_PROGRAM}"
+            in Button.DELETE_PROGRAM until Button.DELETE_PROGRAM + Limits.SLOTS ->
+                "delete program ${code - Button.DELETE_PROGRAM}"
+            else -> "button"
+        }

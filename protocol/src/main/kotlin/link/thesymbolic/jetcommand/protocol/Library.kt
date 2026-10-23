@@ -365,39 +365,39 @@ class ProgramLibrary(
                         state.copy(pushed = PushRecord(it.id, it.current.rev, fp, t))
                     } ?: state
                 pushed.fingerprint == fp -> state
-                else -> {
-                    val linked = store.entry(pushed.programId)
-                    val own = linked?.let { e ->
-                        store.revisions(e.id).firstOrNull { it.program.fingerprint() == fp }
-                    }
-                    val other = currentMatch(fp, except = pushed.programId)
-                    when {
-                        // A deleted program doesn't adopt new content: Restore would bring back
-                        // something not on the unit.
-                        linked == null || (linked.deletedAt != null && own == null) ->
-                            other?.let {
-                                state.copy(pushed = PushRecord(it.id, it.current.rev, fp, t))
-                            } ?: state.copy(pushed = null)
-                        own != null &&
-                            (own.rev == linked.current.rev || own.origin != Origin.OUTSIDE) ->
-                            state.copy(pushed = PushRecord(linked.id, own.rev, fp, t))
-                        other != null ->
-                            state.copy(pushed = PushRecord(other.id, other.current.rev, fp, t))
-                        own != null -> state // already saved as an outside revision
-                        else -> {
-                            store.addRevision(
-                                linked.id,
-                                program,
-                                Origin.OUTSIDE,
-                                t,
-                                makeCurrent = false,
-                            )
-                            state
-                        }
-                    }
-                }
+                else -> relink(state, pushed, program, fp, t)
             }
         store.putSlot(state)
+    }
+
+    /** The slot changed since [pushed]: find which program it now holds. */
+    private suspend fun relink(
+        state: SlotState,
+        pushed: PushRecord,
+        program: Program,
+        fp: String,
+        t: Long,
+    ): SlotState {
+        val linked = store.entry(pushed.programId)
+        val own = linked?.let { e ->
+            store.revisions(e.id).firstOrNull { it.program.fingerprint() == fp }
+        }
+        val other = currentMatch(fp, except = pushed.programId)
+        return when {
+            // A deleted program doesn't adopt new content: Restore would bring back
+            // something not on the unit.
+            linked == null || (linked.deletedAt != null && own == null) ->
+                other?.let { state.copy(pushed = PushRecord(it.id, it.current.rev, fp, t)) }
+                    ?: state.copy(pushed = null)
+            own != null && (own.rev == linked.current.rev || own.origin != Origin.OUTSIDE) ->
+                state.copy(pushed = PushRecord(linked.id, own.rev, fp, t))
+            other != null -> state.copy(pushed = PushRecord(other.id, other.current.rev, fp, t))
+            own != null -> state // already saved as an outside revision
+            else -> {
+                store.addRevision(linked.id, program, Origin.OUTSIDE, t, makeCurrent = false)
+                state
+            }
+        }
     }
 
     private suspend fun view(state: SlotState): SlotView = SlotView(state, status(state))

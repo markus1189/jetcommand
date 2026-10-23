@@ -127,35 +127,36 @@ class FixtureTest {
                 .map { it.jsonObject }
                 .mapNotNull { case ->
                     val args = case.getValue("args").jsonArray
-                    val actual = outcome {
-                        when (val fn = case.getValue("fn").str) {
-                            "button" -> hexList(listOf(Command.button(args[0].num)))
-                            "setMode" ->
-                                hexList(listOf(Command.setMode(checkNotNull(Mode.of(args[0].num)))))
-                            "setRuntime" -> hexList(listOf(Command.setRuntime(args[0].num)))
-                            "setTemperature" -> hexList(listOf(Command.setTemperature(args[0].num)))
-                            "setFan" -> hexList(listOf(Command.setFan(args[0].num)))
-                            "setClock" ->
-                                hexList(listOf(Command.setClock(args[0].num, args[1].num)))
-                            "recallMemory" -> hexList(listOf(Command.recallMemory(args[0].num)))
-                            "saveMemory" -> hexList(listOf(Command.saveMemory(args[0].num)))
-                            "startProgram" -> hexList(listOf(Command.startProgram(args[0].num)))
-                            "deleteProgram" -> hexList(listOf(Command.deleteProgram(args[0].num)))
-                            "query" -> hexList(listOf(Command.query(args[0].num, args[1].num)))
-                            "nameFrame" ->
-                                hexList(listOf(Command.nameFrame(args[0].num, args[1].str)))
-                            "writeProgram" ->
-                                hexList(
-                                    Command.writeProgram(args[0].num, args[1].jsonArray.map(::step))
-                                )
-                            else -> error("unknown encoder $fn")
-                        }
-                    }
+                    val actual = outcome { encode(case.getValue("fn").str, args) }
                     if (actual != expected(case))
                         "${case["fn"]}$args: expected ${expected(case)}, got $actual"
                     else null
                 },
         )
+
+    private val oneArgEncoders: Map<String, (Int) -> ByteArray> =
+        mapOf(
+            "button" to Command::button,
+            "setRuntime" to Command::setRuntime,
+            "setTemperature" to Command::setTemperature,
+            "setFan" to Command::setFan,
+            "recallMemory" to Command::recallMemory,
+            "saveMemory" to Command::saveMemory,
+            "startProgram" to Command::startProgram,
+            "deleteProgram" to Command::deleteProgram,
+        )
+
+    private fun encode(fn: String, args: JsonArray) =
+        when (fn) {
+            in oneArgEncoders -> hexList(listOf(oneArgEncoders.getValue(fn)(args[0].num)))
+            "setMode" -> hexList(listOf(Command.setMode(checkNotNull(Mode.of(args[0].num)))))
+            "setClock" -> hexList(listOf(Command.setClock(args[0].num, args[1].num)))
+            "query" -> hexList(listOf(Command.query(args[0].num, args[1].num)))
+            "nameFrame" -> hexList(listOf(Command.nameFrame(args[0].num, args[1].str)))
+            "writeProgram" ->
+                hexList(Command.writeProgram(args[0].num, args[1].jsonArray.map(::step)))
+            else -> error("unknown encoder $fn")
+        }
 
     @Test
     fun parsers() =
@@ -190,7 +191,8 @@ class FixtureTest {
         check(
             "heatHours",
             cases("heatHours").mapNotNull { row ->
-                val (mode, temp, fan, want) = row.jsonArray.map { it.num }
+                val (mode, temp, fan) = row.jsonArray.map { it.num }
+                val want = row.jsonArray[3].num
                 val got = heatHours(checkNotNull(Mode.of(mode)), temp, fan)
                 if (got != want) "heatHours($mode, $temp, $fan): expected $want, got $got" else null
             },
@@ -244,34 +246,7 @@ class FixtureTest {
                         (i, entry) ->
                         val case = entry.jsonObject
                         val op = case.getValue("op").jsonObject
-                        val actual: JsonObject? =
-                            when {
-                                "send" in op -> {
-                                    var result = JsonObject(mapOf("out" to JsonNull))
-                                    for (frame in op.getValue("send").jsonArray) {
-                                        result =
-                                            outcome {
-                                                sim.send(hexToBytes(frame.str))
-                                                JsonNull
-                                            }
-                                                .takeIf { "error" in it } ?: result
-                                    }
-                                    result
-                                }
-                                "query" in op ->
-                                    outcome {
-                                        JsonPrimitive(sim.query(op.getValue("query").num).toHex())
-                                    }
-                                "tick" in op ->
-                                    null.also { repeat(op.getValue("tick").num) { sim.tick() } }
-                                "skip" in op ->
-                                    null.also {
-                                        sim.skipAhead(op.getValue("skip").jsonPrimitive.double)
-                                    }
-                                "cutOut" in op ->
-                                    null.also { sim.cutOut(op.getValue("cutOut").num) }
-                                else -> error("unknown op $op")
-                            }
+                        val actual = runOp(sim, op)
                         val packet = sim.packet().toHex()
                         when {
                             actual != null && actual != expected(case) ->
@@ -283,4 +258,32 @@ class FixtureTest {
                     }
                 },
         )
+
+    /** The op's outcome, or null for ops that only move the sim along. */
+    private fun runOp(sim: BedJetSim, op: JsonObject): JsonObject? =
+        when {
+            "send" in op -> {
+                var result = JsonObject(mapOf("out" to JsonNull))
+                for (frame in op.getValue("send").jsonArray) {
+                    result =
+                        outcome {
+                            sim.send(hexToBytes(frame.str))
+                            JsonNull
+                        }
+                            .takeIf { "error" in it } ?: result
+                }
+                result
+            }
+            "query" in op ->
+                outcome {
+                    JsonPrimitive(sim.query(op.getValue("query").num).toHex())
+                }
+            "tick" in op -> null.also { repeat(op.getValue("tick").num) { sim.tick() } }
+            "skip" in op ->
+                null.also {
+                    sim.skipAhead(op.getValue("skip").jsonPrimitive.double)
+                }
+            "cutOut" in op -> null.also { sim.cutOut(op.getValue("cutOut").num) }
+            else -> error("unknown op $op")
+        }
 }

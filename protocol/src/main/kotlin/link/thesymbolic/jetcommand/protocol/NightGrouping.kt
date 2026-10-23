@@ -64,57 +64,76 @@ fun summarize(events: List<NightEvent>, sampleTimes: List<Long>, ongoing: Boolea
     val start =
         minOf(evs.firstOrNull()?.at ?: Long.MAX_VALUE, samples.firstOrNull() ?: Long.MAX_VALUE)
     val end = maxOf(evs.lastOrNull()?.at ?: Long.MIN_VALUE, samples.lastOrNull() ?: Long.MIN_VALUE)
-    val gaps = mutableListOf<NightSummary.Gap>()
-    val killed = mutableListOf<Long>()
-    var linkDownSince: Long? = null
-    var exitAt: Long? = null
-    var exitWasKill = true // no exit record: most likely the system
-    var seenStart = false
-    var lastAt: Long? = null // last item of the current process, events or samples
-    var si = 0
-    for (e in evs) {
-        if (isStart(e)) {
-            while (si < samples.size && samples[si] < e.at) lastAt =
-                maxOf(lastAt ?: Long.MIN_VALUE, samples[si++])
-            // Without an exit record or an earlier start in this night, a start is just the app
-            // being opened.
-            val died = exitAt ?: lastAt.takeIf { seenStart }
-            if (died != null) {
-                linkDownSince?.let {
-                    if (died > it) gaps += NightSummary.Gap(it, died, NightSummary.Cause.LINK)
-                }
-                gaps += NightSummary.Gap(died, e.at, NightSummary.Cause.APP)
-                if (exitAt == null || exitWasKill) killed += died
-            }
-            linkDownSince = null
-            exitAt = null
-            seenStart = true
-        } else if (isExit(e)) {
-            exitAt = e.at
-            exitWasKill = isKill(e)
-        } else
-            when (e.kind) {
-                NightEvent.Kind.LOST -> if (linkDownSince == null) linkDownSince = e.at
-                NightEvent.Kind.RECONNECTED,
-                NightEvent.Kind.CONNECTED ->
-                    linkDownSince?.let {
-                        gaps += NightSummary.Gap(it, e.at, NightSummary.Cause.LINK)
-                        linkDownSince = null
-                    }
-                NightEvent.Kind.DISCONNECTED -> linkDownSince = null
-                else -> {}
-            }
-        if (!isExit(e)) lastAt = e.at
-    }
-    // Still down when the log ends: the gap runs to the last thing logged.
-    linkDownSince?.let { if (end > it) gaps += NightSummary.Gap(it, end, NightSummary.Cause.LINK) }
+    val scan = NightScan(samples)
+    for (e in evs) scan.add(e)
+    scan.finish(end)
     return NightSummary(
         start = start,
         end = end,
         ongoing = ongoing,
         drops = evs.count { it.kind == NightEvent.Kind.LOST },
-        gaps = gaps,
+        gaps = scan.gaps,
         presses = evs.count { it.kind == NightEvent.Kind.COMMAND },
-        killedAt = killed,
+        killedAt = scan.killed,
     )
+}
+
+private class NightScan(private val samples: List<Long>) {
+    val gaps = mutableListOf<NightSummary.Gap>()
+    val killed = mutableListOf<Long>()
+    private var linkDownSince: Long? = null
+    private var exitAt: Long? = null
+    private var exitWasKill = true // no exit record: most likely the system
+    private var seenStart = false
+    private var lastAt: Long? = null // last item of the current process, events or samples
+    private var si = 0
+
+    fun add(e: NightEvent) {
+        if (isStart(e)) {
+            onStart(e)
+        } else if (isExit(e)) {
+            exitAt = e.at
+            exitWasKill = isKill(e)
+        } else onLink(e)
+        if (!isExit(e)) lastAt = e.at
+    }
+
+    private fun onStart(e: NightEvent) {
+        while (si < samples.size && samples[si] < e.at) lastAt =
+            maxOf(lastAt ?: Long.MIN_VALUE, samples[si++])
+        // Without an exit record or an earlier start in this night, a start is just the app
+        // being opened.
+        val died = exitAt ?: lastAt.takeIf { seenStart }
+        if (died != null) {
+            linkDownSince?.let {
+                if (died > it) gaps += NightSummary.Gap(it, died, NightSummary.Cause.LINK)
+            }
+            gaps += NightSummary.Gap(died, e.at, NightSummary.Cause.APP)
+            if (exitAt == null || exitWasKill) killed += died
+        }
+        linkDownSince = null
+        exitAt = null
+        seenStart = true
+    }
+
+    private fun onLink(e: NightEvent) {
+        when (e.kind) {
+            NightEvent.Kind.LOST -> if (linkDownSince == null) linkDownSince = e.at
+            NightEvent.Kind.RECONNECTED,
+            NightEvent.Kind.CONNECTED ->
+                linkDownSince?.let {
+                    gaps += NightSummary.Gap(it, e.at, NightSummary.Cause.LINK)
+                    linkDownSince = null
+                }
+            NightEvent.Kind.DISCONNECTED -> linkDownSince = null
+            else -> {}
+        }
+    }
+
+    /** Still down when the log ends: the gap runs to the last thing logged. */
+    fun finish(end: Long) {
+        linkDownSince?.let {
+            if (end > it) gaps += NightSummary.Gap(it, end, NightSummary.Cause.LINK)
+        }
+    }
 }

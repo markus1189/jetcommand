@@ -485,30 +485,33 @@ fun fitsUnitLimits(step: Step) =
 
 /** Live limits when the status reports them for this mode, else the official app's table. */
 fun tempRange(mode: Mode, status: Status?): Pair<TempRange, Boolean> {
-    if (
-        status != null &&
-            status.mode == mode &&
-            status.minTemp > 0 &&
-            status.maxTemp >= status.minTemp &&
-            mode.usesTemperature
-    )
-        return TempRange(status.minTemp, status.maxTemp) to true
+    val live = status?.takeIf { it.mode == mode && mode.usesTemperature }
+    if (live != null && live.minTemp > 0 && live.maxTemp >= live.minTemp)
+        return TempRange(live.minTemp, live.maxTemp) to true
     return TEMP_RANGES.getValue(mode) to false
 }
 
 private fun fmtHM(minutes: Int) = "${minutes / 60}:${(minutes % 60).toString().padStart(2, '0')}"
 
 /** Problems with a step on its own; the timeline check lives in [validateProgram]. */
-fun stepProblem(step: Step): String? {
-    val (mode, fan, temp, hours, minutes, clock) = step
+fun stepProblem(step: Step): String? = rangeProblem(step) ?: modeProblem(step)
+
+private fun rangeProblem(step: Step): String? =
+    when {
+        step.mode == Mode.STANDBY -> "Off is not a program step; use Wait."
+        step.fan !in 0..19 -> "Fan must be 5–100 %."
+        step.temp !in 0..255 -> "Invalid temperature."
+        step.minutes !in 0..59 || step.hours < 0 -> "Invalid time."
+        step.clock && !step.mode.clockTimeAllowed ->
+            "${step.mode.label} steps can't run until a clock time."
+        step.clock && step.hours > 23 -> "Clock time hours must be 0–23."
+        !step.clock && step.totalMinutes < 1 -> "A step needs a duration."
+        else -> null
+    }
+
+private fun modeProblem(step: Step): String? {
+    val (mode, _, temp) = step
     return when {
-        mode == Mode.STANDBY -> "Off is not a program step; use Wait."
-        fan !in 0..19 -> "Fan must be 5–100 %."
-        temp !in 0..255 -> "Invalid temperature."
-        minutes !in 0..59 || hours < 0 -> "Invalid time."
-        clock && !mode.clockTimeAllowed -> "${mode.label} steps can't run until a clock time."
-        clock && hours > 23 -> "Clock time hours must be 0–23."
-        !clock && step.totalMinutes < 1 -> "A step needs a duration."
         mode == Mode.WAIT && temp != 80 -> "Wait steps use temperature 80 (40 °C)."
         mode == Mode.TURBO && temp != 86 -> "Turbo steps use temperature 86 (43 °C)."
         mode == Mode.TURBO && step.totalMinutes > Limits.TURBO_MAX_MINUTES ->
