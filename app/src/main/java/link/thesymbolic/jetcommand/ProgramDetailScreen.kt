@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -145,6 +146,7 @@ fun ProgramDetail(
     update: (Int) -> Unit,
     run: () -> Unit,
     load: () -> Unit,
+    modifier: Modifier = Modifier,
     delete: () -> Unit = {},
     start: LocalTime = LocalTime.now(),
 ) {
@@ -152,7 +154,7 @@ fun ProgramDetail(
     val spans = remember(p, start) { timeline(p.steps, start) }
     val end = spans.lastOrNull()?.to ?: 0
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
+        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         BackRow(back)
@@ -176,97 +178,130 @@ fun ProgramDetail(
         slots.forEach { v ->
             val s = v.status as? SlotStatus.Older ?: return@forEach
             if (s.entry.id != entry.id) return@forEach
-            Row(
-                Modifier.padding(horizontal = 16.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(AmberBg)
-                    .border(1.dp, AmberLine, RoundedCornerShape(16.dp))
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                val n = v.state.slot + 1
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        "Slot $n still holds r${s.slotRev}",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Amber,
-                    )
-                    val edits = entry.current.rev - s.slotRev
-                    Text(
-                        "$edits edit${if (edits == 1) "" else "s"} since you last loaded it",
-                        fontSize = 12.sp,
-                        color = AmberText,
-                    )
-                }
-                OutlinedButton(
-                    { update(v.state.slot) },
-                    enabled = live,
-                    border = BorderStroke(1.dp, AmberLine),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Amber),
-                ) {
-                    Text("Update slot $n")
-                }
-            }
+            OlderSlotBanner(v, s, entry, live, update)
         }
-        Row(
-            Modifier.padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ActionRow(prettyName(p.name), live, run, load, delete)
+        StepsSection(spans, start)
+        if (revisions.isNotEmpty()) HistorySection(revisions, entry, slots)
+    }
+}
+
+@Composable
+private fun StepsSection(spans: List<Span>, start: LocalTime) {
+    Column(
+        Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SectionTitle("Steps")
+        Box(
+            Modifier.clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .padding(horizontal = 12.dp, vertical = 14.dp)
         ) {
-            val h = Modifier.weight(1f).heightIn(min = 48.dp)
-            Button(run, h, enabled = live) {
-                Text("Run", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            }
-            OutlinedButton(load, h, enabled = live) { Text("Load…", fontSize = 15.sp) }
-            // The program editor comes later (ROADMAP); shown so the layout is the final one.
-            OutlinedButton({}, h, enabled = false) { Text("Edit", fontSize = 15.sp) }
-            val name = prettyName(p.name)
-            Box(
-                Modifier.size(48.dp)
-                    .clip(CircleShape)
-                    .border(1.dp, Color(0xFF5A3420), CircleShape)
-                    .clickable(onClick = delete)
-                    .semantics { contentDescription = "Delete $name" },
-                contentAlignment = Alignment.Center,
-            ) {
-                TrashIcon(20.dp)
+            ProgramChart(spans, start)
+        }
+        Card {
+            spans.forEachIndexed { i, s ->
+                if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                StepRow(s, start)
             }
         }
-        Column(
-            Modifier.padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+    }
+}
+
+@Composable
+private fun HistorySection(
+    revisions: List<ProgramRevision>,
+    entry: LibraryEntry,
+    slots: List<SlotView>,
+) {
+    Column(
+        Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SectionTitle("History")
+        Card {
+            revisions.forEachIndexed { i, r ->
+                if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                RevisionRow(r, entry, slots)
+            }
+        }
+    }
+}
+
+@Composable
+private fun OlderSlotBanner(
+    v: SlotView,
+    s: SlotStatus.Older,
+    entry: LibraryEntry,
+    live: Boolean,
+    update: (Int) -> Unit,
+) {
+    Row(
+        Modifier.padding(horizontal = 16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(AmberBg)
+            .border(1.dp, AmberLine, RoundedCornerShape(16.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        val n = v.state.slot + 1
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                "Slot $n still holds r${s.slotRev}",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = Amber,
+            )
+            val edits = entry.current.rev - s.slotRev
+            Text(
+                "$edits edit${if (edits == 1) "" else "s"} since you last loaded it",
+                fontSize = 12.sp,
+                color = AmberText,
+            )
+        }
+        OutlinedButton(
+            { update(v.state.slot) },
+            enabled = live,
+            border = BorderStroke(1.dp, AmberLine),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Amber),
         ) {
-            SectionTitle("Steps")
-            Box(
-                Modifier.clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .padding(horizontal = 12.dp, vertical = 14.dp)
-            ) {
-                ProgramChart(spans, start)
-            }
-            Card {
-                spans.forEachIndexed { i, s ->
-                    if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-                    StepRow(s, start)
-                }
-            }
+            Text("Update slot $n")
         }
-        if (revisions.isNotEmpty())
-            Column(
-                Modifier.padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                SectionTitle("History")
-                Card {
-                    revisions.forEachIndexed { i, r ->
-                        if (i > 0)
-                            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-                        RevisionRow(r, entry, slots)
-                    }
-                }
-            }
+    }
+}
+
+@Composable
+private fun ActionRow(
+    name: String,
+    live: Boolean,
+    run: () -> Unit,
+    load: () -> Unit,
+    delete: () -> Unit,
+) {
+    Row(
+        Modifier.padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        val h = Modifier.weight(1f).heightIn(min = 48.dp)
+        Button(run, h, enabled = live) {
+            Text("Run", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        }
+        OutlinedButton(load, h, enabled = live) { Text("Load…", fontSize = 15.sp) }
+        // The program editor comes later (ROADMAP); shown so the layout is the final one.
+        OutlinedButton({}, h, enabled = false) { Text("Edit", fontSize = 15.sp) }
+        Box(
+            Modifier.size(48.dp)
+                .clip(CircleShape)
+                .border(1.dp, Color(0xFF5A3420), CircleShape)
+                .clickable(onClick = delete)
+                .semantics { contentDescription = "Delete $name" },
+            contentAlignment = Alignment.Center,
+        ) {
+            TrashIcon(20.dp)
+        }
     }
 }
 
@@ -375,7 +410,7 @@ private fun SlotPicker(
     go: (Int) -> Unit,
 ) {
     ModalBottomSheet(dismiss, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-        SlotPickerBody(entry, slots, ranked, mode == PickFor.RUN, go)
+        SlotPickerBody(entry, slots, ranked, mode == PickFor.RUN, go = go)
     }
 }
 
@@ -385,6 +420,7 @@ fun SlotPickerBody(
     slots: List<SlotView>,
     ranked: List<Int>,
     run: Boolean,
+    modifier: Modifier = Modifier,
     go: (Int) -> Unit,
 ) {
     var picked by remember(ranked) { mutableIntStateOf(ranked.firstOrNull() ?: 0) }
@@ -392,75 +428,16 @@ fun SlotPickerBody(
     val holds = slots.any { (it.status as? SlotStatus.InSync)?.entry?.id == entry.id }
     val older = slots.firstOrNull { (it.status as? SlotStatus.Older)?.entry?.id == entry.id }
     Column(
-        Modifier.padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+        modifier.padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                "${if (run) "Run" else "Load"} $name",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Medium,
-            )
-            Text(
-                when {
-                    holds -> "It's on the BedJet already."
-                    older != null ->
-                        "Slot ${older.state.slot + 1} holds an older version. Which slot gets this one?"
-                    else -> "It isn't on the BedJet yet. Which slot does it replace?"
-                },
-                fontSize = 14.sp,
-                color = Muted,
-            )
-        }
+        PickerHeader(if (run) "Run" else "Load", name, holds, older)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ranked
                 .mapNotNull { n -> slots.getOrNull(n) }
                 .forEachIndexed { i, v ->
-                    val on = v.state.slot == picked
-                    val (note, warn) = pickNote(v, entry)
-                    Row(
-                        Modifier.fillMaxWidth()
-                            .heightIn(min = 64.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(
-                                if (on) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.background
-                            )
-                            .border(
-                                2.dp,
-                                if (on) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant,
-                                RoundedCornerShape(16.dp),
-                            )
-                            .clickable { picked = v.state.slot }
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        SlotBadge(v.state.slot + 1)
-                        Column(
-                            Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            val rev =
-                                (v.status as? SlotStatus.Older)?.slotRev?.let { " r$it" } ?: ""
-                            Text(
-                                slotName(v) + rev,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            Text(note, fontSize = 12.sp, color = if (warn) Warm else Muted)
-                        }
-                        if (i == 0)
-                            Text(
-                                "suggested",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier =
-                                    Modifier.clip(RoundedCornerShape(999.dp))
-                                        .background(MaterialTheme.colorScheme.primaryContainer)
-                                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                            )
+                    SlotOption(v, entry, on = v.state.slot == picked, suggested = i == 0) {
+                        picked = v.state.slot
                     }
                 }
         }
@@ -488,6 +465,81 @@ fun SlotPickerBody(
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
         )
+    }
+}
+
+@Composable
+private fun PickerHeader(verb: String, name: String, holds: Boolean, older: SlotView?) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            "$verb $name",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Text(
+            when {
+                holds -> "It's on the BedJet already."
+                older != null ->
+                    "Slot ${older.state.slot + 1} holds an older version. Which slot gets this one?"
+                else -> "It isn't on the BedJet yet. Which slot does it replace?"
+            },
+            fontSize = 14.sp,
+            color = Muted,
+        )
+    }
+}
+
+@Composable
+private fun SlotOption(
+    v: SlotView,
+    entry: LibraryEntry,
+    on: Boolean,
+    suggested: Boolean,
+    pick: () -> Unit,
+) {
+    val (note, warn) = pickNote(v, entry)
+    Row(
+        Modifier.fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                if (on) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.background
+            )
+            .border(
+                2.dp,
+                if (on) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant,
+                RoundedCornerShape(16.dp),
+            )
+            .clickable(onClick = pick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        SlotBadge(v.state.slot + 1)
+        Column(
+            Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            val rev = (v.status as? SlotStatus.Older)?.slotRev?.let { " r$it" } ?: ""
+            Text(
+                slotName(v) + rev,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(note, fontSize = 12.sp, color = if (warn) Warm else Muted)
+        }
+        if (suggested)
+            Text(
+                "suggested",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier =
+                    Modifier.clip(RoundedCornerShape(999.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+            )
     }
 }
 
@@ -534,13 +586,14 @@ fun Conflict(
     s: SlotStatus.ChangedOutside,
     theirs: List<Step>,
     back: () -> Unit,
+    modifier: Modifier = Modifier,
     resolve: (Resolution) -> Unit,
 ) {
     val n = v.state.slot + 1
     val mine = s.entry.current
     val name = prettyName(mine.program.name)
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
+        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         BackRow(back)
@@ -566,48 +619,7 @@ fun Conflict(
             Modifier.padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(Modifier.weight(1f)) { SectionTitle("Your library · r${mine.rev}") }
-                Box(Modifier.weight(1f)) { SectionTitle("On the BedJet · r${s.outsideRev}") }
-            }
-            val rows = maxOf(mine.program.steps.size, theirs.size)
-            var differ = 0
-            for (i in 0 until rows) {
-                val a = mine.program.steps.getOrNull(i)
-                val b = theirs.getOrNull(i)
-                val changed = a != b
-                if (changed) differ++
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(a, b).forEach { st ->
-                        val (l1, l2) = stepCell(st)
-                        Column(
-                            Modifier.weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    if (changed) WarmBg
-                                    else MaterialTheme.colorScheme.surfaceContainer
-                                )
-                                .border(
-                                    1.dp,
-                                    if (changed) WarmLine
-                                    else MaterialTheme.colorScheme.surfaceContainer,
-                                    RoundedCornerShape(12.dp),
-                                )
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            Text(l1, fontSize = 13.sp)
-                            Text(l2, fontSize = 12.sp, color = Muted)
-                        }
-                    }
-                }
-            }
-            val sameName = v.state.program?.name == mine.program.name
-            Text(
-                "$differ step${if (differ == 1) "" else "s"} differ · ${if (sameName) "same name" else "renamed to ${v.state.program?.name?.let(::prettyName)}"}",
-                fontSize = 12.sp,
-                color = Muted,
-            )
+            StepDiff(v, s, theirs)
         }
         Column(
             Modifier.padding(horizontal = 16.dp),
@@ -634,6 +646,51 @@ fun Conflict(
             }
         }
     }
+}
+
+@Composable
+private fun ColumnScope.StepDiff(v: SlotView, s: SlotStatus.ChangedOutside, theirs: List<Step>) {
+    val mine = s.entry.current
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.weight(1f)) { SectionTitle("Your library · r${mine.rev}") }
+        Box(Modifier.weight(1f)) { SectionTitle("On the BedJet · r${s.outsideRev}") }
+    }
+    val rows = maxOf(mine.program.steps.size, theirs.size)
+    var differ = 0
+    for (i in 0 until rows) {
+        val a = mine.program.steps.getOrNull(i)
+        val b = theirs.getOrNull(i)
+        val changed = a != b
+        if (changed) differ++
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(a, b).forEach { st ->
+                val (l1, l2) = stepCell(st)
+                Column(
+                    Modifier.weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (changed) WarmBg else MaterialTheme.colorScheme.surfaceContainer
+                        )
+                        .border(
+                            1.dp,
+                            if (changed) WarmLine else MaterialTheme.colorScheme.surfaceContainer,
+                            RoundedCornerShape(12.dp),
+                        )
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(l1, fontSize = 13.sp)
+                    Text(l2, fontSize = 12.sp, color = Muted)
+                }
+            }
+        }
+    }
+    val sameName = v.state.program?.name == mine.program.name
+    Text(
+        "$differ step${if (differ == 1) "" else "s"} differ · ${if (sameName) "same name" else "renamed to ${v.state.program?.name?.let(::prettyName)}"}",
+        fontSize = 12.sp,
+        color = Muted,
+    )
 }
 
 @Composable

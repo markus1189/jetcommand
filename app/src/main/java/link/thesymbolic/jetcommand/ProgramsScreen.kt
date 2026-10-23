@@ -190,7 +190,7 @@ private sealed interface Route {
 }
 
 @Composable
-fun ProgramsScreen(source: ProgramsSource) {
+fun ProgramsScreen(source: ProgramsSource, modifier: Modifier = Modifier) {
     var route by remember { mutableStateOf<Route>(Route.List) }
     BackHandler(route != Route.List) { route = Route.List }
     val device by source.device.collectAsState()
@@ -202,20 +202,8 @@ fun ProgramsScreen(source: ProgramsSource) {
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(source) { source.errors.collect { snackbar.showSnackbar(it) } }
     val scope = rememberCoroutineScope()
-    val delete = { e: LibraryEntry ->
-        source.delete(e.id)
-        scope.launch {
-            val undo =
-                snackbar.showSnackbar(
-                    "Deleted “${prettyName(e.current.program.name)}”",
-                    "Undo",
-                    duration = SnackbarDuration.Long,
-                )
-            if (undo == SnackbarResult.ActionPerformed) source.restore(e.id)
-        }
-        Unit
-    }
-    Box(Modifier.fillMaxSize()) {
+    val delete = { e: LibraryEntry -> deleteWithUndo(source, snackbar, scope, e) }
+    Box(modifier.fillMaxSize()) {
         when (val r = route) {
             Route.List ->
                 ProgramsList(
@@ -254,6 +242,24 @@ fun ProgramsScreen(source: ProgramsSource) {
                     } ?: LaunchedEffect(r) { route = Route.List }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+private fun deleteWithUndo(
+    source: ProgramsSource,
+    snackbar: SnackbarHostState,
+    scope: CoroutineScope,
+    e: LibraryEntry,
+) {
+    source.delete(e.id)
+    scope.launch {
+        val undo =
+            snackbar.showSnackbar(
+                "Deleted “${prettyName(e.current.program.name)}”",
+                "Undo",
+                duration = SnackbarDuration.Long,
+            )
+        if (undo == SnackbarResult.ActionPerformed) source.restore(e.id)
     }
 }
 
@@ -329,8 +335,8 @@ fun programMeta(rev: Int?, steps: List<Step>, start: LocalTime): String {
 }
 
 @Composable
-fun SectionTitle(text: String, right: String? = null) =
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+fun SectionTitle(text: String, modifier: Modifier = Modifier, right: String? = null) =
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         Text(
             text.uppercase(),
             fontSize = 13.sp,
@@ -343,9 +349,10 @@ fun SectionTitle(text: String, right: String? = null) =
     }
 
 @Composable
-fun SlotBadge(n: Int) =
+fun SlotBadge(n: Int, modifier: Modifier = Modifier) =
     Box(
-        Modifier.size(28.dp)
+        modifier
+            .size(28.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
@@ -354,13 +361,14 @@ fun SlotBadge(n: Int) =
     }
 
 @Composable
-fun Pill(text: String, fg: Color, border: Color) =
+fun Pill(text: String, fg: Color, border: Color, modifier: Modifier = Modifier) =
     Text(
         text,
         fontSize = 11.sp,
         color = fg,
         modifier =
-            Modifier.border(1.dp, border, RoundedCornerShape(999.dp))
+            modifier
+                .border(1.dp, border, RoundedCornerShape(999.dp))
                 .padding(horizontal = 8.dp, vertical = 2.dp),
     )
 
@@ -388,11 +396,10 @@ fun ProgramsList(
     review: (Int) -> Unit,
     act: (SlotView) -> Unit,
     delete: (LibraryEntry) -> Unit,
+    modifier: Modifier = Modifier,
     start: LocalTime = LocalTime.now(),
 ) {
-    val library = entries.filter { it.deletedAt == null }
-    var openRow by remember { mutableStateOf<String?>(null) }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 8.dp),
             verticalAlignment = Alignment.Bottom,
@@ -408,56 +415,80 @@ fun ProgramsList(
             Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val read = slots.mapNotNull { it.state.readAt }.minOrNull()
-                SectionTitle(
-                    "On the BedJet",
-                    listOfNotNull(read?.let { "read ${hhmm(it)}" }, if (live) "live" else "offline")
-                        .joinToString(" · "),
+            SlotsSection(slots, live, open, review, act)
+            LibrarySection(entries, slots, open, delete, start)
+        }
+    }
+}
+
+@Composable
+private fun SlotsSection(
+    slots: List<SlotView>,
+    live: Boolean,
+    open: (String) -> Unit,
+    review: (Int) -> Unit,
+    act: (SlotView) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val read = slots.mapNotNull { it.state.readAt }.minOrNull()
+        SectionTitle(
+            "On the BedJet",
+            right =
+                listOfNotNull(read?.let { "read ${hhmm(it)}" }, if (live) "live" else "offline")
+                    .joinToString(" · "),
+        )
+        Column(
+            Modifier.clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+        ) {
+            if (slots.isEmpty())
+                Text(
+                    "No BedJet connected yet.",
+                    color = Muted,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(16.dp),
                 )
-                Column(
-                    Modifier.clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainer)
-                ) {
-                    if (slots.isEmpty())
-                        Text(
-                            "No BedJet connected yet.",
-                            color = Muted,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(16.dp),
-                        )
-                    slots.forEachIndexed { i, v ->
-                        if (i > 0)
-                            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-                        SlotRow(v, live, open, review, act)
-                    }
-                }
+            slots.forEachIndexed { i, v ->
+                if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                SlotRow(v, live, open, review, act)
             }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle(
-                    "Library",
-                    "${library.size} program${if (library.size == 1) "" else "s"}",
-                )
-                if (library.isEmpty())
-                    Text(
-                        "Programs you keep from the BedJet show up here.",
-                        color = Muted,
-                        fontSize = 14.sp,
-                    )
-                library.forEach { e ->
-                    key(e.id) {
-                        SwipeToDelete(
-                            prettyName(e.current.program.name),
-                            isOpen = openRow == e.id,
-                            setOpen = {
-                                if (it) openRow = e.id else if (openRow == e.id) openRow = null
-                            },
-                            onDelete = { delete(e) },
-                            onClick = { open(e.id) },
-                        ) { m ->
-                            LibraryRow(e, slots, start, m)
-                        }
-                    }
+        }
+    }
+}
+
+@Composable
+private fun LibrarySection(
+    entries: List<LibraryEntry>,
+    slots: List<SlotView>,
+    open: (String) -> Unit,
+    delete: (LibraryEntry) -> Unit,
+    start: LocalTime,
+) {
+    val library = entries.filter { it.deletedAt == null }
+    var openRow by remember { mutableStateOf<String?>(null) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionTitle(
+            "Library",
+            right = "${library.size} program${if (library.size == 1) "" else "s"}",
+        )
+        if (library.isEmpty())
+            Text(
+                "Programs you keep from the BedJet show up here.",
+                color = Muted,
+                fontSize = 14.sp,
+            )
+        library.forEach { e ->
+            key(e.id) {
+                SwipeToDelete(
+                    prettyName(e.current.program.name),
+                    isOpen = openRow == e.id,
+                    setOpen = {
+                        if (it) openRow = e.id else if (openRow == e.id) openRow = null
+                    },
+                    onDelete = { delete(e) },
+                    onClick = { open(e.id) },
+                ) { m ->
+                    LibraryRow(e, slots, start, m)
                 }
             }
         }
@@ -534,7 +565,7 @@ private fun LibraryRow(
     e: LibraryEntry,
     slots: List<SlotView>,
     start: LocalTime,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     val p = e.current.program
     Column(

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -45,6 +46,7 @@ import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Notification
 import link.thesymbolic.jetcommand.protocol.SimTransport
+import link.thesymbolic.jetcommand.protocol.StatusUpdate
 import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.TransportState
 import link.thesymbolic.jetcommand.protocol.fanPercent
@@ -52,13 +54,13 @@ import link.thesymbolic.jetcommand.protocol.formatTemp
 
 /** Full-stack test bench: a real BedJet from the scan list, or the demo sim with fault buttons. */
 @Composable
-fun DebugScreen(vm: BedJetViewModel) {
+fun DebugScreen(vm: BedJetViewModel, modifier: Modifier = Modifier) {
     val stack by vm.stack.collectAsState()
     val log by vm.log.collectAsState()
     val remembered by vm.remembered.collectAsState()
     val nightLog by vm.nightLog.collectAsState()
     Column(
-        Modifier.padding(horizontal = 12.dp).verticalScroll(rememberScrollState()),
+        modifier.padding(horizontal = 12.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         val s = stack
@@ -96,7 +98,7 @@ fun DebugScreen(vm: BedJetViewModel) {
 
 @SuppressLint("MissingPermission") // composed only inside RequireBluetoothPermissions
 @Composable
-private fun ScanList(vm: BedJetViewModel) {
+private fun ColumnScope.ScanList(vm: BedJetViewModel) {
     val context = LocalContext.current
     val scanner = remember { BedJetScanner(context) }
     var scanning by remember { mutableStateOf(false) }
@@ -154,32 +156,48 @@ private fun B(label: String, onClick: () -> Unit) =
     }
 
 @Composable
-private fun Connected(vm: BedJetViewModel, s: BedJetStack) {
+private fun ColumnScope.Connected(vm: BedJetViewModel, s: BedJetStack) {
     val link by s.link.state.collectAsState()
     val transport by s.transport.state.collectAsState()
     val update by s.link.status.collectAsState()
 
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(s.label, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
-        B("Disconnect", vm::disconnect)
-        if (link is LinkState.Disconnected) B("Connect") { vm.act("connect") { it.link.connect() } }
-    }
-    Text(
-        "Link: " +
-            when (val l = link) {
-                LinkState.Ready -> "Ready"
-                is LinkState.Connecting ->
-                    if (l.reconnectAttempt > 0) "Reconnecting (attempt ${l.reconnectAttempt})"
-                    else "Connecting"
-                is LinkState.Disconnected ->
-                    if (l.gaveUp) "Disconnected (gave up)" else "Disconnected"
-            }
-    )
+    LinkHeader(s, link, vm::disconnect) { vm.act("connect") { it.link.connect() } }
     // replySource is a plain var: re-read whenever a status recomposes this.
     Text(
         "MTU: ${(transport as? TransportState.Connected)?.mtu ?: "-"}   Replies from: ${s.link.replySource?.uuid?.substring(4, 8) ?: "-"}"
     )
-    val u = update
+    StatusLines(update)
+    Commands(vm::act, vm.results) { k, v -> vm.results[k] = v }
+    s.sim?.let { sim -> DemoControls(vm, sim) }
+}
+
+@Composable
+private fun ColumnScope.LinkHeader(
+    s: BedJetStack,
+    link: LinkState,
+    disconnect: () -> Unit,
+    connect: () -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(s.label, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
+        B("Disconnect", disconnect)
+        if (link is LinkState.Disconnected) B("Connect", connect)
+    }
+    Text(
+        "Link: " +
+            when (link) {
+                LinkState.Ready -> "Ready"
+                is LinkState.Connecting ->
+                    if (link.reconnectAttempt > 0) "Reconnecting (attempt ${link.reconnectAttempt})"
+                    else "Connecting"
+                is LinkState.Disconnected ->
+                    if (link.gaveUp) "Disconnected (gave up)" else "Disconnected"
+            }
+    )
+}
+
+@Composable
+private fun ColumnScope.StatusLines(u: StatusUpdate?) {
     // The unit notifies ~4/s but the remainder is read every 2 s, so the latest update is almost
     // never the fresh one.
     var freshAt by remember { mutableStateOf<Long?>(null) }
@@ -211,58 +229,64 @@ private fun Connected(vm: BedJetViewModel, s: BedJetStack) {
                     ?.let { "\nNotification $it: ${Notification.TEXT[it] ?: "?"}" } ?: "")
         )
     }
+}
 
+@Composable
+private fun ColumnScope.Commands(
+    act: (String, suspend (BedJetStack) -> Unit) -> Unit,
+    results: Map<String, String>,
+    record: (String, String) -> Unit,
+) {
     Text("Mode", fontWeight = FontWeight.Bold)
     Buttons {
         listOf(Mode.STANDBY, Mode.HEAT, Mode.COOL, Mode.DRY, Mode.TURBO, Mode.EXT_HEAT).forEach { m
             ->
-            B(m.label) { vm.act("mode ${m.label}") { it.device.setMode(m) } }
+            B(m.label) { act("mode ${m.label}") { it.device.setMode(m) } }
         }
     }
     Buttons {
-        B("Fan −") { vm.act("fan down") { it.device.press(Btn.FAN_DOWN) } }
-        B("Fan +") { vm.act("fan up") { it.device.press(Btn.FAN_UP) } }
-        B("Temp −") { vm.act("temp down") { it.device.press(Btn.TEMP_DOWN_C) } }
-        B("Temp +") { vm.act("temp up") { it.device.press(Btn.TEMP_UP_C) } }
-        B("Sync clock") { vm.act("sync clock") { it.device.syncClock() } }
+        B("Fan −") { act("fan down") { it.device.press(Btn.FAN_DOWN) } }
+        B("Fan +") { act("fan up") { it.device.press(Btn.FAN_UP) } }
+        B("Temp −") { act("temp down") { it.device.press(Btn.TEMP_DOWN_C) } }
+        B("Temp +") { act("temp up") { it.device.press(Btn.TEMP_UP_C) } }
+        B("Sync clock") { act("sync clock") { it.device.syncClock() } }
     }
 
     Text("Read back", fontWeight = FontWeight.Bold)
     Buttons {
-        B("Name") { vm.act("name") { vm.results["Name"] = it.device.deviceName() } }
-        B("Firmware") { vm.act("firmware") { vm.results["Firmware"] = it.device.firmware() } }
+        B("Name") { act("name") { record("Name", it.device.deviceName()) } }
+        B("Firmware") { act("firmware") { record("Firmware", it.device.firmware()) } }
         B("Memories") {
-            vm.act("memories") {
-                vm.results["Memories"] = it.device.memoryNames().joinToString(" | ")
+            act("memories") {
+                record("Memories", it.device.memoryNames().joinToString(" | "))
             }
         }
         B("Programs") {
-            vm.act("programs") {
-                vm.results["Programs"] =
-                    it.device.programNames().joinToString(" | ") { n -> n ?: "-" }
+            act("programs") {
+                record("Programs", it.device.programNames().joinToString(" | ") { n -> n ?: "-" })
             }
         }
-        (0 until Limits.SLOTS).forEach { slot ->
+        repeat(Limits.SLOTS) { slot ->
             B("Slot $slot") {
-                vm.act("slot $slot") {
-                    vm.results["Slot $slot"] =
+                act("slot $slot") {
+                    record(
+                        "Slot $slot",
                         it.device
                             .programSteps(slot)
                             .joinToString("; ", transform = ::stepText)
-                            .ifEmpty { "(empty)" }
+                            .ifEmpty { "(empty)" },
+                    )
                 }
             }
         }
     }
-    vm.results.entries
+    results.entries
         .sortedBy { it.key }
         .forEach { (k, v) -> Text("$k: $v", fontFamily = FontFamily.Monospace, fontSize = 12.sp) }
-
-    s.sim?.let { sim -> DemoControls(vm, sim) }
 }
 
 @Composable
-private fun DemoControls(vm: BedJetViewModel, sim: SimTransport) {
+private fun ColumnScope.DemoControls(vm: BedJetViewModel, sim: SimTransport) {
     var dropping by remember(sim) { mutableStateOf(false) }
     Text("Demo faults", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
     Buttons {
