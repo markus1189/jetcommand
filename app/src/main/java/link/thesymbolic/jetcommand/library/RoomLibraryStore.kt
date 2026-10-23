@@ -177,19 +177,19 @@ private fun ProgramRevisionRow.toRevision() =
 private fun EntryRow.toEntry() =
     LibraryEntry(id, ProgramRevision(id, rev, Program(name, decodeSteps(steps)), createdAt, originOf(origin), note), deletedAt)
 
-private fun record(id: String?, rev: Int?, fingerprint: String?) =
-    if (id != null && rev != null && fingerprint != null) PushRecord(id, rev, fingerprint) else null
+private fun record(id: String?, rev: Int?, fingerprint: String?, at: Long? = null) =
+    if (id != null && rev != null && fingerprint != null) PushRecord(id, rev, fingerprint, at ?: 0) else null
 
 private fun SlotStateRow.toState() = SlotState(
     device, slot,
     program = if (name != null && steps != null) Program(name, decodeSteps(steps)) else null,
     readAt = readAt,
-    pushed = record(pushedProgramId, pushedRev, pushedFingerprint),
+    pushed = record(pushedProgramId, pushedRev, pushedFingerprint, pushedAt),
     pending = record(pendingProgramId, pendingRev, pendingFingerprint),
 )
 
 private fun SlotState.toRow() = SlotStateRow(
     device, slot, program?.name, program?.steps?.let(::encodeSteps), readAt,
-    pushed?.programId, pushed?.rev, pushed?.fingerprint, pushedAt = null,
+    pushed?.programId, pushed?.rev, pushed?.fingerprint, pushed?.at,
     pending?.programId, pending?.rev, pending?.fingerprint,
 )

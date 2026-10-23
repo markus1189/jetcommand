@@ -191,14 +191,7 @@ class BedJetController(context: Context, private val store: NightLogStore, priva
             stack.link.state.filter { it == LinkState.Ready }.collect {
                 if (running?.isActive == true) return@collect
                 running = stack.scope.launch {
-                    guard("library refresh") {
-                        // Error, not Exception: a TODO() in the library must not take the process down.
-                        try {
-                            library.refresh(idOf(stack.source), stack.device)
-                        } catch (e: NotImplementedError) {
-                            log(LogLevel.ERROR, "library refresh: not implemented")
-                        }
-                    }
+                    guard("library refresh") { library.refresh(idOf(stack.source), stack.device) }
                 }
             }
         }
