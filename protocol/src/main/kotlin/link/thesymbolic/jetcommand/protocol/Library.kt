@@ -264,8 +264,9 @@ class ProgramLibrary(private val store: LibraryStore, private val now: () -> Lon
                 val own = linked?.let { e -> store.revisions(e.id).firstOrNull { it.program.fingerprint() == fp } }
                 val other = currentMatch(fp, except = pushed.programId)
                 when {
-                    linked == null -> other?.let { state.copy(pushed = PushRecord(it.id, it.current.rev, fp, t)) }
-                        ?: state.copy(pushed = null)
+                    // A deleted program doesn't adopt new content: Restore would bring back something not on the unit.
+                    linked == null || (linked.deletedAt != null && own == null) ->
+                        other?.let { state.copy(pushed = PushRecord(it.id, it.current.rev, fp, t)) } ?: state.copy(pushed = null)
                     own != null && (own.rev == linked.current.rev || own.origin != Origin.OUTSIDE) ->
                         state.copy(pushed = PushRecord(linked.id, own.rev, fp, t))
                     other != null -> state.copy(pushed = PushRecord(other.id, other.current.rev, fp, t))

@@ -116,6 +116,18 @@ class LibraryTest {
     }
 
     @Test
+    fun `slot of a deleted entry overwritten elsewhere is not in the library`() = runTest {
+        val r = rig(listOf(a, null, null))
+        val alpha = r.lib.create(a)
+        r.refresh()
+        r.lib.delete(alpha.id)
+        r.sim.slots[0] = b
+        r.refresh()
+        assertEquals(SlotStatus.NotInLibrary, r.status(0))
+        assertEquals(1, r.lib.revisions(alpha.id).size)
+    }
+
+    @Test
     fun `outside change is saved once as a non-current revision`() = runTest {
         val r = rig(listOf(a, null, null))
         val alpha = r.lib.create(a)
