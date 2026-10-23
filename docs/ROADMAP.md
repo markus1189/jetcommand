@@ -41,10 +41,9 @@ appears.
 
 ## Next
 
-1. Night 2 (battery now Unrestricted): did the service survive? Check `dumpsys activity exit-info link.thesymbolic.jetcommand` first (logcat rotates past a kill by morning), then the night log (`run-as link.thesymbolic.jetcommand`, `databases/night-log.db` plus `-wal`): `PROCESS` rows, drops, reconnects; battery for uid u0a280.
-2. Cap the reconnect backoff: night 1 had a 358 s gap after a status-8 drop.
-3. If the service died again: START_STICKY plus a restart path, or CompanionDeviceManager.
-4. Design round on iteration 1 with the user's notes from the nights.
+1. Night 2 (battery now Unrestricted): did the service survive? Check `dumpsys activity exit-info link.thesymbolic.jetcommand` first (logcat rotates past a kill by morning), then the night log (`run-as link.thesymbolic.jetcommand`, `databases/night-log.db` plus `-wal`): `PROCESS` rows, drops, reconnects; battery for uid u0a280; reconnect gaps should now stay under ~30 s (wait capped at 10 s).
+2. If the service died again: START_STICKY plus a restart path, or CompanionDeviceManager.
+3. Design round on iteration 1 with the user's notes from the nights.
 
 ## Known gaps
 
