@@ -39,6 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -51,6 +53,7 @@ import link.thesymbolic.jetcommand.protocol.Resolution
 import link.thesymbolic.jetcommand.protocol.SlotStatus
 import link.thesymbolic.jetcommand.protocol.SlotView
 import link.thesymbolic.jetcommand.protocol.Step
+import link.thesymbolic.jetcommand.protocol.formatTemp
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
@@ -81,7 +84,7 @@ private fun Card(content: @Composable () -> Unit) = Column(
 private enum class PickFor { RUN, LOAD }
 
 @Composable
-fun ProgramDetailScreen(source: ProgramsSource, entry: LibraryEntry, slots: List<SlotView>, live: Boolean, back: () -> Unit) {
+fun ProgramDetailScreen(source: ProgramsSource, entry: LibraryEntry, slots: List<SlotView>, live: Boolean, back: () -> Unit, delete: () -> Unit) {
     val revisions by produceState(emptyList<ProgramRevision>(), entry) { value = source.revisions(entry.id) }
     var picker by remember { mutableStateOf<PickFor?>(null) }
     ProgramDetail(
@@ -90,6 +93,7 @@ fun ProgramDetailScreen(source: ProgramsSource, entry: LibraryEntry, slots: List
         update = { source.push(it, entry.id) },
         run = { picker = PickFor.RUN },
         load = { picker = PickFor.LOAD },
+        delete = delete,
     )
     picker?.let { mode ->
         val device by source.device.collectAsState()
@@ -113,6 +117,7 @@ fun ProgramDetail(
     update: (Int) -> Unit,
     run: () -> Unit,
     load: () -> Unit,
+    delete: () -> Unit = {},
     start: LocalTime = LocalTime.now(),
 ) {
     val p = entry.current.program
@@ -160,6 +165,12 @@ fun ProgramDetail(
             OutlinedButton(load, h, enabled = live) { Text("Load…", fontSize = 15.sp) }
             // The program editor comes later (ROADMAP); shown so the layout is the final one.
             OutlinedButton({}, h, enabled = false) { Text("Edit", fontSize = 15.sp) }
+            val name = prettyName(p.name)
+            Box(
+                Modifier.size(48.dp).clip(CircleShape).border(1.dp, Color(0xFF5A3420), CircleShape)
+                    .clickable(onClick = delete).semantics { contentDescription = "Delete $name" },
+                contentAlignment = Alignment.Center,
+            ) { TrashIcon(20.dp) }
         }
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SectionTitle("Steps")
@@ -194,7 +205,7 @@ private fun StepRow(s: Span, start: LocalTime) = Row(
     Box(Modifier.size(10.dp).clip(CircleShape).background(modeColor(s.step.mode)))
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(s.step.mode.label, fontSize = 15.sp)
-        Text(stepDetail(s.step), fontSize = 12.sp, color = Muted)
+        Text(stepListDetail(s.step), fontSize = 12.sp, color = Muted)
     }
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(if (s.step.clock) "until ${clockAt(start, s.to)}" else duration(s.minutes), fontSize = 14.sp)
@@ -333,6 +344,12 @@ fun ConflictScreen(source: ProgramsSource, v: SlotView, back: () -> Unit) {
     }
 }
 
+private fun stepListDetail(s: Step): String = when (s.mode) {
+    Mode.TURBO -> "${stepDetail(s)} · ${formatTemp(s.temp)} fixed"
+    Mode.WAIT -> "${stepDetail(s)} · no temperature"
+    else -> stepDetail(s)
+}
+
 private fun stepCell(s: Step?): Pair<String, String> =
     if (s == null) "" to "—"
     else s.mode.label to listOfNotNull(stepDetail(s).takeIf { s.mode != Mode.WAIT }, if (s.clock) "until %02d:%02d".format(s.hours, s.minutes) else duration(s.totalMinutes)).joinToString(" · ")
@@ -415,7 +432,7 @@ private fun DetailPreview() = JetCommandTheme {
     val f = remember { FakePrograms() }
     val e = LibraryEntry("summer", f.revs.getValue("summer").first())
     val slots by f.slots("demo").collectAsState(emptyList())
-    ProgramDetail(e, f.revs.getValue("summer"), slots, true, {}, {}, {}, {}, PreviewStart)
+    ProgramDetail(e, f.revs.getValue("summer"), slots, true, {}, {}, {}, {}, start = PreviewStart)
 }
 
 @Preview(widthDp = 390, backgroundColor = 0xFF101418, showBackground = true)
