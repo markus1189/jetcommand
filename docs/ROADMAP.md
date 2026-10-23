@@ -52,13 +52,14 @@ appears.
 
 ## Program library (design 2026-10-23)
 
-Protocol: `BEDJET_PROTOCOL.md:99-198`. Design canvas: open.
+Protocol: `BEDJET_PROTOCOL.md:99-198`. Design canvas: https://claude.ai/artifact/MmXMAKknPjhZAist227cdp
 
 1. Slots re-read in full on every Ready, in a low-priority lane behind user commands (the link queue needs one); offline the cache shows its age.
 2. Room: `program` (id, currentRev, deletedAt tombstone), `program_revision` (immutable: name, steps as 5-byte wire blob, start, note, origin), `slot_state` (cache + push record + pending write). `fingerprint()` over the wire encoding lives in `:protocol`.
 3. Write: validate → re-read slot and compare to cache → confirm overwrite → store pending intent → fragments, name, read-back verify → push record. A slot holding a program found nowhere else is saved to the library first. Writes are blocked while a program runs. A pending intent found on the next Ready resolves to done or "interrupted, retry".
 4. Unseen content on a linked slot is saved as a non-current `outside` revision; the user picks take / keep / split off, never automatic. A slot matching a different entry re-links to it.
 5. Run from the library: ranked slot picker, best preselected (already holds current → older rev → empty → in-sync linked, oldest push → orphan, auto-saved).
+6. One step strip (width = duration, height = target °C, wait = stub; Now canvas board E, https://claude.ai/artifact/1rDbxtKAxLkZAxuWBTvwLj) for library rows, program detail and Now. Now needs the running slot's steps from the cache; the status gives only the step number, so a program started outside the app is matched by step count against the cached slots (ambiguous when two fit).
 
 ## Known gaps
 
