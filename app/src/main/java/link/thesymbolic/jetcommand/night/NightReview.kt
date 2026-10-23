@@ -152,7 +152,7 @@ fun importantRows(d: NightDetail, text: NightText): List<EventRow> {
             Kind.MODE -> if (pressed(e)) rows += EventRow(e.at, "Mode ${e.detail}")
             Kind.PROCESS -> if (e.detail.startsWith("exit")) {
                 val killed = e.at in d.summary.killedAt
-                rows += EventRow(e.at, if (killed) "App killed by Android" else "App ended: ${e.detail.removePrefix(ProcessLog.EXIT_PREFIX)}", warn = killed)
+                rows += EventRow(e.at, if (killed) "App killed by Android" else "App ended · ${e.detail.removePrefix(ProcessLog.EXIT_PREFIX).substringBefore(" importance")}", warn = killed)
                 d.summary.gaps.firstOrNull { it.cause == NightSummary.Cause.APP && it.from == e.at }?.let {
                     rows += EventRow(null, "${duration(it.to - it.from)} unobserved", muted = true)
                 }

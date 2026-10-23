@@ -138,20 +138,35 @@ private class TimelineData(d: NightDetail) {
 /** More than this many minutes between samples is a gap, drawn as a break rather than a line across it. */
 private const val GAP_MINUTES = 2.5
 
+private val MIN_RUN = 4.dp
+
 /** Vico joins every pair of neighbouring points; this breaks the line where samples are missing and optionally steps it. */
 private class GapInterpolator(private val step: Boolean) : LineCartesianLayer.Interpolator {
     override fun interpolate(context: CartesianDrawingContext, path: Path, points: List<Offset>, visibleIndexRange: IntRange) {
         val maxDx = context.layerDimensions.xSpacing * GAP_MINUTES.toFloat()
+        val minRun = with(context) { MIN_RUN.pixels }
         var prev: Offset? = null
+        var runStart = 0f
+        // Over a long night a few minutes of samples are a pixel or two wide, and a lone sample draws nothing: stretch such runs.
+        val right = context.layerBounds.right
+        fun closeRun(last: Offset) {
+            if (last.x - runStart >= minRun) return
+            if (runStart + minRun <= right) path.lineTo(runStart + minRun, last.y)
+            else { path.moveTo(right - minRun, last.y); path.lineTo(right, last.y) } // at the plot's end, grow leftwards so it isn't clipped
+        }
         for (i in visibleIndexRange) {
             val p = points[i]
-            if (prev == null || p.x - prev.x > maxDx) path.moveTo(p.x, p.y)
-            else {
+            if (prev == null || p.x - prev.x > maxDx) {
+                prev?.let(::closeRun)
+                path.moveTo(p.x, p.y)
+                runStart = p.x
+            } else {
                 if (step) path.lineTo(p.x, prev.y)
                 path.lineTo(p.x, p.y)
             }
             prev = p
         }
+        prev?.let(::closeRun)
     }
 }
 
@@ -335,13 +350,11 @@ private fun FanChart(m: TimelineData, text: NightText, listener: CartesianMarker
         lineProvider = remember(lines) { LineCartesianLayer.LineProvider { key, _, _ -> lines.getValue(key as String) } },
         rangeProvider = rememberRange(m, 0.0, 100.0),
     )
-    val spacing = when {
-        m.maxX > 6 * 60 -> 120
-        m.maxX > 3 * 60 -> 60
-        m.maxX > 60 -> 30
-        else -> 15
-    }
-    val offset = ((60 - m.startMinuteOfHour) % spacing)
+    // At most five labels: Vico ellipsizes a label wider than its share of the axis.
+    val spacing = listOf(15, 30, 60, 120, 180, 240, 360, 720).firstOrNull { m.maxX / it <= 5 } ?: 1440
+    val hour = minOf(spacing, 60)
+    // Vico clips the first label when it sits at the plot's left edge; start one step later then.
+    val offset = ((60 - m.startMinuteOfHour) % hour).let { if (it < m.maxX / 20) it + hour else it }
     val bottom = HorizontalAxis.rememberBottom(
         line = rememberAxisGuidelineComponent(fill = Fill(MaterialTheme.colorScheme.outline), shape = androidx.compose.ui.graphics.RectangleShape),
         tick = null,
