@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher monochrome mark, cropped to its content box for the 24dp status bar. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="60" android:viewportHeight="60">
+    <group android:translateX="-24" android:translateY="-19">
+        <path android:pathData="M33.24,69.65 A26,26 0 0,1 28.00,53.55" android:strokeColor="#FFFFFF" android:strokeWidth="7.5" android:strokeLineCap="round" android:fillColor="#00000000"/>
+        <path android:pathData="M29.14,46.40 A26,26 0 0,1 39.09,32.70" android:strokeColor="#FFFFFF" android:strokeWidth="7.5" android:strokeLineCap="round" android:fillColor="#00000000"/>
+        <path android:pathData="M45.54,29.42 A26,26 0 0,1 62.46,29.42" android:strokeColor="#FFFFFF" android:strokeWidth="7.5" android:strokeLineCap="round" android:fillColor="#00000000"/>
+        <path android:pathData="M68.91,32.70 A26,26 0 0,1 78.86,46.40" android:strokeColor="#FFFFFF" android:strokeWidth="7.5" android:strokeLineCap="round" android:fillColor="#00000000"/>
+        <path android:pathData="M80.00,53.55 A26,26 0 0,1 74.76,69.65" android:strokeColor="#FFFFFF" android:strokeWidth="7.5" android:strokeLineCap="round" android:fillColor="#00000000"/>
+        <path android:pathData="M60,38 L60,60 A8,8 0 0,1 44,60" android:strokeColor="#FFFFFF" android:strokeWidth="8" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"/>
+    </group>
+</vector>

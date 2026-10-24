@@ -121,7 +121,7 @@ class BedJetService : Service() {
             )
         val b =
             Notification.Builder(this, CHANNEL)
-                .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(title)
                 .setContentText(text)
                 .setContentIntent(open)
