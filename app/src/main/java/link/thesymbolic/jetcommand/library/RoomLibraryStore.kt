@@ -94,6 +94,8 @@ interface LibraryDao {
     @Query("SELECT * FROM program_revision WHERE programId = :programId ORDER BY rev DESC")
     suspend fun revisions(programId: String): List<ProgramRevisionRow>
 
+    @Query("SELECT * FROM program_revision") fun allRevisions(): Flow<List<ProgramRevisionRow>>
+
     @Query("SELECT MAX(rev) FROM program_revision WHERE programId = :programId")
     suspend fun maxRev(programId: String): Int?
 
@@ -134,6 +136,9 @@ class RoomLibraryStore(private val db: LibraryDatabase) : LibraryStore {
 
     override fun entries(): Flow<List<LibraryEntry>> =
         dao.entries().map { rows -> rows.map(EntryRow::toEntry) }
+
+    override fun allRevisions(): Flow<List<ProgramRevision>> =
+        dao.allRevisions().map { rows -> rows.map(ProgramRevisionRow::toRevision) }
 
     override fun slots(device: String): Flow<List<SlotState>> =
         dao.slots(device).map { rows -> rows.mapNotNull(SlotStateRow::toState) }
