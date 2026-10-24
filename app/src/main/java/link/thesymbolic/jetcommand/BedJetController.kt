@@ -51,6 +51,7 @@ import link.thesymbolic.jetcommand.protocol.StatusUpdate
 import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.TappedTransport
 import link.thesymbolic.jetcommand.protocol.Timing
+import link.thesymbolic.jetcommand.protocol.attempt
 
 sealed interface Source {
     val label: String
@@ -262,7 +263,9 @@ class BedJetController(
     private suspend fun teardown(stack: BedJetStack) =
         withContext(NonCancellable) {
             stack.recorder.userDisconnecting()
-            runCatching { stack.link.disconnect() }
+            attempt(onError = { log(LogLevel.WARN, "disconnect: ${it.message}") }) {
+                stack.link.disconnect()
+            }
             stack.scope.coroutineContext[Job]?.cancelAndJoin()
         }
 
