@@ -75,7 +75,8 @@ class ProcessEventTest {
     @Test
     fun `the other process lines the app writes`() {
         assertEquals(Started, ProcessEvent.parse("process started"))
-        listOf("task removed", "service destroyed", "trim memory 15").forEach {
+        assertEquals(ProcessEvent.ServiceDestroyed, ProcessEvent.parse("service destroyed"))
+        listOf("task removed", "trim memory 15").forEach {
             assertEquals(Note(it), ProcessEvent.parse(it))
         }
     }

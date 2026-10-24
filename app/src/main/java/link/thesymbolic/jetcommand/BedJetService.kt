@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import link.thesymbolic.jetcommand.protocol.Button as Btn
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
+import link.thesymbolic.jetcommand.protocol.ProcessEvent
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
 import link.thesymbolic.jetcommand.protocol.formatTemp
 
@@ -104,7 +105,7 @@ class BedJetService : Service() {
     }
 
     override fun onDestroy() {
-        controller.lifecycle("service destroyed")
+        controller.lifecycle(ProcessEvent.ServiceDestroyed)
         scope?.cancel()
         scope = null
     }

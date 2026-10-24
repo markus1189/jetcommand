@@ -12,6 +12,14 @@ sealed interface ProcessEvent {
     }
 
     /**
+     * The service only stops when the connection ends, which a stop while reconnecting leaves
+     * unlogged: this ends any open drop.
+     */
+    data object ServiceDestroyed : ProcessEvent {
+        override val detail = "service destroyed"
+    }
+
+    /**
      * The system's record of an earlier process ending; [code] is `ApplicationExitInfo.reason`,
      * kept raw so a reason newer than [ExitReason] still round-trips.
      */
@@ -41,6 +49,7 @@ sealed interface ProcessEvent {
 
         fun parse(detail: String): ProcessEvent {
             if (detail == Started.detail) return Started
+            if (detail == ServiceDestroyed.detail) return ServiceDestroyed
             val exit = EXIT.matchEntire(detail) ?: return Note(detail)
             val (label, importance, description) = exit.destructured
             val code =

@@ -82,6 +82,12 @@ private class NightScan(private val samples: List<Long>) {
     fun add(e: NightEvent) {
         when (val p = e.process) {
             ProcessEvent.Started -> onStart(e)
+            ProcessEvent.ServiceDestroyed -> {
+                linkDownSince?.let {
+                    if (e.at > it) gaps += NightSummary.Gap(it, e.at, NightSummary.Cause.LINK)
+                }
+                linkDownSince = null
+            }
             is ProcessEvent.Exit -> {
                 exitAt = e.at
                 exitWasKill = p.killedBySystem

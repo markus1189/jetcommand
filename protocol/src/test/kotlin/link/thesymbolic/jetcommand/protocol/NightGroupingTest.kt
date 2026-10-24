@@ -117,6 +117,25 @@ class NightGroupingTest {
     }
 
     @Test
+    fun `stopping the service while reconnecting ends the drop - night 2's reinstall`() {
+        val events =
+            listOf(
+                started(t(23, 16, 7, 41)),
+                ev(t(23, 16, 9, 48), Kind.CONNECTED),
+                ev(t(23, 16, 11, 18), Kind.LOST, "DISCONNECTED (status 8)"),
+                ev(t(23, 16, 12, 2), Kind.PROCESS, "service destroyed"),
+                ev(t(23, 16, 20, 58), Kind.PROCESS, "exit package updated importance 100: stop"),
+                started(t(23, 16, 20, 58)),
+                ev(t(23, 16, 21, 4), Kind.CONNECTED),
+            )
+        val night = groupNights(events, emptyList(), zone, t(24, 12, 0)).single()
+        assertEquals(
+            listOf(Gap(t(23, 16, 11, 18), t(23, 16, 12, 2), Cause.LINK)),
+            night.gaps.filter { it.cause == Cause.LINK },
+        )
+    }
+
+    @Test
     fun `an app update or the user stopping it is a gap, not a kill`() {
         val events =
             listOf(
