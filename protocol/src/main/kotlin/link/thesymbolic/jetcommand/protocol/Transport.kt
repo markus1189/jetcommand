@@ -31,7 +31,8 @@ class TransportException(
     val kind: Kind,
     val gattStatus: Int? = null,
     message: String = kind.name + (gattStatus?.let { " (status $it)" } ?: ""),
-) : Exception(message) {
+    cause: Throwable? = null,
+) : Exception(message, cause) {
     enum class Kind {
         NOT_CONNECTED,
         CONNECT_FAILED,
@@ -39,6 +40,19 @@ class TransportException(
         OPERATION_FAILED,
         TIMEOUT,
         DISCONNECTED,
+    }
+}
+
+/**
+ * Runs [cleanup] when [block] fails in any way, cancellation included, then lets the failure
+ * propagate. Inline, so [cleanup] may suspend inside a suspending caller.
+ */
+inline fun <T> cleanupOnFailure(cleanup: () -> Unit, block: () -> T): T {
+    var ok = false
+    try {
+        return block().also { ok = true }
+    } finally {
+        if (!ok) cleanup()
     }
 }
 

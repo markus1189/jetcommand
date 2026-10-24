@@ -2,7 +2,6 @@
 // transport's job.
 package link.thesymbolic.jetcommand.protocol
 
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -237,9 +236,13 @@ class BedJetLink(
     private suspend fun connectLocked() {
         if (_state.value == LinkState.Ready) return
         if (_state.value !is LinkState.Connecting) setState(LinkState.Connecting())
-        try {
-            withTimeoutOrNull(config.connectTimeoutMs) { transport.connect() }
-                ?: throw BedJetException(ErrorCode.TIMEOUT)
+        cleanupOnFailure({ abortConnect() }) {
+            try {
+                withTimeoutOrNull(config.connectTimeoutMs) { transport.connect() }
+                    ?: throw BedJetException(ErrorCode.TIMEOUT)
+            } catch (e: TransportException) {
+                throw wrap(e, ErrorCode.NOT_CONNECTED)
+            }
             missing.clear()
             attached = true
             deviceName = "BedJet"
@@ -253,12 +256,12 @@ class BedJetLink(
             reconnectAttempt = 0
             log(LogLevel.SUCCESS, "Connected to $deviceName")
             setState(LinkState.Ready)
-        } catch (e: Throwable) {
-            withContext(NonCancellable) { runCatching { transport.disconnect() } }
-            teardown()
-            if (e is CancellationException || e is BedJetException) throw e
-            throw wrap(e, ErrorCode.NOT_CONNECTED)
         }
+    }
+
+    private suspend fun abortConnect() {
+        withContext(NonCancellable) { runCatching { transport.disconnect() } }
+        teardown()
     }
 
     private fun teardown() {

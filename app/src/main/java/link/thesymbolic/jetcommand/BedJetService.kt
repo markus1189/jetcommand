@@ -1,5 +1,6 @@
 package link.thesymbolic.jetcommand
 
+import android.app.ForegroundServiceStartNotAllowedException
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -40,28 +41,35 @@ class BedJetService : Service() {
         val controller = controller
         // startForeground first, every time: a startForegroundService() that isn't answered within
         // seconds crashes the app.
-        try {
-            // Re-shows the last posted content, so a press from the shade doesn't flash "Starting"
-            // until the next change.
-            val (title, text, ready) =
-                posted ?: Triple(controller.stack.value?.label ?: "JetCommand", "Starting", false)
-            startForeground(
-                ID,
-                build(title, text, ready),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
-            )
-        } catch (
-            e: RuntimeException) { // SecurityException, ForegroundServiceStartNotAllowedException
-            controller.log(LogLevel.ERROR, "Service: ${e::class.simpleName} ${e.message}")
-            stopSelf()
-            return START_NOT_STICKY
-        }
+        if (!startForegroundOrStop(controller)) return START_NOT_STICKY
         ACTIONS.find { it.action == intent?.action }?.let { controller.press(it.label, it.button) }
         if (scope == null) observe(controller)
         // Not sticky: after the process dies the controller's stack is gone, and a restart from the
-        // background
-        // may not start a connectedDevice service anyway.
+        // background may not start a connectedDevice service anyway.
         return START_NOT_STICKY
+    }
+
+    private fun startForegroundOrStop(controller: BedJetController): Boolean {
+        // Re-shows the last posted content, so a press from the shade doesn't flash "Starting"
+        // until the next change.
+        val (title, text, ready) =
+            posted ?: Triple(controller.stack.value?.label ?: "JetCommand", "Starting", false)
+        val failure =
+            try {
+                startForeground(
+                    ID,
+                    build(title, text, ready),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+                )
+                return true
+            } catch (e: SecurityException) {
+                e
+            } catch (e: ForegroundServiceStartNotAllowedException) {
+                e
+            }
+        controller.log(LogLevel.ERROR, "Service: ${failure::class.simpleName} ${failure.message}")
+        stopSelf()
+        return false
     }
 
     private fun observe(controller: BedJetController) {
@@ -200,8 +208,8 @@ class BedJetService : Service() {
             )
             try {
                 context.startForegroundService(Intent(context, BedJetService::class.java))
-            } catch (e: IllegalStateException) { // ForegroundServiceStartNotAllowedException when
-                // called from the background
+            } catch (e: IllegalStateException) {
+                // ForegroundServiceStartNotAllowedException when called from the background.
                 controller.log(LogLevel.ERROR, "Service not started: ${e.message}")
             }
         }

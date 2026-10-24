@@ -275,6 +275,10 @@ class BedJetController(
 
     fun setMode(mode: Mode) = act("mode ${mode.label}") { it.device.setMode(mode) }
 
+    // Catches everything: a failed user action is logged, never a crash. Not a
+    // CoroutineExceptionHandler, because "connect" runs inline in the switching job that the next
+    // switch joins.
+    @Suppress("TooGenericExceptionCaught")
     private suspend fun guard(what: String, block: suspend () -> Unit) {
         try {
             block()

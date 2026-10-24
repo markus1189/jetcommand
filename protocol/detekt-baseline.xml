@@ -1,8 +1,5 @@
 <?xml version="1.0" ?>
 <SmellBaseline>
   <ManuallySuppressedIssues/>
-  <CurrentIssues>
-    <ID>TooGenericExceptionCaught:BedJetLink.kt:BedJetLink$e: Throwable</ID>
-    <ID>TooGenericExceptionCaught:SimTransport.kt:SimTransport$e: Throwable</ID>
-  </CurrentIssues>
+  <CurrentIssues/>
 </SmellBaseline>

@@ -28,6 +28,7 @@ import link.thesymbolic.jetcommand.protocol.TransportException
 import link.thesymbolic.jetcommand.protocol.TransportException.Kind
 import link.thesymbolic.jetcommand.protocol.TransportState
 import link.thesymbolic.jetcommand.protocol.Uuids
+import link.thesymbolic.jetcommand.protocol.cleanupOnFailure
 import link.thesymbolic.jetcommand.protocol.toHex
 
 /**
@@ -79,55 +80,72 @@ class GattTransport(context: Context, private val device: BluetoothDevice) : Bed
             check(gatt == null) { "connect() while already connected or connecting" }
             _state.value = TransportState.Connecting
         }
-        try {
-            await(Op.CONNECT) {
-                synchronized(lock) {
-                    // The replacement, connectGatt(BluetoothGattConnectionSettings, …), is API 37+.
-                    @Suppress("DEPRECATION")
-                    gatt =
-                        device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
-                }
-                gatt != null
-            }
-            val g = synchronized(lock) { gatt } ?: throw TransportException(Kind.DISCONNECTED)
-            mtu =
-                try {
-                    await(Op.MTU) { g.requestMtu(REQUESTED_MTU) }.let { decodeInt(it) }
-                } catch (e: TransportException) {
-                    if (e.kind == Kind.DISCONNECTED) throw e
-                    DEFAULT_MTU
-                }
-            await(Op.DISCOVER) { g.discoverServices() }
-            val service =
-                g.getService(UUID.fromString(Uuids.SERVICE))
-                    ?: throw TransportException(
-                        Kind.MISSING_CHARACTERISTIC,
-                        message = "BedJet service not found",
-                    )
-            val found =
-                Characteristic.entries
-                    .mapNotNull { c ->
-                        service.getCharacteristic(UUID.fromString(c.uuid))?.let { c to it }
-                    }
-                    .toMap()
-            // Older firmware lacks REPLY_ALT; everything else is required.
-            (Characteristic.entries - Characteristic.REPLY_ALT - found.keys).firstOrNull()?.let {
-                throw TransportException(
-                    Kind.MISSING_CHARACTERISTIC,
-                    message = "Missing characteristic $it",
-                )
-            }
-            synchronized(lock) { chars = found }
-            enableNotifications(g, found.getValue(Characteristic.STATUS))
-            _state.value = TransportState.Connected(mtu)
-        } catch (e: Throwable) {
+        cleanupOnFailure({
             closeGatt()
             _state.value = TransportState.Disconnected
-            if (e is TransportException && e.kind == Kind.DISCONNECTED) {
-                throw TransportException(Kind.CONNECT_FAILED, e.gattStatus)
+        }) {
+            try {
+                await(Op.CONNECT) {
+                    synchronized(lock) {
+                        // The replacement, connectGatt(BluetoothGattConnectionSettings, …), is API
+                        // 37+.
+                        @Suppress("DEPRECATION")
+                        gatt =
+                            device.connectGatt(
+                                context,
+                                false,
+                                callback,
+                                BluetoothDevice.TRANSPORT_LE,
+                            )
+                    }
+                    gatt != null
+                }
+                val g = synchronized(lock) { gatt } ?: throw TransportException(Kind.DISCONNECTED)
+                mtu =
+                    try {
+                        await(Op.MTU) { g.requestMtu(REQUESTED_MTU) }.let { decodeInt(it) }
+                    } catch (e: TransportException) {
+                        if (e.kind == Kind.DISCONNECTED) throw e
+                        DEFAULT_MTU
+                    }
+                val found = discover(g)
+                synchronized(lock) { chars = found }
+                enableNotifications(g, found.getValue(Characteristic.STATUS))
+                _state.value = TransportState.Connected(mtu)
+            } catch (e: TransportException) {
+                // A drop before discovery finished is a failed connect, not a lost link.
+                if (e.kind != Kind.DISCONNECTED) throw e
+                throw TransportException(Kind.CONNECT_FAILED, e.gattStatus, cause = e)
             }
-            throw e
         }
+    }
+
+    // MissingPermission: only called from connect(), after requirePermission().
+    @SuppressLint("MissingPermission")
+    private suspend fun discover(
+        g: BluetoothGatt
+    ): Map<Characteristic, BluetoothGattCharacteristic> {
+        await(Op.DISCOVER) { g.discoverServices() }
+        val service =
+            g.getService(UUID.fromString(Uuids.SERVICE))
+                ?: throw TransportException(
+                    Kind.MISSING_CHARACTERISTIC,
+                    message = "BedJet service not found",
+                )
+        val found =
+            Characteristic.entries
+                .mapNotNull { c ->
+                    service.getCharacteristic(UUID.fromString(c.uuid))?.let { c to it }
+                }
+                .toMap()
+        // Older firmware lacks REPLY_ALT; everything else is required.
+        (Characteristic.entries - Characteristic.REPLY_ALT - found.keys).firstOrNull()?.let {
+            throw TransportException(
+                Kind.MISSING_CHARACTERISTIC,
+                message = "Missing characteristic $it",
+            )
+        }
+        return found
     }
 
     @SuppressLint("MissingPermission") // only called from connect(), after requirePermission()
@@ -229,6 +247,7 @@ class GattTransport(context: Context, private val device: BluetoothDevice) : Bed
                     throw TransportException(
                         Kind.NOT_CONNECTED,
                         message = "BLUETOOTH_CONNECT revoked: ${e.message}",
+                        cause = e,
                     )
                 }
             if (!started)

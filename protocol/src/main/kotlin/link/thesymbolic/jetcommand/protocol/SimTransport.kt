@@ -137,11 +137,8 @@ class SimTransport(
     override suspend fun connect() {
         if (connection != null) return
         _state.value = TransportState.Connecting
-        try {
+        cleanupOnFailure({ _state.value = TransportState.Disconnected }) {
             perform(Op.Connect, null) {}
-        } catch (e: Throwable) {
-            _state.value = TransportState.Disconnected
-            throw e
         }
         connection = Job()
         _state.value = TransportState.Connected(mtu)
