@@ -5,11 +5,12 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * A night is the local day shifted by -12 h: noon to noon, so 18:00–12:00 never splits and stray
- * daytime items go to the night they follow.
+ * A night runs from local noon to local noon, so 18:00–12:00 never splits and stray daytime items
+ * go to the night they follow. Shifted on the local clock, not the instant: DST days are 23 or 25 h
+ * long.
  */
 fun nightOf(at: Long, zone: ZoneId): LocalDate =
-    Instant.ofEpochMilli(at).atZone(zone).minusHours(12).toLocalDate()
+    Instant.ofEpochMilli(at).atZone(zone).toLocalDateTime().minusHours(12).toLocalDate()
 
 /** Epoch millis of [night]'s noon-to-noon window, end exclusive. */
 fun nightWindow(night: LocalDate, zone: ZoneId): LongRange {
@@ -37,20 +38,23 @@ fun groupNights(
 ): List<NightSummary> {
     val ev = events.groupBy { nightOf(it.at, zone) }
     val sm = sampleTimes.groupBy { nightOf(it, zone) }
-    return (ev.keys + sm.keys).sortedDescending().map { night ->
-        summarize(ev[night].orEmpty(), sm[night].orEmpty(), now in nightWindow(night, zone)).let {
+    return (ev.keys + sm.keys).sortedDescending().mapNotNull { night ->
+        summarize(ev[night].orEmpty(), sm[night].orEmpty(), now in nightWindow(night, zone))?.let {
             it.copy(ongoing = it.ongoing && now - it.end <= ONGOING_QUIET_MS)
         }
     }
 }
 
-/** Sort is stable, so same-millisecond events keep their logged order. */
-fun summarize(events: List<NightEvent>, sampleTimes: List<Long>, ongoing: Boolean): NightSummary {
+/**
+ * Null when there is nothing to summarize. Sort is stable, so same-millisecond events keep their
+ * logged order.
+ */
+fun summarize(events: List<NightEvent>, sampleTimes: List<Long>, ongoing: Boolean): NightSummary? {
     val evs = events.sortedBy { it.at }
     val samples = sampleTimes.sorted()
-    val start =
-        minOf(evs.firstOrNull()?.at ?: Long.MAX_VALUE, samples.firstOrNull() ?: Long.MAX_VALUE)
-    val end = maxOf(evs.lastOrNull()?.at ?: Long.MIN_VALUE, samples.lastOrNull() ?: Long.MIN_VALUE)
+    val times = listOfNotNull(evs.firstOrNull()?.at, evs.lastOrNull()?.at) + samples
+    val start = times.minOrNull() ?: return null
+    val end = times.max()
     val scan = NightScan(samples)
     for (e in evs) scan.add(e)
     scan.finish(end)
@@ -88,8 +92,10 @@ private class NightScan(private val samples: List<Long>) {
     }
 
     private fun onStart(e: NightEvent) {
-        while (si < samples.size && samples[si] < e.at) lastAt =
-            maxOf(lastAt ?: Long.MIN_VALUE, samples[si++])
+        while (si < samples.size && samples[si] < e.at) {
+            val sample = samples[si++]
+            lastAt = lastAt?.let { maxOf(it, sample) } ?: sample
+        }
         // Without an exit record or an earlier start in this night, a start is just the app
         // being opened.
         val died = exitAt ?: lastAt.takeIf { seenStart }

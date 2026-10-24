@@ -1,10 +1,23 @@
 package link.thesymbolic.jetcommand.protocol
 
+import io.kotest.property.Arb
+import io.kotest.property.arbitrary.bind
+import io.kotest.property.arbitrary.choice
+import io.kotest.property.arbitrary.element
+import io.kotest.property.arbitrary.enum
+import io.kotest.property.arbitrary.flatMap
+import io.kotest.property.arbitrary.list
+import io.kotest.property.arbitrary.long
+import io.kotest.property.arbitrary.map
+import io.kotest.property.checkAll
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.test.runTest
 import link.thesymbolic.jetcommand.protocol.NightEvent.Kind
 import link.thesymbolic.jetcommand.protocol.NightSummary.Cause
 import link.thesymbolic.jetcommand.protocol.NightSummary.Gap
@@ -137,5 +150,71 @@ class NightGroupingTest {
         assertEquals(listOf(true, false), nights.map { it.ongoing })
         // Each night's own process start is just the app being opened, not a kill.
         assertTrue(nights.all { it.killedAt.isEmpty() && it.gaps.isEmpty() })
+    }
+
+    @Test
+    fun `nothing logged summarizes to null`() {
+        assertNull(summarize(emptyList(), emptyList(), ongoing = false))
+    }
+
+    @Test
+    fun `on a DST change day the night still ends at local noon`() {
+        // Berlin falls back on 25 Oct 2026 and springs forward on 29 Mar 2026.
+        assertEquals(LocalDate.of(2026, 10, 24), nightOf(t(25, 11, 30), zone))
+        assertEquals(LocalDate.of(2026, 10, 25), nightOf(t(25, 12, 0), zone))
+        val spring = LocalDateTime.of(2026, 3, 29, 12, 30).atZone(zone).toInstant().toEpochMilli()
+        assertEquals(LocalDate.of(2026, 3, 29), nightOf(spring, zone))
+    }
+
+    private val zones = Arb.element(ZoneId.of("Europe/Berlin"), ZoneId.of("America/New_York"))
+
+    /** Instants of 2026, weighted towards the days around each zone's DST changes. */
+    private fun instants(zone: ZoneId): Arb<Long> {
+        val rules = zone.rules
+        val year = LocalDate.of(2026, 1, 1).atStartOfDay(zone).toInstant()
+        val changes =
+            generateSequence(rules.nextTransition(year)) { rules.nextTransition(it.instant) }
+                .take(2)
+                .map { it.instant.toEpochMilli() }
+                .toList()
+        val day = 24 * 3_600_000L
+        return Arb.choice(
+            Arb.long(year.toEpochMilli(), year.toEpochMilli() + 366 * day),
+            *changes.map { Arb.long(it - 2 * day, it + 2 * day) }.toTypedArray(),
+        )
+    }
+
+    @Test
+    fun `every instant lies in the window of its night, across DST changes`() = runTest {
+        checkAll(zones.flatMap { z -> instants(z).map { z to it } }) { (z, at) ->
+            assertTrue(
+                at in nightWindow(nightOf(at, z), z),
+                "$z ${java.time.Instant.ofEpochMilli(at)}",
+            )
+        }
+    }
+
+    @Test
+    fun `groupNights puts every event in exactly one night and loses none`() = runTest {
+        val events = zones.flatMap { z ->
+            val event =
+                Arb.bind(
+                    instants(z),
+                    Arb.enum<Kind>(),
+                    Arb.element("", "process started", "exit low memory importance 1: x"),
+                ) { at, kind, detail ->
+                    NightEvent(at, kind, detail)
+                }
+            Arb.list(event, 0..40).map { z to it }
+        }
+        checkAll(events) { (z, evs) ->
+            val nights = groupNights(evs, emptyList(), z, now = 0)
+            evs.forEach { e ->
+                assertEquals(1, nights.count { e.at in it.start..it.end }, "$e")
+            }
+            assertEquals(evs.map { nightOf(it.at, z) }.distinct().size, nights.size)
+            assertEquals(evs.count { it.kind == Kind.LOST }, nights.sumOf { it.drops })
+            assertEquals(evs.count { it.kind == Kind.COMMAND }, nights.sumOf { it.presses })
+        }
     }
 }
