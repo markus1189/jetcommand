@@ -36,7 +36,10 @@ private fun steps(n: Int, minutes: Int = 30) =
     List(n) { Step(Mode.HEAT, 9, 70, Timing.For(minutes / 60, minutes % 60)) }
 
 private fun slot(index: Int, program: Program?, device: String = DEV) =
-    SlotView(SlotState(device, Slot.all[index], program, readAt = 1L), SlotStatus.NotInLibrary)
+    SlotView(
+        SlotState(device, Slot.all[index], program, readAt = 1L),
+        program?.let(SlotStatus::NotInLibrary) ?: SlotStatus.Empty,
+    )
 
 private val NOON = LocalTime.NOON
 
