@@ -15,6 +15,7 @@ composeLint = "1.6.1"
 detekt = "2.0.0-alpha.6"
 spotless = "8.10.4"
 ktfmt = "0.64"
+kotest = "6.2.6"
 
 [libraries]
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
@@ -32,6 +33,7 @@ room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 vico-compose-m3 = { module = "com.patrykandpatrick.vico:compose-m3", version.ref = "vico" }
 junit-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+kotest-property = { module = "io.kotest:kotest-property", version.ref = "kotest" }
 
 compose-lint-checks = { module = "com.slack.lint.compose:compose-lint-checks", version.ref = "composeLint" }
 

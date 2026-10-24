@@ -11,6 +11,7 @@ dependencies {
     testImplementation(libs.coroutines.test)
     testImplementation(libs.kotlin.test)
     testImplementation(libs.serialization.json)
+    testImplementation(libs.kotest.property)
     testImplementation(platform(libs.junit.bom))
     testRuntimeOnly(libs.junit.launcher)
 }

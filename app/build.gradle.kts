@@ -22,6 +22,8 @@ android {
 
     buildFeatures { compose = true }
 
+    testOptions { unitTests.all { it.useJUnitPlatform() } }
+
     lint {
         checkAllWarnings = true
         warningsAsErrors = true
@@ -55,5 +57,10 @@ dependencies {
     implementation(libs.vico.compose.m3)
     ksp(libs.room.compiler)
     debugImplementation(libs.compose.ui.tooling)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotest.property)
+    testImplementation(platform(libs.junit.bom))
+    testRuntimeOnly(libs.junit.launcher)
     lintChecks(libs.compose.lint.checks)
 }
