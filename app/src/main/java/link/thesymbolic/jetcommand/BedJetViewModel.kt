@@ -3,14 +3,14 @@ package link.thesymbolic.jetcommand
 import android.annotation.SuppressLint
 import android.app.Application
 import android.bluetooth.BluetoothDevice
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.Mode
@@ -31,18 +31,19 @@ class BedJetViewModel(private val app: Application) : AndroidViewModel(app) {
             .nightLog(50)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val _results = MutableStateFlow<Map<String, String>>(emptyMap())
     /** Read-back results by label, for the current stack. */
-    val results = mutableStateMapOf<String, String>()
+    val results: StateFlow<Map<String, String>> = _results.asStateFlow()
 
+    private val _programs = MutableStateFlow<List<String?>>(emptyList())
     /** The unit's program slots by index, null where empty; read once per stack. */
-    var programs by mutableStateOf<List<String?>>(emptyList())
-        private set
+    val programs: StateFlow<List<String?>> = _programs.asStateFlow()
 
     init {
         viewModelScope.launch {
             stack.collect {
-                results.clear()
-                programs = emptyList()
+                _results.value = emptyMap()
+                _programs.value = emptyList()
             }
         }
     }
@@ -71,7 +72,14 @@ class BedJetViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun setFan(step: Int) = act("fan ${fanPercent(step)} %") { it.device.setFan(step) }
 
-    fun loadPrograms() = act("programs") { programs = it.device.programNames() }
+    fun loadPrograms() = act("programs") { _programs.value = it.device.programNames() }
+
+    /** Runs [read] on the unit and shows its text under [label] in [results]. */
+    fun readBack(label: String, read: suspend (BedJetStack) -> String) =
+        act(label.lowercase()) { stack ->
+            val text = read(stack)
+            _results.update { it + (label to text) }
+        }
 
     fun startProgram(slot: Slot) =
         act("start program ${slot.number}") {

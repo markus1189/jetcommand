@@ -83,6 +83,7 @@ fun NowScreen(
     val link by vm.linkState.collectAsState()
     val update by vm.status.collectAsState()
     val remembered by vm.remembered.collectAsState()
+    val programNames by vm.programs.collectAsState()
     // Outlives the Off button, which leaves the composition as soon as it turns the unit off.
     val scope = rememberCoroutineScope()
     val st = update?.status?.takeIf { link == LinkState.Ready }
@@ -127,7 +128,7 @@ fun NowScreen(
         Connected(
             st,
             programs,
-            vm.programs,
+            programNames,
             vm::loadPrograms,
             vm::setMode,
             vm::setTemperature,

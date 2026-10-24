@@ -35,18 +35,25 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import link.thesymbolic.jetcommand.ble.BedJetScanner
 import link.thesymbolic.jetcommand.ble.RequireBluetoothPermissions
 import link.thesymbolic.jetcommand.ble.ScannedDevice
 import link.thesymbolic.jetcommand.protocol.Button as Btn
+import link.thesymbolic.jetcommand.protocol.Characteristic
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.Mode
+import link.thesymbolic.jetcommand.protocol.NightEvent
 import link.thesymbolic.jetcommand.protocol.Notification
 import link.thesymbolic.jetcommand.protocol.SimTransport
 import link.thesymbolic.jetcommand.protocol.Slot
+import link.thesymbolic.jetcommand.protocol.Status
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
 import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.Timing
@@ -61,6 +68,7 @@ fun DebugScreen(vm: BedJetViewModel, modifier: Modifier = Modifier) {
     val log by vm.log.collectAsState()
     val remembered by vm.remembered.collectAsState()
     val nightLog by vm.nightLog.collectAsState()
+    val results by vm.results.collectAsState()
     Column(
         modifier.padding(horizontal = 12.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -77,21 +85,14 @@ fun DebugScreen(vm: BedJetViewModel, modifier: Modifier = Modifier) {
                 ScanList(vm::connectReal)
             }
         } else {
-            Connected(
-                s,
-                vm::disconnect,
-                vm::act,
-                vm.results,
-                { k, v -> vm.results[k] = v },
-                vm::log,
-            )
+            Connected(s, vm::disconnect, vm::act, results, vm::readBack, vm::log)
         }
         HorizontalDivider()
         Text("Night log", fontWeight = FontWeight.Bold)
-        val time = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT) }
+        val zone = remember { ZoneId.systemDefault() }
         nightLog.forEach {
             Text(
-                "${time.format(java.util.Date(it.at))} ${it.kind} ${it.detail}",
+                nightLine(it, zone),
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
                 lineHeight = 13.sp,
@@ -170,7 +171,7 @@ private fun ColumnScope.Connected(
     disconnect: () -> Unit,
     act: (String, suspend (BedJetStack) -> Unit) -> Unit,
     results: Map<String, String>,
-    record: (String, String) -> Unit,
+    readBack: ReadBack,
     log: (LogLevel, String) -> Unit,
 ) {
     val link by s.link.state.collectAsState()
@@ -179,11 +180,9 @@ private fun ColumnScope.Connected(
 
     LinkHeader(s, link, disconnect) { act("connect") { it.link.connect() } }
     // replySource is a plain var: re-read whenever a status recomposes this.
-    Text(
-        "MTU: ${(transport as? TransportState.Connected)?.mtu ?: "-"}   Replies from: ${s.link.replySource?.uuid?.substring(4, 8) ?: "-"}"
-    )
+    Text(connectionLine((transport as? TransportState.Connected)?.mtu, s.link.replySource))
     StatusLines(update)
-    Commands(act, results, record)
+    Commands(act, results, readBack)
     s.sim?.let { sim -> DemoControls(sim, log) }
 }
 
@@ -199,17 +198,7 @@ private fun ColumnScope.LinkHeader(
         B("Disconnect", disconnect)
         if (link is LinkState.Disconnected) B("Connect", connect)
     }
-    Text(
-        "Link: " +
-            when (link) {
-                LinkState.Ready -> "Ready"
-                is LinkState.Connecting ->
-                    if (link.reconnectAttempt > 0) "Reconnecting (attempt ${link.reconnectAttempt})"
-                    else "Connecting"
-                is LinkState.Disconnected ->
-                    if (link.gaveUp) "Disconnected (gave up)" else "Disconnected"
-            }
-    )
+    Text(debugLinkLine(link))
 }
 
 @Composable
@@ -227,31 +216,14 @@ private fun ColumnScope.StatusLines(u: StatusUpdate?) {
                 value = System.currentTimeMillis()
             }
         }
-    if (u == null) Text("Status: -")
-    else {
-        val st = u.status
-        val x = st.extra
-        Text(
-            "Mode ${st.mode.label}   actual ${formatTemp(st.actualTemp)}   target ${formatTemp(st.targetTemp)}   fan ${st.fanPercent}%"
-        )
-        Text(
-            "Remaining ${st.remainingSeconds / 3600}:%02d:%02d   ambient ${formatTemp(st.ambientTemp)}"
-                .format(st.remainingSeconds / 60 % 60, st.remainingSeconds % 60)
-        )
-        Text(
-            "Program step ${x?.programStep ?: "-"}   extra ${freshAt?.let { "%.1f s old".format((nowMs - it) / 1000.0) } ?: "never read"}" +
-                (x?.notification
-                    ?.takeIf { it != 0 }
-                    ?.let { "\nNotification $it: ${Notification.TEXT[it] ?: "?"}" } ?: "")
-        )
-    }
+    statusLines(u?.status, freshAt?.let { nowMs - it }).forEach { Text(it) }
 }
 
 @Composable
 private fun ColumnScope.Commands(
     act: (String, suspend (BedJetStack) -> Unit) -> Unit,
     results: Map<String, String>,
-    record: (String, String) -> Unit,
+    readBack: ReadBack,
 ) {
     Text("Mode", fontWeight = FontWeight.Bold)
     Buttons {
@@ -270,35 +242,18 @@ private fun ColumnScope.Commands(
 
     Text("Read back", fontWeight = FontWeight.Bold)
     Buttons {
-        B("Name") { act("name") { record("Name", it.device.deviceName()) } }
-        B("Firmware") { act("firmware") { record("Firmware", it.device.firmware()) } }
-        B("Memories") {
-            act("memories") {
-                record("Memories", it.device.memoryNames().joinToString(" | "))
-            }
-        }
-        B("Programs") {
-            act("programs") {
-                record("Programs", it.device.programNames().joinToString(" | ") { n -> n ?: "-" })
-            }
-        }
+        B("Name") { readBack("Name") { it.device.deviceName() } }
+        B("Firmware") { readBack("Firmware") { it.device.firmware() } }
+        B("Memories") { readBack("Memories") { it.device.memoryNames().joinToString(" | ") } }
+        B("Programs") { readBack("Programs") { programNamesText(it.device.programNames()) } }
         Slot.all.forEach { slot ->
-            B("Slot ${slot.index}") {
-                act("slot ${slot.index}") {
-                    record(
-                        "Slot ${slot.index}",
-                        it.device
-                            .programSteps(slot)
-                            .joinToString("; ", transform = ::stepText)
-                            .ifEmpty { "(empty)" },
-                    )
-                }
-            }
+            val label = "Slot ${slot.index}"
+            B(label) { readBack(label) { slotText(it.device.programSteps(slot)) } }
         }
     }
-    results.entries
-        .sortedBy { it.key }
-        .forEach { (k, v) -> Text("$k: $v", fontFamily = FontFamily.Monospace, fontSize = 12.sp) }
+    resultLines(results).forEach {
+        Text(it, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+    }
 }
 
 @Composable
@@ -325,11 +280,60 @@ private fun ColumnScope.DemoControls(sim: SimTransport, log: (LogLevel, String) 
     }
 }
 
-private fun stepText(s: Step): String {
+private typealias ReadBack = (String, suspend (BedJetStack) -> String) -> Unit
+
+internal fun nightLine(e: NightEvent, zone: ZoneId): String =
+    "${CLOCK.format(Instant.ofEpochMilli(e.at).atZone(zone))} ${e.kind} ${e.detail}"
+
+private val CLOCK = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT)
+
+internal fun connectionLine(mtu: Int?, replySource: Characteristic?): String =
+    "MTU: ${mtu ?: "-"}   Replies from: ${replySource?.uuid?.drop(4)?.take(4) ?: "-"}"
+
+internal fun debugLinkLine(link: LinkState): String =
+    "Link: " +
+        when (link) {
+            LinkState.Ready -> "Ready"
+            is LinkState.Connecting ->
+                if (link.reconnectAttempt > 0) "Reconnecting (attempt ${link.reconnectAttempt})"
+                else "Connecting"
+            is LinkState.Disconnected ->
+                if (link.gaveUp) "Disconnected (gave up)" else "Disconnected"
+        }
+
+/** [extraAgeMs]: since the last fresh extra read, null if none this stack. */
+internal fun statusLines(st: Status?, extraAgeMs: Long?): List<String> {
+    if (st == null) return listOf("Status: -")
+    val x = st.extra
+    val r = st.remainingSeconds
+    val extraAge = extraAgeMs?.let { "%.1f s old".format(Locale.ROOT, it / 1000.0) } ?: "never read"
+    val notification =
+        x?.notification
+            ?.takeIf { it != 0 }
+            ?.let { "\nNotification $it: ${Notification.TEXT[it] ?: "?"}" } ?: ""
+    return listOf(
+        "Mode ${st.mode.label}   actual ${formatTemp(st.actualTemp)}   target ${formatTemp(st.targetTemp)}   fan ${st.fanPercent}%",
+        "Remaining ${r / 3600}:${pad2(r / 60 % 60)}:${pad2(r % 60)}   ambient ${formatTemp(st.ambientTemp)}",
+        "Program step ${x?.programStep ?: "-"}   extra $extraAge$notification",
+    )
+}
+
+private fun pad2(n: Int) = n.toString().padStart(2, '0')
+
+internal fun programNamesText(names: List<String?>): String =
+    names.joinToString(" | ") { it ?: "-" }
+
+internal fun slotText(steps: List<Step>): String =
+    steps.joinToString("; ", transform = ::stepText).ifEmpty { "(empty)" }
+
+internal fun resultLines(results: Map<String, String>): List<String> =
+    results.entries.sortedBy { it.key }.map { (k, v) -> "$k: $v" }
+
+internal fun stepText(s: Step): String {
     val (until, h, m) =
         when (val t = s.timing) {
             is Timing.For -> Triple("", t.hours, t.minutes)
             is Timing.Until -> Triple("until ", t.hour, t.minute)
         }
-    return "${s.mode.label} ${fanPercent(s.fan)}% ${formatTemp(s.temp)} $until$h:${m.toString().padStart(2, '0')}"
+    return "${s.mode.label} ${fanPercent(s.fan)}% ${formatTemp(s.temp)} $until$h:${pad2(m)}"
 }
