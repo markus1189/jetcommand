@@ -1,9 +1,7 @@
 package link.thesymbolic.jetcommand
 
-import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.app.Application
-import android.app.ApplicationExitInfo
 import android.content.ComponentCallbacks2
 import androidx.core.content.edit
 import kotlinx.coroutines.flow.first
@@ -14,7 +12,7 @@ import link.thesymbolic.jetcommand.night.NightLogDatabase
 import link.thesymbolic.jetcommand.night.RoomNightLogStore
 import link.thesymbolic.jetcommand.night.RoomNightsSource
 import link.thesymbolic.jetcommand.protocol.Origin
-import link.thesymbolic.jetcommand.protocol.ProcessLog
+import link.thesymbolic.jetcommand.protocol.ProcessEvent
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 
 class JetCommandApp : Application() {
@@ -35,7 +33,7 @@ class JetCommandApp : Application() {
         dropSeededTemplates()
         nights = RoomNightsSource(dao)
         logExits()
-        bedJetController.lifecycle(ProcessLog.STARTED)
+        bedJetController.lifecycle(ProcessEvent.Started)
     }
 
     // Builds from 2026-10-23 seeded the official app's suggestions; the user didn't want them.
@@ -71,7 +69,8 @@ class JetCommandApp : Application() {
             .sortedBy { it.timestamp }
             .forEach {
                 bedJetController.lifecycle(
-                    "${ProcessLog.EXIT_PREFIX}${reasonName(it.reason)} importance ${it.importance}: ${it.description}",
+                    // A null description is stored as "null", as it always was.
+                    ProcessEvent.Exit(it.reason, it.importance, it.description.toString()),
                     it.timestamp,
                 )
             }
@@ -82,36 +81,12 @@ class JetCommandApp : Application() {
         super.onTrimMemory(level)
         // UI_HIDDEN fires on every trip to the home screen.
         if (level != ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN)
-            bedJetController.lifecycle("trim memory $level")
+            bedJetController.lifecycle(ProcessEvent.Note("trim memory $level"))
     }
 
     private companion object {
         const val KEY_EXIT_SEEN = "exit.seen"
         const val KEY_SEEDED = "library.seeded"
-
-        // Inlined int constants used as keys: newer reasons simply never occur on older releases.
-        @SuppressLint("InlinedApi")
-        val REASONS =
-            mapOf(
-                ApplicationExitInfo.REASON_EXIT_SELF to "self",
-                ApplicationExitInfo.REASON_SIGNALED to "signaled",
-                ApplicationExitInfo.REASON_LOW_MEMORY to "low memory",
-                ApplicationExitInfo.REASON_CRASH to "crash",
-                ApplicationExitInfo.REASON_CRASH_NATIVE to "native crash",
-                ApplicationExitInfo.REASON_ANR to "anr",
-                ApplicationExitInfo.REASON_INITIALIZATION_FAILURE to "init failure",
-                ApplicationExitInfo.REASON_PERMISSION_CHANGE to "permission change",
-                ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE to "excessive resource usage",
-                ApplicationExitInfo.REASON_USER_REQUESTED to "user requested",
-                ApplicationExitInfo.REASON_USER_STOPPED to "user stopped",
-                ApplicationExitInfo.REASON_DEPENDENCY_DIED to "dependency died",
-                ApplicationExitInfo.REASON_OTHER to "other",
-                ApplicationExitInfo.REASON_FREEZER to "freezer",
-                ApplicationExitInfo.REASON_PACKAGE_STATE_CHANGE to "package state change",
-                ApplicationExitInfo.REASON_PACKAGE_UPDATED to "package updated",
-            )
-
-        fun reasonName(reason: Int) = REASONS[reason] ?: "reason $reason"
     }
 }
 

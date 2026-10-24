@@ -26,6 +26,13 @@ data class NightEvent(val at: Long, val kind: Kind, val detail: String, val valu
         /** Our own process and service lifecycle, to tell a killed app from a dropped link. */
         PROCESS,
     }
+
+    /** [detail] read as a [ProcessEvent] once, here, for [Kind.PROCESS]; null for other kinds. */
+    val process: ProcessEvent? = if (kind == Kind.PROCESS) ProcessEvent.parse(detail) else null
+
+    companion object {
+        fun process(at: Long, event: ProcessEvent) = NightEvent(at, Kind.PROCESS, event.detail)
+    }
 }
 
 /**
@@ -40,12 +47,6 @@ data class NightSample(
     val fanStep: Int,
     val mode: Mode,
 )
-
-/** [NightEvent.Kind.PROCESS] details that the night grouping parses back. */
-object ProcessLog {
-    const val STARTED = "process started"
-    const val EXIT_PREFIX = "exit "
-}
 
 interface NightLogStore {
     suspend fun append(event: NightEvent)

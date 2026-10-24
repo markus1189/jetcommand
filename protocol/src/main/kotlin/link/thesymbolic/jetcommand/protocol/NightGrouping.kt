@@ -44,19 +44,6 @@ fun groupNights(
     }
 }
 
-private fun isStart(e: NightEvent) =
-    e.kind == NightEvent.Kind.PROCESS && e.detail == ProcessLog.STARTED
-
-private fun isExit(e: NightEvent) =
-    e.kind == NightEvent.Kind.PROCESS && e.detail.startsWith(ProcessLog.EXIT_PREFIX)
-
-// An update, a crash or the user stopping the app is still a gap, but not the system killing it.
-private val KILL_REASONS = listOf("signaled ", "low memory ", "excessive resource usage ")
-
-private fun isKill(e: NightEvent) = KILL_REASONS.any {
-    e.detail.startsWith(ProcessLog.EXIT_PREFIX + it)
-}
-
 /** Sort is stable, so same-millisecond events keep their logged order. */
 fun summarize(events: List<NightEvent>, sampleTimes: List<Long>, ongoing: Boolean): NightSummary {
     val evs = events.sortedBy { it.at }
@@ -89,13 +76,15 @@ private class NightScan(private val samples: List<Long>) {
     private var si = 0
 
     fun add(e: NightEvent) {
-        if (isStart(e)) {
-            onStart(e)
-        } else if (isExit(e)) {
-            exitAt = e.at
-            exitWasKill = isKill(e)
-        } else onLink(e)
-        if (!isExit(e)) lastAt = e.at
+        when (val p = e.process) {
+            ProcessEvent.Started -> onStart(e)
+            is ProcessEvent.Exit -> {
+                exitAt = e.at
+                exitWasKill = p.killedBySystem
+            }
+            else -> onLink(e)
+        }
+        if (e.process !is ProcessEvent.Exit) lastAt = e.at
     }
 
     private fun onStart(e: NightEvent) {

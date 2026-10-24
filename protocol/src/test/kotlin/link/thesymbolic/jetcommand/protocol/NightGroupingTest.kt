@@ -17,7 +17,7 @@ class NightGroupingTest {
 
     private fun ev(at: Long, kind: Kind, detail: String = "") = NightEvent(at, kind, detail)
 
-    private fun started(at: Long) = ev(at, Kind.PROCESS, "process started")
+    private fun started(at: Long) = NightEvent.process(at, ProcessEvent.Started)
 
     private fun minutes(from: Long, to: Long) = (from..to step 60_000).toList()
 
