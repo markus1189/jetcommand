@@ -6,14 +6,17 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 
 | Layer | Where | Tested by |
 |---|---|---|
-| Codec, `BedJetSim` (device model) | `protocol/.../Codec.kt`, `BedJetSim.kt` | `FixtureTest` (recorded from the web app) |
+| Codec, `BedJetSim` (device model) | `protocol/.../Codec.kt`, `BedJetSim.kt` | `FixtureTest` (recorded from the web app), `StepCodecTest` (pinned fingerprint) |
 | Transport contract | `protocol/.../Transport.kt` | — |
 | `SimTransport`, `BedJetLink`, `BedJetDevice` | `protocol/` | `BedJetLinkTest`, virtual time |
+| `StatusAssembler`, `reconnectDecision` (the link's pure parts) | `protocol/` | `StatusAssemblerTest`, `ReconnectDecisionTest` |
+| `ProgramLibrary`, `slotStatus` over a `Catalog` | `protocol/.../Library.kt` | `LibraryTest`, `SlotStatusTest` |
+| `NightRecorder`, `NightLogStore`, `ProcessEvent` | `protocol/.../NightLog.kt`, `ProcessEvent.kt` | `NightRecorderTest`, `ProcessEventTest` |
 | `GattTransport`, scanner, permissions | `app/.../ble/` | real device only |
-| `NightRecorder`, `NightLogStore` | `protocol/.../NightLog.kt` | `NightRecorderTest` |
-| `BedJetController` (owns the stack), `BedJetService`, Room night log, debug screen | `app/` | emulator via Demo BedJet |
+| Screen state and text: `now/NowState`, `ProgramsText`, `night/` | `app/` | `app/src/test` (JVM) |
+| `BedJetController` (owns the stack), `BedJetService`, Room stores, composables | `app/` | emulator via Demo BedJet |
 
-`:protocol` stays free of Android so its tests run on the JVM.
+`:protocol` stays free of Android so its tests run on the JVM. Logic lives in pure functions over immutable values; classes hold one state value and run the effects, and composables take state, not view models.
 
 ## Toolchain
 
@@ -50,5 +53,6 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 
 - Commits: `area: subject` in lowercase (`protocol:`, `app:`, `ble:`, `docs:`).
 - Parallel agents each get a worktree beside the repo (`git worktree add ../jetcommand-wt-<task> -b agent/<task>`); give agents disjoint files, and never two agents on the same screen.
+- `git stash` is shared by all worktrees, so agents in one checkpoint with WIP commits, never a stash.
 - Before spawning parallel agents, commit the interface between their parts on main; both worktrees branch from that commit.
 - Notes in this file go under the matching heading, one fact per line; the deletion test applies.
