@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ImplicitDefaultLocale:Codec.kt:"%02x".format(it.toInt() and 0xff)</ID>
+    <ID>ImplicitDefaultLocale:Library.kt:"%02x".format(it)</ID>
+    <ID>ImplicitDefaultLocale:NightLog.kt:"clock ${code}:%02d".format(if (b.size &gt; 2) b.u(2) else 0)</ID>
+    <ID>ImplicitDefaultLocale:NightLog.kt:"runtime ${code}:%02d".format(if (b.size &gt; 2) b.u(2) else 0)</ID>
+    <ID>LongParameterList:Library.kt:ProgramLibrary$private suspend fun relink: SlotState</ID>
+    <ID>UseOrEmpty:BedJetLink.kt:BedJetLink$replySource?.let { " (was $it)" } ?: ""</ID>
+    <ID>UseOrEmpty:BedJetSim.kt:BedJetSim$slots[slot.index]?.name ?: ""</ID>
+    <ID>UseOrEmpty:Transport.kt:TransportException$gattStatus?.let { " (status $it)" } ?: ""</ID>
+  </CurrentIssues>
+</SmellBaseline>

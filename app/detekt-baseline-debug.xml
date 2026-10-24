@@ -1,0 +1,26 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>LongParameterList:BedJetController.kt:BedJetStack</ID>
+    <ID>LongParameterList:DebugScreen.kt:@Composable private fun ColumnScope.Connected</ID>
+    <ID>LongParameterList:FakePrograms.kt:FakePrograms$private fun rev</ID>
+    <ID>LongParameterList:ProgramChart.kt:private fun DrawScope.drawProfile</ID>
+    <ID>LongParameterList:ProgramChart.kt:private fun DrawScope.drawTimeAxis</ID>
+    <ID>LongParameterList:ProgramDetailScreen.kt:@Composable fun ProgramDetail</ID>
+    <ID>LongParameterList:ProgramDetailScreen.kt:@Composable fun ProgramDetailScreen</ID>
+    <ID>LongParameterList:ProgramDetailScreen.kt:@Composable fun SlotPickerBody</ID>
+    <ID>LongParameterList:ProgramDetailScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable private fun SlotPicker</ID>
+    <ID>LongParameterList:ProgramsScreen.kt:@Composable fun ProgramsList</ID>
+    <ID>LongParameterList:SwipeToDelete.kt:@Composable fun SwipeToDelete</ID>
+    <ID>LongParameterList:ValueField.kt:@Composable fun ValueField</ID>
+    <ID>LongParameterList:ValueField.kt:@Composable private fun BoxScope.ValueFace</ID>
+    <ID>MemberNameEqualsClassName:BedJetService.kt:BedJetService.Action$val action = "link.thesymbolic.jetcommand.PRESS_$button"</ID>
+    <ID>NoNameShadowing:ProgramChart.kt:at</ID>
+    <ID>UnsafeCallOnNullableType:GattTransport.kt:GattTransport$pending!!</ID>
+    <ID>UseCheckOrError:BedJetScanner.kt:BedJetScanner$throw IllegalStateException("Bluetooth is off")</ID>
+    <ID>UseOrEmpty:DebugScreen.kt:x?.notification ?.takeIf { it != 0 } ?.let { "\nNotification $it: ${Notification.TEXT[it] ?: "?"}" } ?: ""</ID>
+    <ID>UseOrEmpty:NightReview.kt:ImportantRows$mode?.takeIf { started }?.let { " · BedJet ${it.detail}" } ?: ""</ID>
+    <ID>UseOrEmpty:ProgramsText.kt:(v.status as? SlotStatus.Older)?.slotRev?.let { " r$it" } ?: ""</ID>
+  </CurrentIssues>
+</SmellBaseline>

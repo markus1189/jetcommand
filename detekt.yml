@@ -10,7 +10,10 @@ style:
     active: false
   ThrowsCount:
     active: false
-  # Needs type resolution: reported by detektMain, silent in the plain detekt task that check runs.
+  # Previews are called by the IDE, not the code.
+  UnusedPrivateFunction:
+    ignoreAnnotated: ['Preview']
+  # Needs type resolution, so only the typed tasks (detektMain, wired into check) report it.
   ForbiddenMethodCall:
     active: true
     methods:

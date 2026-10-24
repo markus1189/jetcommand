@@ -18,6 +18,8 @@ subprojects {
         config.setFrom(rootProject.file("detekt.yml"))
         baseline = file("detekt-baseline.xml")
     }
+    // The plain detekt task has no type resolution; rules like ForbiddenMethodCall need it.
+    tasks.matching { it.name == "check" }.configureEach { dependsOn("detektMain") }
 
     extensions.configure<com.diffplug.gradle.spotless.SpotlessExtension> {
         kotlin {
