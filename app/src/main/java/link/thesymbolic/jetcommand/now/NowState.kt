@@ -2,7 +2,9 @@ package link.thesymbolic.jetcommand.now
 
 import java.time.LocalTime
 import link.thesymbolic.jetcommand.Span
-import link.thesymbolic.jetcommand.duration
+import link.thesymbolic.jetcommand.durationMin
+import link.thesymbolic.jetcommand.hhmm
+import link.thesymbolic.jetcommand.hoursMinutes
 import link.thesymbolic.jetcommand.linkText
 import link.thesymbolic.jetcommand.prettyName
 import link.thesymbolic.jetcommand.protocol.Button
@@ -151,11 +153,10 @@ fun runningView(p: Program, step: Int, remainingSeconds: Int, now: LocalTime): R
         timeline(p.steps, start).let { sp -> sp to sp[i].to - remainingSeconds / 60.0 }
     val start = now.minusMinutes(place(now).second.toLong().coerceAtLeast(0))
     val (spans, nowMinute) = place(start)
-    val at =
-        now.plusSeconds(remainingSeconds.toLong()).let { "${pad2(it.hour)}:${pad2(it.minute)}" }
+    val at = hhmm(now.plusSeconds(remainingSeconds.toLong()))
     val next =
         spans.getOrNull(i + 1)?.let {
-            "next $at · ${it.step.mode.label.lowercase()} ${duration(it.minutes)}"
+            "next $at · ${it.step.mode.label.lowercase()} ${durationMin(it.minutes)}"
         } ?: "ends $at"
     return RunningView("${prettyName(p.name)} · step $step/${p.steps.size}", next, spans, nowMinute)
 }
@@ -220,7 +221,3 @@ fun shortLabel(mode: Mode) = if (mode == Mode.EXT_HEAT) "Ext" else mode.label
 
 /** The mode an undo of Off returns to; WAIT can't be set by a button, programs aren't restored. */
 fun undoTarget(previous: Mode): Mode? = previous.takeIf { Button.forMode(it) != null }
-
-fun hoursMinutes(seconds: Int) = "${seconds / 3600}:${pad2(seconds / 60 % 60)}"
-
-private fun pad2(n: Int) = n.toString().padStart(2, '0')

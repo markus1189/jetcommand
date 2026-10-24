@@ -8,7 +8,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import java.time.LocalTime
@@ -36,12 +35,6 @@ fun timeline(steps: List<Step>, start: LocalTime): List<Span> {
         Span(i, s, t, t + len).also { t += len }
     }
 }
-
-fun clockAt(start: LocalTime, minutes: Int): String =
-    start.plusMinutes(minutes.toLong()).let { "%02d:%02d".format(it.hour, it.minute) }
-
-fun duration(minutes: Int): String =
-    if (minutes < 60) "$minutes min" else "%d h %02d".format(minutes / 60, minutes % 60)
 
 /**
  * The step's set point in °C, null where it has none (turbo runs at a fixed 43 °C, wait has no
@@ -84,8 +77,6 @@ fun stripWidths(minutes: List<Int>, avail: Float, minW: Float): List<Float> {
 fun spanIndexAt(spans: List<Span>, minute: Double): Int =
     spans.indexOfFirst { minute < it.to }.takeIf { it >= 0 } ?: spans.lastIndex
 
-private val WaitStub = Color(0xFF4A515C)
-
 /**
  * The one step strip (library rows, detail, Now): width = duration, height = target °C over 19–43,
  * a wait is a low grey stub. [nowMinute] draws the now-line, minutes since the program's start.
@@ -125,7 +116,7 @@ fun StepStrip(
                 xs[i] +
                     widths[i] *
                         ((m - s.from) / s.minutes.coerceAtLeast(1)).toFloat().coerceIn(0f, 1f)
-            drawLine(Color(0xFFE8EAED), Offset(nx, 0f), Offset(nx, size.height), 2.dp.toPx())
+            drawLine(NowLine, Offset(nx, 0f), Offset(nx, size.height), 2.dp.toPx())
         }
     }
 }

@@ -31,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.dp
 import link.thesymbolic.jetcommand.night.NightText
@@ -40,8 +39,6 @@ import link.thesymbolic.jetcommand.night.chips
 import link.thesymbolic.jetcommand.night.stretches
 import link.thesymbolic.jetcommand.protocol.NightSummary
 import link.thesymbolic.jetcommand.protocol.NightsSource
-
-val ChipWarnBorder = Color(0xFF5A4520)
 
 /** The Nights tab: the list, and a night's review in place of it once one is picked. */
 @Composable
@@ -153,7 +150,7 @@ fun Chip(label: String, warn: Boolean, modifier: Modifier = Modifier) =
             modifier
                 .border(
                     1.dp,
-                    if (warn) ChipWarnBorder else MaterialTheme.colorScheme.outline,
+                    if (warn) AmberLine else MaterialTheme.colorScheme.outline,
                     RoundedCornerShape(50),
                 )
                 .padding(horizontal = 10.dp, vertical = 4.dp),
@@ -191,7 +188,7 @@ fun NightStrip(s: NightSummary, modifier: Modifier = Modifier) {
                             var x = l - size.height
                             while (x < r) {
                                 drawLine(
-                                    Color(0xFF3A2E14),
+                                    HatchStripe,
                                     Offset(x, size.height),
                                     Offset(x + size.height, 0f),
                                     strokeWidth = 4f,

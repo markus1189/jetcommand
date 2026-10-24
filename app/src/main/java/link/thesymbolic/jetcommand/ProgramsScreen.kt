@@ -147,14 +147,10 @@ private fun slotAction(source: ProgramsSource, view: SlotView) {
     }
 }
 
-private val Warm = Color(0xFFF0A070)
-val Muted = Color(0xFF9AA2AB)
-private val Synced = Color(0xFF9AB0A8)
-
 private fun toneColor(tone: SlotTone): Color =
     when (tone) {
         SlotTone.MUTED -> Muted
-        SlotTone.SYNCED -> Synced
+        SlotTone.SYNCED -> Sage
         SlotTone.AMBER -> Amber
         SlotTone.WARM -> Warm
     }
@@ -207,7 +203,7 @@ private fun Check() =
                 lineTo(10 * u, 17 * u)
                 lineTo(19 * u, 8 * u)
             },
-            Synced,
+            Sage,
             style = Stroke(2 * u),
         )
     }

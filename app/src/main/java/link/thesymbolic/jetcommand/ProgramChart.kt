@@ -34,14 +34,6 @@ import java.time.LocalTime
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.fanPercent
 
-private val TargetLine = Color(0xFF8FB4D9)
-private val FanLine = Color(0xFF9AB0A8)
-private val Grid = Color(0xFF1A1F25)
-private val Tick = Color(0xFF6B737D)
-private val Label = Color(0xFF9AA2AB)
-private val AxisColor = Color(0xFF3A424B)
-private val ScrubColor = Color(0xFFCFE2F5)
-
 /** The step under [minute]; past the end, the last one. */
 fun spanAt(spans: List<Span>, minute: Double): Span? =
     spans.firstOrNull { minute <= it.to } ?: spans.lastOrNull()
@@ -66,7 +58,7 @@ fun ProgramChart(spans: List<Span>, start: LocalTime, modifier: Modifier = Modif
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             chartCaption(spans, start, cursor),
-            color = if (cursor == null) Label else MaterialTheme.colorScheme.onSurface,
+            color = if (cursor == null) Muted else MaterialTheme.colorScheme.onSurface,
             fontSize = 13.sp,
             modifier = Modifier.padding(horizontal = 4.dp).heightIn(min = 36.dp),
         )
@@ -101,8 +93,8 @@ fun ProgramChart(spans: List<Span>, start: LocalTime, modifier: Modifier = Modif
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text("— target", color = TargetLine, fontSize = 12.sp)
-            Text("— fan", color = FanLine, fontSize = 12.sp)
-            Text("gap = no setpoint", color = Label, fontSize = 12.sp)
+            Text("— fan", color = Sage, fontSize = 12.sp)
+            Text("gap = no setpoint", color = Muted, fontSize = 12.sp)
         }
     }
 }
@@ -122,7 +114,7 @@ private fun DrawScope.drawProfile(
     fun text(s: String, at: Offset, color: Color, sp: Int) =
         drawText(tm, s, at, TextStyle(color = color, fontSize = sp.sp))
 
-    text("Mode", Offset(0f, 0f), Label, 11)
+    text("Mode", Offset(0f, 0f), Muted, 11)
     spans.forEach {
         drawRect(
             modeColor(it.step.mode),
@@ -132,27 +124,27 @@ private fun DrawScope.drawProfile(
     }
 
     // °C panel: 18–34 °C over y 134–62.
-    text("°C", Offset(0f, 38 * u), Label, 11)
+    text("°C", Offset(0f, 38 * u), Muted, 11)
     val tempY = { c: Double -> (62 + (34 - c) * 4.5).toFloat() * u }
     listOf(34, 26, 18).forEach { c ->
         drawLine(
-            Grid,
+            ChartGrid,
             Offset(left, tempY(c.toDouble())),
             Offset(size.width, tempY(c.toDouble())),
             u,
         )
-        text("$c", Offset(0f, tempY(c.toDouble()) - 6 * u), Tick, 9)
+        text("$c", Offset(0f, tempY(c.toDouble()) - 6 * u), TickLabel, 9)
     }
     stepLine(spans, x, TargetLine, u) { s -> targetC(s.step)?.coerceIn(16.0, 36.0)?.let(tempY) }
 
     // Fan panel: 20–100 % over y 210–170.
-    text("Fan %", Offset(0f, 148 * u), Label, 11)
+    text("Fan %", Offset(0f, 148 * u), Muted, 11)
     val fanY = { p: Int -> (210 - (p - 20) * 0.5f) * u }
-    drawLine(Grid, Offset(left, fanY(100)), Offset(size.width, fanY(100)), u)
-    drawLine(Grid, Offset(left, fanY(20)), Offset(size.width, fanY(20)), u)
-    text("100", Offset(size.width - 18 * u, fanY(100) - 13 * u), Tick, 9)
-    text("20", Offset(size.width - 14 * u, fanY(20) - 15 * u), Tick, 9)
-    stepLine(spans, x, FanLine, u) { s ->
+    drawLine(ChartGrid, Offset(left, fanY(100)), Offset(size.width, fanY(100)), u)
+    drawLine(ChartGrid, Offset(left, fanY(20)), Offset(size.width, fanY(20)), u)
+    text("100", Offset(size.width - 18 * u, fanY(100) - 13 * u), TickLabel, 9)
+    text("20", Offset(size.width - 14 * u, fanY(20) - 15 * u), TickLabel, 9)
+    stepLine(spans, x, Sage, u) { s ->
         if (s.step.mode == Mode.WAIT || s.step.mode == Mode.STANDBY) null
         else fanY(fanPercent(s.step.fan))
     }
@@ -162,17 +154,17 @@ private fun DrawScope.drawProfile(
     if (cursor != null && at != null) {
         val cx = x(cursor)
         drawRect(
-            ScrubColor,
+            ScrubLine,
             Offset(x(at.from), 16 * u),
             Size(x(at.to) - x(at.from), 16 * u),
             style = Stroke(1.5f * u),
         )
-        drawLine(ScrubColor, Offset(cx, 14 * u), Offset(cx, 220 * u), u)
+        drawLine(ScrubLine, Offset(cx, 14 * u), Offset(cx, 220 * u), u)
         targetC(at.step)?.let {
             drawCircle(TargetLine, 4 * u, Offset(cx, tempY(it.coerceIn(16.0, 36.0))))
         }
         if (at.step.mode != Mode.WAIT && at.step.mode != Mode.STANDBY)
-            drawCircle(FanLine, 4 * u, Offset(cx, fanY(fanPercent(at.step.fan))))
+            drawCircle(Sage, 4 * u, Offset(cx, fanY(fanPercent(at.step.fan))))
     }
 }
 
@@ -212,7 +204,7 @@ private fun DrawScope.drawTimeAxis(
     x: (Number) -> Float,
     tm: TextMeasurer,
 ) {
-    drawLine(AxisColor, Offset(left, 220 * u), Offset(size.width, 220 * u), u)
+    drawLine(AxisLine, Offset(left, 220 * u), Offset(size.width, 220 * u), u)
     val every =
         when {
             total > 600 -> 180
@@ -225,7 +217,7 @@ private fun DrawScope.drawTimeAxis(
             tm,
             clockAt(start, m),
             Offset(x(m) - 14 * u, 226 * u),
-            TextStyle(color = Label, fontSize = 10.sp),
+            TextStyle(color = Muted, fontSize = 10.sp),
         )
         m += every
     }

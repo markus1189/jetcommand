@@ -1,9 +1,7 @@
 // What the program screens say and offer, as pure functions of the library state.
 package link.thesymbolic.jetcommand
 
-import java.time.Instant
 import java.time.LocalTime
-import java.time.ZoneId
 import link.thesymbolic.jetcommand.protocol.LibraryEntry
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Origin
@@ -14,8 +12,6 @@ import link.thesymbolic.jetcommand.protocol.SlotView
 import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.Timing
 import link.thesymbolic.jetcommand.protocol.formatTemp
-
-fun plural(n: Int, word: String) = "$n $word${if (n == 1) "" else "s"}"
 
 enum class SlotTone {
     MUTED,
@@ -90,11 +86,6 @@ fun slotName(v: SlotView): String =
             else -> "Empty slot"
         }
 
-fun hhmm(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
-    Instant.ofEpochMilli(epochMs).atZone(zone).toLocalTime().let {
-        "%02d:%02d".format(it.hour, it.minute)
-    }
-
 /** "r6 · 6 steps · until 06:30", or with a total duration when no step ends at a clock time. */
 fun programMeta(rev: Int?, steps: List<Step>, start: LocalTime): String {
     val spans = timeline(steps, start)
@@ -103,7 +94,7 @@ fun programMeta(rev: Int?, steps: List<Step>, start: LocalTime): String {
             rev?.takeIf { it > 1 }?.let { "r$it" },
             plural(steps.size, "step"),
             if (steps.any { it.timing is Timing.Until }) "until ${clockAt(start, end)}"
-            else duration(end),
+            else durationMin(end),
         )
         .joinToString(" · ")
 }
@@ -111,7 +102,7 @@ fun programMeta(rev: Int?, steps: List<Step>, start: LocalTime): String {
 /** A library row's pills: the slots holding [entryId], with the revision when it's older. */
 fun libraryBadges(entryId: String, slots: List<SlotView>): List<String> = slots.mapNotNull { v ->
     when (val s = v.status) {
-        is SlotStatus.InSync -> "Slot ${v.state.slot.number}".takeIf { s.entry.id == entryId }
+        is SlotStatus.InSync -> "Slot ${v.state.slot.number}".takeIf { s.holdsCurrent(entryId) }
         is SlotStatus.Older ->
             "Slot ${v.state.slot.number} has r${s.slotRev}".takeIf { s.entry.id == entryId }
         else -> null
@@ -155,7 +146,7 @@ data class PickNote(val text: String, val warn: Boolean = false)
 fun pickNote(v: SlotView, entry: LibraryEntry): PickNote =
     when (val s = v.status) {
         is SlotStatus.InSync ->
-            if (s.entry.id == entry.id) PickNote("Already loaded · runs as it is")
+            if (s.holdsCurrent(entry.id)) PickNote("Already loaded · runs as it is")
             else PickNote("In sync · stays in your library")
         is SlotStatus.Older ->
             if (s.entry.id == entry.id) PickNote("Older version · r${s.slotRev} stays in history")
@@ -177,7 +168,7 @@ fun optionTitle(v: SlotView): String =
 data class PickerText(val title: String, val sub: String, val button: String, val caption: String)
 
 fun pickerText(entry: LibraryEntry, slots: List<SlotView>, picked: Slot, run: Boolean): PickerText {
-    fun holds(v: SlotView?) = (v?.status as? SlotStatus.InSync)?.entry?.id == entry.id
+    fun holds(v: SlotView?) = v?.status?.holdsCurrent(entry.id) == true
     val older = slots.firstOrNull { (it.status as? SlotStatus.Older)?.entry?.id == entry.id }
     val pickedHolds = holds(slots.getOrNull(picked.index))
     val n = picked.number
@@ -220,8 +211,8 @@ fun stepCell(s: Step?): Pair<String, String> =
             listOfNotNull(
                     stepDetail(s).takeIf { s.mode != Mode.WAIT },
                     when (val t = s.timing) {
-                        is Timing.Until -> "until %02d:%02d".format(t.hour, t.minute)
-                        is Timing.For -> duration(t.totalMinutes)
+                        is Timing.Until -> "until ${hhmm(t.hour, t.minute)}"
+                        is Timing.For -> durationMin(t.totalMinutes)
                     },
                 )
                 .joinToString(" · ")

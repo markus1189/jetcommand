@@ -37,7 +37,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -58,13 +57,6 @@ import link.thesymbolic.jetcommand.protocol.SlotStatus
 import link.thesymbolic.jetcommand.protocol.SlotView
 import link.thesymbolic.jetcommand.protocol.Timing
 import link.thesymbolic.jetcommand.protocol.rankSlots
-
-private val Warm = Color(0xFFF0A070)
-private val AmberBg = Color(0xFF2A2213)
-private val AmberLine = Color(0xFF5A4520)
-private val AmberText = Color(0xFFC8B48A)
-private val WarmBg = Color(0xFF2A1D14)
-private val WarmLine = Color(0xFF5A3420)
 
 @Composable
 private fun BackRow(back: () -> Unit) =
@@ -286,7 +278,7 @@ private fun ActionRow(
         Box(
             Modifier.size(48.dp)
                 .clip(CircleShape)
-                .border(1.dp, Color(0xFF5A3420), CircleShape)
+                .border(1.dp, WarmLine, CircleShape)
                 .clickable(onClick = delete)
                 .semantics { contentDescription = "Delete $name" },
             contentAlignment = Alignment.Center,
@@ -314,7 +306,7 @@ private fun StepRow(s: Span, start: LocalTime) =
         ) {
             Text(
                 if (s.step.timing is Timing.Until) "until ${clockAt(start, s.to)}"
-                else duration(s.minutes),
+                else durationMin(s.minutes),
                 fontSize = 14.sp,
             )
             Text("ends ${clockAt(start, s.to)}", fontSize = 12.sp, color = Muted)

@@ -5,6 +5,10 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
+import link.thesymbolic.jetcommand.durationMs
+import link.thesymbolic.jetcommand.hhmm
+import link.thesymbolic.jetcommand.hhmmss
+import link.thesymbolic.jetcommand.plural
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.NightDetail
 import link.thesymbolic.jetcommand.protocol.NightEvent
@@ -19,14 +23,12 @@ import link.thesymbolic.jetcommand.protocol.formatTemp
  * What the Nights screens show, derived from the [NightsSource] contract; no Android, no Compose.
  */
 class NightText(val zone: ZoneId = ZoneId.systemDefault()) {
-    private val hm = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT)
-    private val hms = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT)
     private val dayFmt = DateTimeFormatter.ofPattern("EEE d", Locale.ENGLISH)
     private val monthFmt = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH)
 
-    fun time(at: Long): String = hm.format(Instant.ofEpochMilli(at).atZone(zone))
+    fun time(at: Long): String = hhmm(at, zone)
 
-    fun timeSec(at: Long): String = hms.format(Instant.ofEpochMilli(at).atZone(zone))
+    fun timeSec(at: Long): String = hhmmss(at, zone)
 
     /**
      * "Wed 22 → Thu 23 Oct"; a night counts from the evening it began, so a log started after
@@ -47,16 +49,6 @@ class NightText(val zone: ZoneId = ZoneId.systemDefault()) {
     fun span(s: NightSummary) = "${time(s.start)} – ${time(s.end)}"
 
     fun heading(s: NightSummary) = if (s.ongoing) "Tonight" else title(s)
-}
-
-fun duration(ms: Long): String {
-    val m = (ms + 30_000) / 60_000
-    return when {
-        ms < 120_000 -> "${(ms + 500) / 1000} s"
-        m < 60 -> "$m min"
-        m % 60 == 0L -> "${m / 60} h"
-        else -> "${m / 60} h ${m % 60} m"
-    }
 }
 
 enum class Watch {
@@ -127,9 +119,9 @@ fun stats(d: NightDetail): Stats {
 /** The review's four tiles: value, then caption. */
 fun statTiles(st: Stats): List<Pair<String, String>> =
     listOf(
-        duration(st.watched) to "watched of ${duration(st.total)}",
+        durationMs(st.watched) to "watched of ${durationMs(st.total)}",
         "${st.drops}" to
-            if (st.drops == 0) "drops" else "drops · longest ${duration(st.longestDrop ?: 0)}",
+            if (st.drops == 0) "drops" else "drops · longest ${durationMs(st.longestDrop ?: 0)}",
         "${st.presses}" to if (st.pressSplit.isEmpty()) "presses" else "presses · ${st.pressSplit}",
         (st.deviation?.let { "±" + String.format(Locale.ROOT, "%.1f", it) + " °C" } ?: "--") to
             "room vs target, average",
@@ -139,10 +131,10 @@ fun chips(s: NightSummary, text: NightText): List<Pair<String, Boolean>> = build
     s.killedAt.forEach { add("App killed ${text.time(it)}" to true) }
     when (s.drops) {
         0 -> if (s.killedAt.isEmpty()) add("No drops" to false)
-        1 -> add("1 drop · ${duration(s.longestDrop ?: 0)}" to false)
-        else -> add("${s.drops} drops · longest ${duration(s.longestDrop ?: 0)}" to false)
+        1 -> add("1 drop · ${durationMs(s.longestDrop ?: 0)}" to false)
+        else -> add("${s.drops} drops · longest ${durationMs(s.longestDrop ?: 0)}" to false)
     }
-    if (s.presses > 0) add("${s.presses} ${if (s.presses == 1) "press" else "presses"}" to false)
+    if (s.presses > 0) add(plural(s.presses, "press", "presses") to false)
 }
 
 /**
@@ -218,7 +210,7 @@ private class ImportantRows(private val d: NightDetail, private val text: NightT
             }
         rows +=
             if (back?.kind == Kind.RECONNECTED)
-                EventRow(e.at, " · back after ${duration(back.at - e.at)}", lead = "Lost")
+                EventRow(e.at, " · back after ${durationMs(back.at - e.at)}", lead = "Lost")
             else EventRow(e.at, " · ${e.detail}", lead = "Lost")
     }
 
@@ -277,7 +269,7 @@ private class ImportantRows(private val d: NightDetail, private val text: NightT
         d.summary.gaps
             .firstOrNull { it.cause == NightSummary.Cause.APP && it.from == e.at }
             ?.let {
-                rows += EventRow(null, "${duration(it.to - it.from)} unobserved", muted = true)
+                rows += EventRow(null, "${durationMs(it.to - it.from)} unobserved", muted = true)
             }
     }
 }
@@ -349,7 +341,7 @@ fun killedCallouts(d: NightDetail, text: NightText): List<Pair<String, String>> 
             append(".")
             if (gap != null) {
                 append(
-                    " For the next ${duration(gap.to - gap.from)} nothing was watching the BedJet"
+                    " For the next ${durationMs(gap.to - gap.from)} nothing was watching the BedJet"
                 )
                 append(
                     if (mode != null && mode.at - gap.to < 60_000)

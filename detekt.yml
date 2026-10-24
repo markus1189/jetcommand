@@ -10,6 +10,12 @@ style:
     active: false
   ThrowsCount:
     active: false
+  # Needs type resolution: reported by detektMain, silent in the plain detekt task that check runs.
+  ForbiddenMethodCall:
+    active: true
+    methods:
+      - value: 'kotlin.runCatching'
+        reason: 'catches CancellationException, so a cancelled coroutine runs on; use attempt (protocol/.../Attempt.kt)'
 complexity:
   # Link, device and sim are single state machines on purpose (AGENTS.md: unlocked state, one scope).
   TooManyFunctions:
