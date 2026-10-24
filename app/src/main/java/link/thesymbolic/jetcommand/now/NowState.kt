@@ -2,6 +2,7 @@ package link.thesymbolic.jetcommand.now
 
 import java.time.LocalTime
 import link.thesymbolic.jetcommand.Span
+import link.thesymbolic.jetcommand.countdown
 import link.thesymbolic.jetcommand.durationMin
 import link.thesymbolic.jetcommand.hhmm
 import link.thesymbolic.jetcommand.hoursMinutes
@@ -16,6 +17,7 @@ import link.thesymbolic.jetcommand.protocol.SlotView
 import link.thesymbolic.jetcommand.protocol.StartedSlot
 import link.thesymbolic.jetcommand.protocol.Status
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
+import link.thesymbolic.jetcommand.protocol.Timing
 import link.thesymbolic.jetcommand.protocol.fanPercent
 import link.thesymbolic.jetcommand.protocol.formatTemp
 import link.thesymbolic.jetcommand.protocol.tempRange
@@ -56,9 +58,13 @@ sealed interface NowBody {
 
 data class ProgramButton(val slot: Slot, val label: String)
 
-/** [nowMinute] counts from the program's start, like the [spans]. */
+/**
+ * [left] is the step's countdown; [next] what follows it. [nowMinute] counts from the program's
+ * start, like the [spans].
+ */
 data class RunningView(
     val title: String,
+    val left: String,
     val next: String,
     val spans: List<Span>,
     val nowMinute: Double,
@@ -110,7 +116,10 @@ private fun live(st: Status, inputs: NowInputs, now: LocalTime): NowBody.Live {
         }
     val summary =
         listOfNotNull(
-                "auto off ${hoursMinutes(st.remainingSeconds)}".takeIf { st.mode != Mode.STANDBY },
+                // In a program the shutoff timer is the step's remaining time, which the strip
+                // shows.
+                "auto off ${hoursMinutes(st.remainingSeconds)}"
+                    .takeIf { st.mode != Mode.STANDBY && running == null },
                 "program step $step".takeIf { step > 0 && running == null },
             )
             .joinToString(" · ")
@@ -143,7 +152,11 @@ fun runningProgram(
     return mine ?: cached.mapNotNull { fits(it.state.program) }.singleOrNull()
 }
 
-/** "Twostep · step 2/5", the next step and when it starts; null for a program without steps. */
+/**
+ * "Twostep · step 2/5", the step's countdown and what follows: "until 06:30 · then cool 20 min". No
+ * clock time for a timed step, it would only be now plus the countdown; null for a program without
+ * steps.
+ */
 fun runningView(p: Program, step: Int, remainingSeconds: Int, now: LocalTime): RunningView? {
     if (p.steps.isEmpty()) return null
     val i = (step - 1).coerceIn(0, p.steps.lastIndex)
@@ -153,12 +166,18 @@ fun runningView(p: Program, step: Int, remainingSeconds: Int, now: LocalTime): R
         timeline(p.steps, start).let { sp -> sp to sp[i].to - remainingSeconds / 60.0 }
     val start = now.minusMinutes(place(now).second.toLong().coerceAtLeast(0))
     val (spans, nowMinute) = place(start)
-    val at = hhmm(now.plusSeconds(remainingSeconds.toLong()))
-    val next =
+    val until = (p.steps[i].timing as? Timing.Until)?.let { "until ${hhmm(it.hour, it.minute)}" }
+    val then =
         spans.getOrNull(i + 1)?.let {
-            "next $at · ${it.step.mode.label.lowercase()} ${durationMin(it.minutes)}"
-        } ?: "ends $at"
-    return RunningView("${prettyName(p.name)} · step $step/${p.steps.size}", next, spans, nowMinute)
+            "then ${it.step.mode.label.lowercase()} ${durationMin(it.minutes)}"
+        } ?: "last step"
+    return RunningView(
+        "${prettyName(p.name)} · step $step/${p.steps.size}",
+        countdown(remainingSeconds),
+        listOfNotNull(until, then).joinToString(" · "),
+        spans,
+        nowMinute,
+    )
 }
 
 /**

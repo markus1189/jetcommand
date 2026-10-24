@@ -159,7 +159,7 @@ class NowStateTest {
         listOf(
                 base.copy(update = heat) to "auto off 1:05",
                 base.copy(update = inProgram) to "auto off 0:10 · program step 2",
-                base.copy(update = inProgram, slots = listOf(slot(0, two))) to "auto off 0:10",
+                base.copy(update = inProgram, slots = listOf(slot(0, two))) to "",
                 base.copy(update = off) to "program step 2",
             )
             .forEach { (inputs, text) -> assertEquals(text, summary(inputs)) }
@@ -202,10 +202,11 @@ class NowStateTest {
         // 22:00, step 2 of three one-hour steps with 15 min left: started 20:15, now is minute 105.
         val v = runningView(p, 2, 15 * 60, LocalTime.of(22, 0))!!
         assertEquals("Mixed · step 2/3", v.title)
-        assertEquals("next 22:15 · heat 1 h 00", v.next)
+        assertEquals("00:15:00", v.left)
+        assertEquals("then heat 1 h 00", v.next)
         assertEquals(105.0, v.nowMinute)
         assertEquals(listOf(0 to 60, 60 to 120, 120 to 180), v.spans.map { it.from to it.to })
-        assertEquals("ends 23:15", runningView(p, 3, 75 * 60, LocalTime.of(22, 0))!!.next)
+        assertEquals("last step", runningView(p, 3, 75 * 60, LocalTime.of(22, 0))!!.next)
         assertNull(runningView(Program("Empty", emptyList()), 1, 60, NOON))
     }
 
@@ -222,7 +223,8 @@ class NowStateTest {
         // 23:30 in step 1 with 30 min left: started 23:00, step 2 runs 00:00 → 06:00.
         val v = runningView(p, 1, 30 * 60, LocalTime.of(23, 30))!!
         assertEquals(listOf(0 to 60, 60 to 420), v.spans.map { it.from to it.to })
-        assertEquals("next 00:00 · cool 6 h 00", v.next)
+        assertEquals("then cool 6 h 00", v.next)
+        assertEquals("until 06:00 · last step", runningView(p, 2, 3_600, LocalTime.of(5, 0))!!.next)
     }
 
     @Test

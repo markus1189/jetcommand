@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarDuration
@@ -238,9 +239,11 @@ private fun ColumnScope.Live(body: NowBody.Live, onEvent: (NowEvent) -> Unit) {
     ModeRow(st.mode) { onEvent(NowEvent.SetMode(it)) }
 
     Spacer(Modifier.height(12.dp))
-    Text(body.summary, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+    if (body.summary.isNotEmpty()) {
+        Text(body.summary, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+    }
     body.running?.let {
-        Spacer(Modifier.height(12.dp))
+        if (body.summary.isNotEmpty()) Spacer(Modifier.height(12.dp))
         RunningStrip(it)
     }
     Spacer(Modifier.height(12.dp))
@@ -395,10 +398,21 @@ private fun ColumnScope.ProgramButtons(programs: List<ProgramButton>, start: (Sl
 @Composable
 private fun RunningStrip(r: RunningView) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(Modifier.fillMaxWidth()) {
-            Text(r.title, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            Text(r.next, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            Text(r.title, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            Text(
+                r.left,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
+                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+            )
         }
+        Text(
+            r.next,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.align(Alignment.End),
+        )
         StepStrip(r.spans, height = 36.dp, nowMinute = r.nowMinute)
     }
 }
@@ -421,7 +435,7 @@ private fun NowContentPreview() = JetCommandTheme {
             canDisconnect = true,
             NowBody.Live(
                 status,
-                summary = "auto off 0:20",
+                summary = "",
                 running = runningView(twostep, 1, status.remainingSeconds, LocalTime.of(22, 40)),
                 programs = programButtons(listOf("TWOSTEP", null, "Warm up")),
             ),

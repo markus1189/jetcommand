@@ -6,10 +6,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import link.thesymbolic.jetcommand.night.NightText
 import link.thesymbolic.jetcommand.night.chips
-import link.thesymbolic.jetcommand.now.runningView
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.NightSummary
-import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.Timing
 
@@ -41,15 +39,14 @@ class FormatTest {
         )
 
     @Test
-    fun `the running program's next step is a wall clock time`() {
-        val p = Program("P", listOf(cool(Timing.For(0, 30)), cool(Timing.For(1, 5))))
+    fun `a step's countdown is padded hh_mm_ss`() =
         check(
             listOf(
-                runningView(p, 1, 600, LocalTime.of(23, 55))!!.next to "next 00:05 · cool 1 h 05",
-                runningView(p, 2, 600, LocalTime.of(9, 58))!!.next to "ends 10:08",
+                countdown(0) to "00:00:00",
+                countdown(877) to "00:14:37",
+                countdown(36_001) to "10:00:01",
             )
         )
-    }
 
     @Test
     fun `remaining time has unpadded hours`() =

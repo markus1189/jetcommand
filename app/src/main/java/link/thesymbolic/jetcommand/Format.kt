@@ -26,6 +26,10 @@ fun clockAt(start: LocalTime, minutes: Int) = hhmm(start.plusMinutes(minutes.toL
 /** "1:05": unpadded hours, an amount rather than a time of day. */
 fun hoursMinutes(seconds: Int) = "${seconds / 3600}:${pad2(seconds / 60 % 60)}"
 
+/** "00:14:37": a countdown, padded like the BedJet app's timer so its width never jumps. */
+fun countdown(seconds: Int) =
+    "${pad2(seconds / 3600)}:${pad2(seconds / 60 % 60)}:${pad2(seconds % 60)}"
+
 /** A step's length: "45 min", "1 h 05". */
 fun durationMin(minutes: Int): String =
     if (minutes < 60) "$minutes min" else "${minutes / 60} h ${pad2(minutes % 60)}"
