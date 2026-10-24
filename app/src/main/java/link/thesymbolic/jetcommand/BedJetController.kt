@@ -50,6 +50,7 @@ import link.thesymbolic.jetcommand.protocol.SimTransport
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
 import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.TappedTransport
+import link.thesymbolic.jetcommand.protocol.Timing
 
 sealed interface Source {
     val label: String
@@ -314,11 +315,17 @@ class BedJetController(
             listOf(
                 Program(
                     "Cool down",
-                    listOf(Step(Mode.TURBO, 19, 86, 0, 5), Step(Mode.COOL, 7, 40, 6, 0)),
+                    listOf(
+                        Step(Mode.TURBO, 19, 86, Timing.For(0, 5)),
+                        Step(Mode.COOL, 7, 40, Timing.For(6, 0)),
+                    ),
                 ),
                 Program(
                     "Twostep",
-                    listOf(Step(Mode.HEAT, 9, 70, 0, 30), Step(Mode.EXT_HEAT, 5, 62, 2, 0)),
+                    listOf(
+                        Step(Mode.HEAT, 9, 70, Timing.For(0, 30)),
+                        Step(Mode.EXT_HEAT, 5, 62, Timing.For(2, 0)),
+                    ),
                 ),
                 null,
             )

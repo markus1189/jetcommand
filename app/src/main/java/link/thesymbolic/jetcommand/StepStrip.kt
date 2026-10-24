@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import java.time.LocalTime
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Step
+import link.thesymbolic.jetcommand.protocol.Timing
 import link.thesymbolic.jetcommand.protocol.fanPercent
 import link.thesymbolic.jetcommand.protocol.formatTemp
 
@@ -26,9 +27,12 @@ fun timeline(steps: List<Step>, start: LocalTime): List<Span> {
     val startMin = start.hour * 60 + start.minute
     return steps.mapIndexed { i, s ->
         val len =
-            if (s.clock)
-                Math.floorMod(s.totalMinutes - (startMin + t), 1440).takeIf { it != 0 } ?: 1440
-            else s.totalMinutes
+            when (val timing = s.timing) {
+                is Timing.Until ->
+                    Math.floorMod(timing.minuteOfDay - (startMin + t), 1440).takeIf { it != 0 }
+                        ?: 1440
+                is Timing.For -> timing.totalMinutes
+            }
         Span(i, s, t, t + len).also { t += len }
     }
 }

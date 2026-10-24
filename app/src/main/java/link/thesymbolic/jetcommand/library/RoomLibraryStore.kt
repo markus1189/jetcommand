@@ -21,6 +21,7 @@ import link.thesymbolic.jetcommand.protocol.Origin
 import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.ProgramRevision
 import link.thesymbolic.jetcommand.protocol.PushRecord
+import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.SlotState
 import link.thesymbolic.jetcommand.protocol.decodeSteps
 import link.thesymbolic.jetcommand.protocol.encodeSteps
@@ -135,15 +136,15 @@ class RoomLibraryStore(private val db: LibraryDatabase) : LibraryStore {
         dao.entries().map { rows -> rows.map(EntryRow::toEntry) }
 
     override fun slots(device: String): Flow<List<SlotState>> =
-        dao.slots(device).map { rows -> rows.map(SlotStateRow::toState) }
+        dao.slots(device).map { rows -> rows.mapNotNull(SlotStateRow::toState) }
 
     override suspend fun entry(id: String): LibraryEntry? = dao.entry(id)?.toEntry()
 
     override suspend fun revisions(programId: String): List<ProgramRevision> =
         dao.revisions(programId).map(ProgramRevisionRow::toRevision)
 
-    override suspend fun slot(device: String, slot: Int): SlotState? =
-        dao.slot(device, slot)?.toState()
+    override suspend fun slot(device: String, slot: Slot): SlotState? =
+        dao.slot(device, slot.index)?.toState()
 
     override suspend fun createProgram(program: Program, origin: Origin, at: Long): LibraryEntry =
         db.withTransaction {
@@ -226,20 +227,24 @@ private fun record(id: String?, rev: Int?, fingerprint: String?, at: Long? = nul
     if (id != null && rev != null && fingerprint != null) PushRecord(id, rev, fingerprint, at ?: 0)
     else null
 
+// Rows are only written from a Slot; one outside it would be a row no slot view ever showed.
 private fun SlotStateRow.toState() =
-    SlotState(
-        device,
-        slot,
-        program = if (name != null && steps != null) Program(name, decodeSteps(steps)) else null,
-        readAt = readAt,
-        pushed = record(pushedProgramId, pushedRev, pushedFingerprint, pushedAt),
-        pending = record(pendingProgramId, pendingRev, pendingFingerprint),
-    )
+    Slot.of(slot)?.let { slot ->
+        SlotState(
+            device,
+            slot,
+            program =
+                if (name != null && steps != null) Program(name, decodeSteps(steps)) else null,
+            readAt = readAt,
+            pushed = record(pushedProgramId, pushedRev, pushedFingerprint, pushedAt),
+            pending = record(pendingProgramId, pendingRev, pendingFingerprint),
+        )
+    }
 
 private fun SlotState.toRow() =
     SlotStateRow(
         device,
-        slot,
+        slot.index,
         program?.name,
         program?.steps?.let(::encodeSteps),
         readAt,

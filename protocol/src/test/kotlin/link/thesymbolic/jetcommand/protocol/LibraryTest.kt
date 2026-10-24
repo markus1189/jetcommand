@@ -54,9 +54,9 @@ class LibraryTest {
     }
 
     private fun cool(fan: Int, hours: Int = 1, minutes: Int = 0) =
-        Step(Mode.COOL, fan, 40, hours, minutes)
+        Step(Mode.COOL, fan, 40, Timing.For(hours, minutes))
 
-    private val clockStep = Step(Mode.COOL, 14, 40, 6, 30, clock = true)
+    private val clockStep = Step(Mode.COOL, 14, 40, Timing.Until(6, 30))
     private val a = Program("Alpha", listOf(cool(5), clockStep))
     private val a2 = Program("Alpha", listOf(cool(6), clockStep))
     private val b = Program("Bravo", listOf(cool(9, 2)))
@@ -73,8 +73,8 @@ class LibraryTest {
             listOf(
                 cool(5),
                 clockStep,
-                Step(Mode.WAIT, 19, 80, 0, 10),
-                Step(Mode.HEAT, 0, 66, 11, 59),
+                Step(Mode.WAIT, 19, 80, Timing.For(0, 10)),
+                Step(Mode.HEAT, 0, 66, Timing.For(11, 59)),
             )
         val bytes = encodeSteps(steps)
         assertEquals(20, bytes.size)
@@ -90,7 +90,8 @@ class LibraryTest {
         assertNotEquals(a.fingerprint(), a.copy(name = "Alph").fingerprint())
         assertNotEquals(
             a.fingerprint(),
-            a.copy(steps = listOf(cool(5), clockStep.copy(clock = false))).fingerprint(),
+            a.copy(steps = listOf(cool(5), clockStep.copy(timing = Timing.For(6, 30))))
+                .fingerprint(),
         )
     }
 
@@ -191,7 +192,7 @@ class LibraryTest {
     @Test
     fun `take theirs makes the outside revision current`() = runTest {
         val (r, alpha) = changedOutside()
-        r.lib.resolve(DEV, 0, Resolution.TAKE_THEIRS)
+        r.lib.resolve(DEV, slot(0), Resolution.TAKE_THEIRS)
         val entry = r.store.entry(alpha.id)!!
         assertEquals(2, entry.current.rev)
         assertEquals(SlotStatus.InSync(entry), r.status(0))
@@ -202,7 +203,7 @@ class LibraryTest {
     @Test
     fun `keep mine shows the slot as holding an older revision`() = runTest {
         val (r, alpha) = changedOutside()
-        r.lib.resolve(DEV, 0, Resolution.KEEP_MINE)
+        r.lib.resolve(DEV, slot(0), Resolution.KEEP_MINE)
         val entry = r.store.entry(alpha.id)!!
         assertEquals(1, entry.current.rev)
         assertEquals(SlotStatus.Older(entry, 2), r.status(0))
@@ -213,7 +214,7 @@ class LibraryTest {
     @Test
     fun `split off creates a new entry linked to the slot`() = runTest {
         val (r, alpha) = changedOutside()
-        r.lib.resolve(DEV, 0, Resolution.SPLIT_OFF)
+        r.lib.resolve(DEV, slot(0), Resolution.SPLIT_OFF)
         val split = (r.status(0) as SlotStatus.InSync).entry
         assertNotEquals(alpha.id, split.id)
         assertEquals(Origin.OUTSIDE, split.current.origin)
@@ -225,7 +226,7 @@ class LibraryTest {
     fun `keep saves an unknown slot and links it`() = runTest {
         val r = rig(listOf(foreign, null, null))
         r.refresh()
-        val kept = r.lib.keep(DEV, 0)
+        val kept = r.lib.keep(DEV, slot(0))
         assertEquals(Origin.KEPT_FROM_SLOT, kept.current.origin)
         assertEquals(SlotStatus.InSync(kept), r.status(0))
     }
@@ -237,7 +238,7 @@ class LibraryTest {
         val r = rig()
         val alpha = r.lib.create(a)
         r.refresh()
-        r.lib.push(DEV, r.device, 1, alpha.id)
+        r.lib.push(DEV, r.device, slot(1), alpha.id)
         assertEquals(a, r.sim.slots[1])
         val state = r.views()[1].state
         assertEquals(PushRecord(alpha.id, 1, a.fingerprint(), state.pushed!!.at), state.pushed)
@@ -250,7 +251,7 @@ class LibraryTest {
         val r = rig(listOf(foreign, null, null))
         val alpha = r.lib.create(a)
         r.refresh()
-        r.lib.push(DEV, r.device, 0, alpha.id)
+        r.lib.push(DEV, r.device, slot(0), alpha.id)
         val saved = r.lib.entries().first().single { it.id != alpha.id }
         assertEquals(Origin.KEPT_FROM_SLOT, saved.current.origin)
         assertEquals(foreign, saved.current.program)
@@ -262,7 +263,7 @@ class LibraryTest {
         val alpha = r.lib.create(a)
         r.lib.create(b)
         r.refresh()
-        r.lib.push(DEV, r.device, 0, alpha.id)
+        r.lib.push(DEV, r.device, slot(0), alpha.id)
         assertEquals(2, r.lib.entries().first().size)
     }
 
@@ -271,8 +272,8 @@ class LibraryTest {
         val r = rig(listOf(b, null, null))
         val alpha = r.lib.create(a)
         r.refresh()
-        r.device.startProgram(0)
-        val e = assertFailsWith<BedJetException> { r.lib.push(DEV, r.device, 1, alpha.id) }
+        r.device.startProgram(slot(0))
+        val e = assertFailsWith<BedJetException> { r.lib.push(DEV, r.device, slot(1), alpha.id) }
         assertEquals(ErrorCode.INVALID_PROGRAM, e.code)
         assertTrue("Stop the program" in e.message!!)
         assertNull(r.sim.slots[1])
@@ -285,7 +286,7 @@ class LibraryTest {
         val bravo = r.lib.create(b)
         r.refresh()
         r.sim.slots[0] = foreign
-        code(ErrorCode.SLOT_CHANGED) { r.lib.push(DEV, r.device, 0, bravo.id) }
+        code(ErrorCode.SLOT_CHANGED) { r.lib.push(DEV, r.device, slot(0), bravo.id) }
         assertEquals(foreign, r.sim.slots[0])
         assertTrue(r.status(0) is SlotStatus.ChangedOutside)
         assertEquals(2, r.lib.revisions(alpha.id).size)
@@ -300,7 +301,7 @@ class LibraryTest {
         r.transport.inject(Fault.LoseLink) {
             it is Op.Write && it.bytes.size == 19 && it.bytes[0] == 0x40.toByte()
         }
-        assertFailsWith<BedJetException> { r.lib.push(DEV, r.device, 2, alpha.id) }
+        assertFailsWith<BedJetException> { r.lib.push(DEV, r.device, slot(2), alpha.id) }
         advanceTimeBy(5_000)
         r.refresh()
         assertEquals(SlotStatus.Interrupted(r.views()[2].state.pending!!), r.status(2))
@@ -316,13 +317,13 @@ class LibraryTest {
         val r = rig()
         val alpha = r.lib.create(a)
         r.refresh()
-        r.lib.run(DEV, r.device, 0, alpha.id)
+        r.lib.run(DEV, r.device, slot(0), alpha.id)
         assertTrue(r.device.status!!.status.extra!!.programStep > 0)
-        assertEquals(StartedSlot(DEV, 0), r.lib.started.value)
+        assertEquals(StartedSlot(DEV, slot(0)), r.lib.started.value)
         r.device.stopProgram()
         r.device.waitForStatus { it.extraFresh && it.status.extra!!.programStep == 0 }
         val writes = r.transport.writes.size
-        r.lib.run(DEV, r.device, 0, alpha.id)
+        r.lib.run(DEV, r.device, slot(0), alpha.id)
         val newFrames = r.transport.writes.drop(writes).filter { it.startsWith("40") }
         assertEquals(emptyList(), newFrames)
     }
@@ -336,20 +337,20 @@ class LibraryTest {
         val bravo = r.lib.create(b)
         val other = r.lib.create(foreign)
         r.refresh()
-        r.lib.push(DEV, r.device, 2, bravo.id)
+        r.lib.push(DEV, r.device, slot(2), bravo.id)
         advanceTimeBy(1000)
-        r.lib.push(DEV, r.device, 1, other.id)
-        assertEquals(listOf(0, 2, 1), r.lib.rankSlots(DEV, alpha.id))
-        r.lib.push(DEV, r.device, 0, alpha.id)
-        assertEquals(listOf(0, 2, 1), r.lib.rankSlots(DEV, alpha.id))
+        r.lib.push(DEV, r.device, slot(1), other.id)
+        assertEquals(listOf(0, 2, 1).map(::slot), r.lib.rankSlots(DEV, alpha.id))
+        r.lib.push(DEV, r.device, slot(0), alpha.id)
+        assertEquals(listOf(0, 2, 1).map(::slot), r.lib.rankSlots(DEV, alpha.id))
         r.store.addRevision(alpha.id, a2, Origin.EDIT, currentTime, makeCurrent = true)
-        r.lib.push(DEV, r.device, 1, alpha.id)
+        r.lib.push(DEV, r.device, slot(1), alpha.id)
         // 1 holds current, 0 holds rev 1, 2 is in sync with Bravo.
-        assertEquals(listOf(1, 0, 2), r.lib.rankSlots(DEV, alpha.id))
+        assertEquals(listOf(1, 0, 2).map(::slot), r.lib.rankSlots(DEV, alpha.id))
         r.sim.slots[2] = Program("Mystery", listOf(cool(3)))
         r.refresh()
         assertTrue(r.status(2) is SlotStatus.ChangedOutside)
-        assertEquals(listOf(1, 0, 2), r.lib.rankSlots(DEV, alpha.id))
+        assertEquals(listOf(1, 0, 2).map(::slot), r.lib.rankSlots(DEV, alpha.id))
     }
 
     // ---- link fairness ----

@@ -41,14 +41,15 @@ import link.thesymbolic.jetcommand.ble.BedJetScanner
 import link.thesymbolic.jetcommand.ble.RequireBluetoothPermissions
 import link.thesymbolic.jetcommand.ble.ScannedDevice
 import link.thesymbolic.jetcommand.protocol.Button as Btn
-import link.thesymbolic.jetcommand.protocol.Limits
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Notification
 import link.thesymbolic.jetcommand.protocol.SimTransport
+import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
 import link.thesymbolic.jetcommand.protocol.Step
+import link.thesymbolic.jetcommand.protocol.Timing
 import link.thesymbolic.jetcommand.protocol.TransportState
 import link.thesymbolic.jetcommand.protocol.fanPercent
 import link.thesymbolic.jetcommand.protocol.formatTemp
@@ -281,11 +282,11 @@ private fun ColumnScope.Commands(
                 record("Programs", it.device.programNames().joinToString(" | ") { n -> n ?: "-" })
             }
         }
-        repeat(Limits.SLOTS) { slot ->
-            B("Slot $slot") {
-                act("slot $slot") {
+        Slot.all.forEach { slot ->
+            B("Slot ${slot.index}") {
+                act("slot ${slot.index}") {
                     record(
-                        "Slot $slot",
+                        "Slot ${slot.index}",
                         it.device
                             .programSteps(slot)
                             .joinToString("; ", transform = ::stepText)
@@ -324,5 +325,11 @@ private fun ColumnScope.DemoControls(sim: SimTransport, log: (LogLevel, String) 
     }
 }
 
-private fun stepText(s: Step) =
-    "${s.mode.label} ${fanPercent(s.fan)}% ${formatTemp(s.temp)} ${if (s.clock) "until " else ""}${s.hours}:${s.minutes.toString().padStart(2, '0')}"
+private fun stepText(s: Step): String {
+    val (until, h, m) =
+        when (val t = s.timing) {
+            is Timing.For -> Triple("", t.hours, t.minutes)
+            is Timing.Until -> Triple("until ", t.hour, t.minute)
+        }
+    return "${s.mode.label} ${fanPercent(s.fan)}% ${formatTemp(s.temp)} $until$h:${m.toString().padStart(2, '0')}"
+}

@@ -58,12 +58,20 @@ object Button {
     const val MUTE = 0x48
     const val UNMUTE = 0x49
     const val ACK = 0x52
-    const val START_PROGRAM = 0x80
-    const val DELETE_PROGRAM = 0x83
+    private const val START_PROGRAM = 0x80
+    private const val DELETE_PROGRAM = 0x83
+
+    fun startProgram(slot: Slot) = START_PROGRAM + slot.index
+
+    fun deleteProgram(slot: Slot) = DELETE_PROGRAM + slot.index
+
+    fun slotOfStartProgram(code: Int): Slot? = Slot.of(code - START_PROGRAM)
+
+    fun slotOfDeleteProgram(code: Int): Slot? = Slot.of(code - DELETE_PROGRAM)
 
     // A whitelist rather than a blacklist: 0x4C (factory reset) and any other unknown code can
     // never be encoded.
-    val ALLOWED =
+    val ALLOWED: Set<Int> =
         setOf(
             OFF,
             COOL,
@@ -77,24 +85,15 @@ object Button {
             TEMP_DOWN_C,
             TEMP_UP_F,
             TEMP_DOWN_F,
-            MEMORY_1,
-            MEMORY_1 + 1,
-            MEMORY_3,
-            SAVE_MEMORY_1,
-            SAVE_MEMORY_1 + 1,
-            SAVE_MEMORY_3,
             LED_ON,
             LED_OFF,
             MUTE,
             UNMUTE,
             ACK,
-            START_PROGRAM,
-            0x81,
-            0x82,
-            DELETE_PROGRAM,
-            0x84,
-            0x85,
-        )
+        ) +
+            (MEMORY_1..MEMORY_3) +
+            (SAVE_MEMORY_1..SAVE_MEMORY_3) +
+            Slot.all.flatMap { listOf(startProgram(it), deleteProgram(it)) }
 
     fun forMode(mode: Mode): Int? =
         when (mode) {
@@ -135,15 +134,29 @@ object Query {
     const val PROGRAM_NAMES = 0x04
     const val FIRMWARE = 0x20
 
-    fun fragment(slot: Int, index: Int) = 7 + 4 * slot + index
+    private const val FIRST_FRAGMENT = 7
+
+    fun fragment(slot: Slot, index: Int) =
+        FIRST_FRAGMENT + Limits.FRAGMENTS_PER_SLOT * slot.index + index
+
+    /** The slot and fragment index [id] names, or null when it isn't a fragment id. */
+    fun fragmentOf(id: Int): Pair<Slot, Int>? {
+        val offset = id - FIRST_FRAGMENT
+        if (offset < 0) return null
+        val slot = Slot.of(offset / Limits.FRAGMENTS_PER_SLOT) ?: return null
+        return slot to offset % Limits.FRAGMENTS_PER_SLOT
+    }
 }
 
 object NameParam {
     const val DEVICE = 0
+    private const val FIRST_PROGRAM = 4
 
     fun memory(n: Int) = n
 
-    fun program(slot: Int) = 4 + slot
+    fun program(slot: Slot) = FIRST_PROGRAM + slot.index
+
+    fun slotOf(param: Int): Slot? = Slot.of(param - FIRST_PROGRAM)
 }
 
 object Limits {
@@ -154,6 +167,20 @@ object Limits {
     const val NAME_LENGTH = 15
     const val MAX_STEP_MINUTES = 11 * 60 + 59
     const val TURBO_MAX_MINUTES = 10
+}
+
+/** One of the unit's [Limits.SLOTS] program slots; [of] is the only way in. */
+@JvmInline
+value class Slot private constructor(val index: Int) {
+    /** 1-based, as the app shows it. */
+    val number
+        get() = index + 1
+
+    companion object {
+        val all: List<Slot> = List(Limits.SLOTS, ::Slot)
+
+        fun of(index: Int): Slot? = all.getOrNull(index)
+    }
 }
 
 data class TempRange(val min: Int, val max: Int)
@@ -215,20 +242,61 @@ enum class ErrorCode(val text: String) {
 class BedJetException(val code: ErrorCode, message: String = code.text, cause: Throwable? = null) :
     Exception(message, cause)
 
-data class Step(
-    val mode: Mode,
-    val fan: Int,
-    val temp: Int,
-    val hours: Int,
-    val minutes: Int,
-    val clock: Boolean = false,
-) {
-    val totalMinutes
-        get() = hours * 60 + minutes
-
-    companion object {
-        fun default() = Step(Mode.WAIT, fan = 19, temp = 80, hours = 1, minutes = 0)
+/**
+ * When a step ends. Fields hold whatever the unit sent (hours 0–127, any minute byte), so decoding
+ * stays total; [stepProblem] judges ranges.
+ */
+sealed interface Timing {
+    data class For(val hours: Int, val minutes: Int) : Timing {
+        val totalMinutes
+            get() = hours * 60 + minutes
     }
+
+    /** At the unit's wall-clock [hour]:[minute]. */
+    data class Until(val hour: Int, val minute: Int) : Timing {
+        val minuteOfDay
+            get() = hour * 60 + minute
+    }
+}
+
+data class Step(val mode: Mode, val fan: Int, val temp: Int, val timing: Timing) {
+    companion object {
+        fun default() = Step(Mode.WAIT, fan = 19, temp = 80, Timing.For(hours = 1, minutes = 0))
+    }
+}
+
+private const val STEP_BYTES = 5
+private const val UNTIL_FLAG = 0x80
+
+/** The only place the 5-byte step layout lives: mode, fan, temp, hours | [UNTIL_FLAG], minutes. */
+fun encodeStep(step: Step): ByteArray {
+    val (hours, minutes, flag) =
+        when (val t = step.timing) {
+            is Timing.For -> Triple(t.hours, t.minutes, 0)
+            is Timing.Until -> Triple(t.hour, t.minute, UNTIL_FLAG)
+        }
+    return bytesOf(
+        step.mode.ordinal,
+        step.fan.clamp(0, 19),
+        step.temp.clamp(0, 255),
+        (hours and 0x7f) or flag,
+        minutes and 0xff,
+    )
+}
+
+/** The step at [offset]; null only for an unknown mode byte. */
+fun decodeStep(bytes: ByteArray, offset: Int = 0): Step? {
+    val mode = Mode.of(bytes.u(offset)) ?: return null
+    val hours = bytes.u(offset + 3) and 0x7f
+    val minutes = bytes.u(offset + 4)
+    return Step(
+        mode = mode,
+        fan = bytes.u(offset + 1),
+        temp = bytes.u(offset + 2),
+        timing =
+            if (bytes.u(offset + 3) and UNTIL_FLAG != 0) Timing.Until(hours, minutes)
+            else Timing.For(hours, minutes),
+    )
 }
 
 data class Fragment(val total: Int, val steps: List<Step>)
@@ -289,9 +357,6 @@ private fun bytesOf(vararg values: Int) = ByteArray(values.size) { values[it].to
 
 private fun Int.clamp(lo: Int, hi: Int) = coerceIn(lo, hi)
 
-private fun checkSlot(slot: Int) =
-    require(slot in 0 until Limits.SLOTS) { "Program slot must be 0–2, got $slot" }
-
 object Command {
     fun button(code: Int): ByteArray {
         require(code in Button.ALLOWED) { "Refusing to encode button 0x${code.toString(16)}" }
@@ -328,29 +393,13 @@ object Command {
         return button(Button.SAVE_MEMORY_1 + n - 1)
     }
 
-    fun startProgram(slot: Int): ByteArray {
-        checkSlot(slot)
-        return button(Button.START_PROGRAM + slot)
-    }
+    fun startProgram(slot: Slot) = button(Button.startProgram(slot))
 
-    fun deleteProgram(slot: Int): ByteArray {
-        checkSlot(slot)
-        return button(Button.DELETE_PROGRAM + slot)
-    }
+    fun deleteProgram(slot: Slot) = button(Button.deleteProgram(slot))
 
     fun query(id: Int, tag: Int) = bytesOf(0x41, id and 0xff, tag and 0xff)
 
-    fun encodeStep(step: Step) =
-        bytesOf(
-            step.mode.ordinal,
-            step.fan.clamp(0, 19),
-            step.temp.clamp(0, 255),
-            (step.hours and 0x7f) or (if (step.clock) 0x80 else 0),
-            step.minutes and 0xff,
-        )
-
-    fun writeProgram(slot: Int, steps: List<Step>): List<ByteArray> {
-        checkSlot(slot)
+    fun writeProgram(slot: Slot, steps: List<Step>): List<ByteArray> {
         require(steps.size <= Limits.STEPS_PER_PROGRAM) {
             "At most ${Limits.STEPS_PER_PROGRAM} steps"
         }
@@ -365,7 +414,7 @@ object Command {
                     .drop(i * Limits.STEPS_PER_FRAGMENT)
                     .take(Limits.STEPS_PER_FRAGMENT)
                     .forEachIndexed { j, step ->
-                        encodeStep(step).copyInto(frame, 3 + j * 5)
+                        encodeStep(step).copyInto(frame, 3 + j * STEP_BYTES)
                     }
             }
         }
@@ -411,20 +460,9 @@ object Reply {
         val total = payload.u(0)
         val expected =
             (total - index * Limits.STEPS_PER_FRAGMENT).clamp(0, Limits.STEPS_PER_FRAGMENT)
-        if (payload.size < 1 + expected * 5) return null
+        if (payload.size < 1 + expected * STEP_BYTES) return null
         val steps =
-            (0 until expected).map { i ->
-                val o = 1 + i * 5
-                val mode = Mode.of(payload.u(o)) ?: return null
-                Step(
-                    mode = mode,
-                    fan = payload.u(o + 1),
-                    temp = payload.u(o + 2),
-                    hours = payload.u(o + 3) and 0x7f,
-                    minutes = payload.u(o + 4),
-                    clock = payload.u(o + 3) and 0x80 != 0,
-                )
-            }
+            (0 until expected).map { i -> decodeStep(payload, 1 + i * STEP_BYTES) ?: return null }
         return Fragment(total, steps)
     }
 
@@ -481,7 +519,10 @@ fun longestStepMinutes(mode: Mode, temp: Int, fanStep: Int) =
     minOf(heatHours(mode, temp, fanStep) * 60, Limits.MAX_STEP_MINUTES)
 
 fun fitsUnitLimits(step: Step) =
-    step.clock || step.totalMinutes <= longestStepMinutes(step.mode, step.temp, step.fan)
+    when (val t = step.timing) {
+        is Timing.Until -> true
+        is Timing.For -> t.totalMinutes <= longestStepMinutes(step.mode, step.temp, step.fan)
+    }
 
 /** Live limits when the status reports them for this mode, else the official app's table. */
 fun tempRange(mode: Mode, status: Status?): Pair<TempRange, Boolean> {
@@ -501,21 +542,35 @@ private fun rangeProblem(step: Step): String? =
         step.mode == Mode.STANDBY -> "Off is not a program step; use Wait."
         step.fan !in 0..19 -> "Fan must be 5–100 %."
         step.temp !in 0..255 -> "Invalid temperature."
-        step.minutes !in 0..59 || step.hours < 0 -> "Invalid time."
-        step.clock && !step.mode.clockTimeAllowed ->
-            "${step.mode.label} steps can't run until a clock time."
-        step.clock && step.hours > 23 -> "Clock time hours must be 0–23."
-        !step.clock && step.totalMinutes < 1 -> "A step needs a duration."
-        else -> null
+        else -> timingProblem(step.mode, step.timing)
+    }
+
+private fun timingProblem(mode: Mode, t: Timing): String? =
+    when (t) {
+        is Timing.For ->
+            when {
+                t.minutes !in 0..59 || t.hours < 0 -> "Invalid time."
+                t.totalMinutes < 1 -> "A step needs a duration."
+                else -> null
+            }
+        is Timing.Until ->
+            when {
+                t.minute !in 0..59 || t.hour < 0 -> "Invalid time."
+                !mode.clockTimeAllowed -> "${mode.label} steps can't run until a clock time."
+                t.hour > 23 -> "Clock time hours must be 0–23."
+                else -> null
+            }
     }
 
 private fun modeProblem(step: Step): String? {
     val (mode, _, temp) = step
+    val timing = step.timing
     return when {
         mode == Mode.WAIT && temp != 80 -> "Wait steps use temperature 80 (40 °C)."
         mode == Mode.TURBO && temp != 86 -> "Turbo steps use temperature 86 (43 °C)."
-        mode == Mode.TURBO && step.totalMinutes > Limits.TURBO_MAX_MINUTES ->
-            "Turbo runs 1–10 minutes."
+        mode == Mode.TURBO &&
+            timing is Timing.For &&
+            timing.totalMinutes > Limits.TURBO_MAX_MINUTES -> "Turbo runs 1–10 minutes."
         mode.usesTemperature ->
             TEMP_RANGES.getValue(mode).let { r ->
                 if (temp < r.min || temp > r.max)
@@ -552,21 +607,25 @@ fun validateProgram(steps: List<Step>, nowMinutes: Int): List<ValidationError> {
             errors += ValidationError(index, ErrorCode.INVALID_PROGRAM, problem)
             return@forEachIndexed
         }
-        if (step.clock) {
-            val delta = Math.floorMod(step.totalMinutes - end, 1440)
-            if (delta == 0 || delta >= 720) {
-                errors +=
-                    ValidationError(
-                        index,
-                        ErrorCode.STEP_TOO_LONG,
-                        "Ends at ${fmtHM(step.totalMinutes)}, which is not within 12 h of the previous step's end (${fmtHM(end)}).",
-                    )
+        val minutes =
+            when (val timing = step.timing) {
+                is Timing.For -> timing.totalMinutes
+                is Timing.Until -> {
+                    val delta = Math.floorMod(timing.minuteOfDay - end, 1440)
+                    if (delta == 0 || delta >= 720) {
+                        errors +=
+                            ValidationError(
+                                index,
+                                ErrorCode.STEP_TOO_LONG,
+                                "Ends at ${fmtHM(timing.minuteOfDay)}, which is not within 12 h of the previous step's end (${fmtHM(end)}).",
+                            )
+                    }
+                    end = (end + delta) % 1440
+                    return@forEachIndexed
+                }
             }
-            end = (end + delta) % 1440
-            return@forEachIndexed
-        }
         val longest = longestStepMinutes(step.mode, step.temp, step.fan)
-        if (step.totalMinutes > longest) {
+        if (minutes > longest) {
             errors +=
                 ValidationError(
                     index,
@@ -576,7 +635,7 @@ fun validateProgram(steps: List<Step>, nowMinutes: Int): List<ValidationError> {
                     else "A step must be shorter than 12 h.",
                 )
         }
-        end = (end + step.totalMinutes) % 1440
+        end = (end + minutes) % 1440
     }
     return errors
 }
