@@ -74,10 +74,15 @@ fun slotTap(v: SlotView): SlotTap? =
 
 /**
  * The unit stores names upper-case (the official app's keyboard); "TWOSTEP" reads better as
- * "Twostep".
+ * "Twostep". Names lead with a slot number as often as not, so the first letter is capitalised, not
+ * the first character.
  */
-fun prettyName(name: String) =
-    if (name == name.uppercase()) name.lowercase().replaceFirstChar { it.uppercase() } else name
+fun prettyName(name: String): String {
+    if (name != name.uppercase()) return name
+    val lower = name.lowercase()
+    val i = lower.indexOfFirst(Char::isLetter)
+    return if (i < 0) lower else lower.replaceRange(i, i + 1, lower[i].uppercase())
+}
 
 fun slotName(v: SlotView): String =
     v.state.program?.name?.let(::prettyName)

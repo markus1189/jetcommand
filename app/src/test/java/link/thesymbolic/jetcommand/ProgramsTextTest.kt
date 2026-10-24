@@ -100,6 +100,8 @@ class ProgramsTextTest {
     fun `names read well and slots say what they hold`() {
         assertEquals("Summer", prettyName("SUMMER"))
         assertEquals("Hot 26+", prettyName("Hot 26+"))
+        assertEquals("3-Btw", prettyName("3-BTW"))
+        assertEquals("3-2-1", prettyName("3-2-1"))
         assertEquals("—", slotName(view(0, SlotStatus.Unknown, null)))
         assertEquals("Empty slot", slotName(view(0, SlotStatus.Empty, null)))
         assertEquals("Summer", slotName(view(0, SlotStatus.InSync(summer))))
