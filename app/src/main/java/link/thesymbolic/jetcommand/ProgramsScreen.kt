@@ -43,145 +43,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.time.Instant
 import java.time.LocalTime
-import java.time.ZoneId
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
-import link.thesymbolic.jetcommand.protocol.BedJetException
 import link.thesymbolic.jetcommand.protocol.LibraryEntry
-import link.thesymbolic.jetcommand.protocol.LogLevel
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.Origin
-import link.thesymbolic.jetcommand.protocol.Program
-import link.thesymbolic.jetcommand.protocol.ProgramLibrary
-import link.thesymbolic.jetcommand.protocol.ProgramRevision
-import link.thesymbolic.jetcommand.protocol.PushRecord
-import link.thesymbolic.jetcommand.protocol.Resolution
 import link.thesymbolic.jetcommand.protocol.Slot
-import link.thesymbolic.jetcommand.protocol.SlotState
 import link.thesymbolic.jetcommand.protocol.SlotStatus
 import link.thesymbolic.jetcommand.protocol.SlotView
-import link.thesymbolic.jetcommand.protocol.StartedSlot
-import link.thesymbolic.jetcommand.protocol.Step
-import link.thesymbolic.jetcommand.protocol.Timing
-
-/**
- * Everything the program screens read or do; [LibraryPrograms] in the app, [FakePrograms] for
- * previews and the emulator.
- */
-interface ProgramsSource {
-    /** The device whose slots are shown; null before any was used. */
-    val device: StateFlow<String?>
-    /** A link is up, so slot actions can reach the unit. */
-    val live: StateFlow<Boolean>
-    /** Failed actions, as text for the user. */
-    val errors: SharedFlow<String>
-    val started: StateFlow<StartedSlot?>
-
-    fun entries(): Flow<List<LibraryEntry>>
-
-    fun slots(device: String): Flow<List<SlotView>>
-
-    suspend fun revisions(programId: String): List<ProgramRevision>
-
-    suspend fun rankSlots(device: String, programId: String): List<Slot>
-
-    fun run(slot: Slot, programId: String)
-
-    fun push(slot: Slot, programId: String)
-
-    fun resolve(slot: Slot, resolution: Resolution)
-
-    fun keep(slot: Slot)
-
-    fun restore(programId: String)
-
-    fun delete(programId: String)
-}
-
-/**
- * The real source: [ProgramLibrary] for state, [BedJetController.act] for anything that reaches the
- * unit.
- */
-class LibraryPrograms(
-    private val library: ProgramLibrary,
-    private val controller: BedJetController,
-    private val scope: CoroutineScope,
-) : ProgramsSource {
-    // The remembered unit keeps its cached slots visible while disconnected.
-    override val device: StateFlow<String?> =
-        MutableStateFlow<String?>(null).also { out ->
-            scope.launch {
-                combine(controller.deviceId, controller.remembered) { id, r -> id ?: r?.address }
-                    .collect { out.value = it }
-            }
-        }
-    override val live: StateFlow<Boolean> =
-        MutableStateFlow(false).also { out ->
-            scope.launch { controller.deviceId.collect { out.value = it != null } }
-        }
-
-    override fun entries() = library.entries()
-
-    override fun slots(device: String) = library.slots(device)
-
-    override suspend fun revisions(programId: String) = library.revisions(programId)
-
-    override suspend fun rankSlots(device: String, programId: String) =
-        library.rankSlots(device, programId)
-
-    override val errors = MutableSharedFlow<String>(extraBufferCapacity = 4)
-    override val started = library.started
-
-    private fun onUnit(what: String, block: suspend ProgramLibrary.(String, BedJetStack) -> Unit) {
-        val id =
-            controller.deviceId.value ?: return controller.log(LogLevel.ERROR, "$what: no device")
-        controller.act(what) { stack ->
-            try {
-                library.block(id, stack)
-            } catch (e: BedJetException) {
-                errors.tryEmit(e.message ?: e.code.text)
-                throw e
-            }
-        }
-    }
-
-    override fun run(slot: Slot, programId: String) =
-        onUnit("run program in slot ${slot.number}") { id, s -> run(id, s.device, slot, programId) }
-
-    override fun push(slot: Slot, programId: String) =
-        onUnit("load slot ${slot.number}") { id, s -> push(id, s.device, slot, programId) }
-
-    private fun local(what: String, block: suspend ProgramLibrary.(String) -> Unit) {
-        val id = device.value ?: return
-        scope.launch {
-            runCatching { library.block(id) }
-                .onFailure {
-                    if (it is CancellationException) throw it
-                    controller.log(LogLevel.ERROR, "$what: ${it::class.simpleName} ${it.message}")
-                    errors.tryEmit("Couldn't $what.")
-                }
-        }
-    }
-
-    override fun resolve(slot: Slot, resolution: Resolution) =
-        local("resolve slot ${slot.number}") { resolve(it, slot, resolution) }
-
-    override fun keep(slot: Slot) = local("keep slot ${slot.number}") { keep(it, slot) }
-
-    override fun restore(programId: String) = local("restore") { restore(programId) }
-
-    override fun delete(programId: String) = local("delete") { delete(programId) }
-}
 
 private sealed interface Route {
     data object List : Route
@@ -236,12 +105,14 @@ fun ProgramsScreen(source: ProgramsSource, modifier: Modifier = Modifier) {
                         )
                     } ?: LaunchedEffect(r) { route = Route.List }
             is Route.Conflict ->
-                slots
-                    .getOrNull(r.slot.index)
-                    ?.takeIf { it.status is SlotStatus.ChangedOutside }
-                    ?.let { v ->
-                        ConflictScreen(source, v, back = { route = Route.List })
-                    } ?: LaunchedEffect(r) { route = Route.List }
+                slots.getOrNull(r.slot.index)?.let { v ->
+                    (v.status as? SlotStatus.ChangedOutside)?.let { s ->
+                        Conflict(v, s, back = { route = Route.List }) {
+                            source.resolve(v.state.slot, it)
+                            route = Route.List
+                        }
+                    }
+                } ?: LaunchedEffect(r) { route = Route.List }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
@@ -271,71 +142,22 @@ private fun slotAction(source: ProgramsSource, view: SlotView) {
         is SlotStatus.Older -> source.push(slot, s.entry.id)
         is SlotStatus.Interrupted -> source.push(slot, s.target.programId)
         is SlotStatus.Deleted -> source.restore(s.entry.id)
-        SlotStatus.NotInLibrary -> source.keep(slot)
+        is SlotStatus.NotInLibrary -> source.keep(slot)
         else -> Unit
     }
 }
-
-/** What a slot row says, in which colour, and the one action it offers. */
-data class SlotLine(
-    val text: String,
-    val color: Color,
-    val action: String? = null,
-    val ok: Boolean = false,
-)
 
 private val Warm = Color(0xFFF0A070)
 val Muted = Color(0xFF9AA2AB)
 private val Synced = Color(0xFF9AB0A8)
 
-fun slotLine(status: SlotStatus): SlotLine =
-    when (status) {
-        SlotStatus.Unknown -> SlotLine("Not read yet", Muted)
-        SlotStatus.Empty -> SlotLine("Empty", Muted)
-        is SlotStatus.InSync -> SlotLine("In sync", Synced, ok = true)
-        is SlotStatus.Older ->
-            SlotLine(
-                "Older version · r${status.slotRev} here, r${status.entry.current.rev} in library",
-                Amber,
-                "Update",
-            )
-        is SlotStatus.ChangedOutside -> SlotLine("Changed outside the app", Warm, "Review")
-        is SlotStatus.Deleted -> SlotLine("Deleted from library", Muted, "Restore")
-        SlotStatus.NotInLibrary -> SlotLine("Not in your library", Warm, "Keep")
-        is SlotStatus.Interrupted -> SlotLine("Write interrupted", Warm, "Retry")
+private fun toneColor(tone: SlotTone): Color =
+    when (tone) {
+        SlotTone.MUTED -> Muted
+        SlotTone.SYNCED -> Synced
+        SlotTone.AMBER -> Amber
+        SlotTone.WARM -> Warm
     }
-
-/**
- * The unit stores names upper-case (the official app's keyboard); "TWOSTEP" reads better as
- * "Twostep".
- */
-fun prettyName(name: String) =
-    if (name == name.uppercase()) name.lowercase().replaceFirstChar { it.uppercase() } else name
-
-fun slotName(v: SlotView): String =
-    v.state.program?.name?.let(::prettyName)
-        ?: when (v.status) {
-            SlotStatus.Unknown -> "—"
-            else -> "Empty slot"
-        }
-
-fun hhmm(epochMs: Long): String =
-    Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()).toLocalTime().let {
-        "%02d:%02d".format(it.hour, it.minute)
-    }
-
-/** "r6 · 6 steps · until 06:30", or with a total duration when no step ends at a clock time. */
-fun programMeta(rev: Int?, steps: List<Step>, start: LocalTime): String {
-    val spans = timeline(steps, start)
-    val end = spans.lastOrNull()?.to ?: 0
-    return listOfNotNull(
-            rev?.takeIf { it > 1 }?.let { "r$it" },
-            "${steps.size} step${if (steps.size == 1) "" else "s"}",
-            if (steps.any { it.timing is Timing.Until }) "until ${clockAt(start, end)}"
-            else duration(end),
-        )
-        .joinToString(" · ")
-}
 
 @Composable
 fun SectionTitle(text: String, modifier: Modifier = Modifier, right: String? = null) =
@@ -472,7 +294,7 @@ private fun LibrarySection(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionTitle(
             "Library",
-            right = "${library.size} program${if (library.size == 1) "" else "s"}",
+            right = plural(library.size, "program"),
         )
         if (library.isEmpty())
             Text(
@@ -507,19 +329,15 @@ private fun SlotRow(
     act: (SlotView) -> Unit,
 ) {
     val line = slotLine(v.status)
-    val target =
-        when (val s = v.status) {
-            is SlotStatus.InSync -> {
-                { open(s.entry.id) }
+    val target: (() -> Unit)? =
+        when (val tap = slotTap(v)) {
+            is SlotTap.Open -> {
+                { open(tap.programId) }
             }
-            is SlotStatus.Older -> {
-                { open(s.entry.id) }
+            is SlotTap.Review -> {
+                { review(tap.slot) }
             }
-            is SlotStatus.Deleted -> null
-            is SlotStatus.ChangedOutside -> {
-                { review(v.state.slot) }
-            }
-            else -> null
+            null -> null
         }
     Row(
         Modifier.fillMaxWidth()
@@ -532,24 +350,22 @@ private fun SlotRow(
         SlotBadge(v.state.slot.number)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(slotName(v), fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            Text(line.text, fontSize = 12.sp, color = line.color)
+            Text(line.text, fontSize = 12.sp, color = toneColor(line.tone))
         }
+        val action = line.action
         when {
             line.ok -> Check()
-            line.action == "Review" ->
+            action == SlotAction.REVIEW ->
                 Text(
-                    line.action,
+                    action.label,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.primary,
                 )
-            line.action != null -> {
-                // Restore and Keep only touch the library; Update and Retry write to the unit and
-                // need the link.
-                val needsUnit = line.action == "Update" || line.action == "Retry"
-                val enabled = live || !needsUnit
+            action != null -> {
+                val enabled = live || !action.needsUnit
                 Text(
-                    line.action,
+                    action.label,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     color = if (enabled) MaterialTheme.colorScheme.primary else Muted,
@@ -592,14 +408,7 @@ private fun LibraryRow(
             Text(programMeta(e.current.rev, p.steps, start), fontSize = 12.sp, color = Muted)
         }
         StepStrip(timeline(p.steps, start), height = 24.dp)
-        val badges = slots.mapNotNull { v ->
-            when (val s = v.status) {
-                is SlotStatus.InSync -> "Slot ${v.state.slot.number}".takeIf { s.entry.id == e.id }
-                is SlotStatus.Older ->
-                    "Slot ${v.state.slot.number} has r${s.slotRev}".takeIf { s.entry.id == e.id }
-                else -> null
-            }
-        }
+        val badges = libraryBadges(e.id, slots)
         if (badges.isNotEmpty())
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 badges.forEach {
@@ -607,246 +416,6 @@ private fun LibraryRow(
                 }
             }
     }
-}
-
-/**
- * Canned library for previews, and for the emulator while [ProgramLibrary] isn't wired: start the
- * app with `--ez fake_library true` in a debug build. Actions only log.
- */
-class FakePrograms : ProgramsSource {
-    override val device = MutableStateFlow<String?>("demo")
-    override val live = MutableStateFlow(true)
-    override val errors = MutableSharedFlow<String>()
-    override val started = MutableStateFlow<StartedSlot?>(null)
-    private val day = 86_400_000L
-    private val t0 = System.currentTimeMillis()
-
-    private fun s(mode: Mode, fan: Int, c: Double, timing: Timing) =
-        Step(mode, (fan / 5) - 1, (c * 2).toInt(), timing)
-
-    private fun s(mode: Mode, fan: Int, c: Double, min: Int) =
-        s(mode, fan, c, Timing.For(min / 60, min % 60))
-
-    private val summer =
-        listOf(
-            s(Mode.TURBO, 100, 43.0, 4),
-            s(Mode.WAIT, 5, 40.0, 10),
-            s(Mode.COOL, 40, 20.0, 30),
-            s(Mode.COOL, 30, 20.0, 240),
-            s(Mode.COOL, 25, 20.0, Timing.Until(5, 30)),
-            s(Mode.EXT_HEAT, 35, 31.0, Timing.Until(6, 30)),
-        )
-
-    private fun rev(
-        id: String,
-        rev: Int,
-        p: Program,
-        ago: Long,
-        origin: Origin = Origin.EDIT,
-        note: String? = null,
-    ) = ProgramRevision(id, rev, p, t0 - ago, origin, note)
-
-    val revs =
-        mapOf(
-            "summer" to
-                listOf(
-                    rev(
-                        "summer",
-                        6,
-                        Program("Summer nights", summer),
-                        day * 2,
-                        note = "Last cool step until 05:30",
-                    ),
-                    rev(
-                        "summer",
-                        5,
-                        Program("Summer nights", summer),
-                        day * 3,
-                        note = "Fan 35 → 30 % in step 4",
-                    ),
-                    rev(
-                        "summer",
-                        4,
-                        Program("Summer nights", summer.drop(1)),
-                        day * 4,
-                        note = "Wait step added",
-                    ),
-                    rev(
-                        "summer",
-                        3,
-                        Program("Summer nights", summer.drop(2)),
-                        day * 5,
-                        Origin.OUTSIDE,
-                    ),
-                ),
-            "neutral" to
-                listOf(
-                    rev(
-                        "neutral",
-                        1,
-                        Program(
-                            "Neutral 15–25",
-                            listOf(
-                                s(Mode.TURBO, 100, 43.0, 5),
-                                s(Mode.TURBO, 100, 43.0, 4),
-                                s(Mode.WAIT, 5, 40.0, 10),
-                                s(Mode.COOL, 40, 20.0, 20),
-                                s(Mode.COOL, 25, 20.0, 390),
-                            ),
-                        ),
-                        day,
-                        Origin.TEMPLATE,
-                    )
-                ),
-            "hot" to
-                listOf(
-                    rev(
-                        "hot",
-                        1,
-                        Program(
-                            "Hot 26+",
-                            listOf(
-                                s(Mode.TURBO, 100, 43.0, 3),
-                                s(Mode.TURBO, 100, 43.0, 3),
-                                s(Mode.WAIT, 5, 40.0, 10),
-                                s(Mode.COOL, 55, 20.0, 20),
-                                s(Mode.COOL, 30, 20.0, 360),
-                            ),
-                        ),
-                        day,
-                        Origin.TEMPLATE,
-                    )
-                ),
-            "cold" to
-                listOf(
-                    rev(
-                        "cold",
-                        1,
-                        Program(
-                            "Cold, sleep + wake",
-                            listOf(
-                                s(Mode.TURBO, 100, 43.0, 5),
-                                s(Mode.TURBO, 100, 43.0, 5),
-                                s(Mode.WAIT, 5, 40.0, 10),
-                                s(Mode.COOL, 30, 20.0, 10),
-                                s(Mode.HEAT, 30, 23.5, 390),
-                                s(Mode.HEAT, 40, 35.0, 10),
-                                s(Mode.HEAT, 50, 38.0, 10),
-                                s(Mode.HEAT, 60, 40.0, 10),
-                            ),
-                        ),
-                        day,
-                        Origin.TEMPLATE,
-                    )
-                ),
-            "sleep" to
-                listOf(
-                    rev(
-                        "sleep",
-                        3,
-                        Program(
-                            "SLEEEEP",
-                            listOf(
-                                s(Mode.TURBO, 100, 43.0, 5),
-                                s(Mode.WAIT, 5, 40.0, 10),
-                                s(Mode.COOL, 55, 20.0, 20),
-                                s(Mode.COOL, 25, 20.0, 390),
-                                s(Mode.HEAT, 35, 35.0, 10),
-                            ),
-                        ),
-                        day,
-                        Origin.OUTSIDE,
-                    ),
-                    rev(
-                        "sleep",
-                        2,
-                        Program(
-                            "SLEEEEP",
-                            listOf(
-                                s(Mode.TURBO, 100, 43.0, 5),
-                                s(Mode.WAIT, 5, 40.0, 10),
-                                s(Mode.COOL, 40, 20.0, 20),
-                                s(Mode.COOL, 25, 20.0, 390),
-                            ),
-                        ),
-                        day * 5,
-                        Origin.KEPT_FROM_SLOT,
-                    ),
-                ),
-        )
-    private val entryList =
-        listOf("summer", "neutral", "hot", "cold").map {
-            LibraryEntry(it, revs.getValue(it).first())
-        } + LibraryEntry("sleep", revs.getValue("sleep")[1])
-
-    private fun e(id: String) = entryList.first { it.id == id }
-
-    private val slotList =
-        listOf(
-            SlotView(
-                SlotState(
-                    "demo",
-                    Slot.all[0],
-                    revs.getValue("summer")[2].program,
-                    t0 - 600_000,
-                    PushRecord("summer", 4, ""),
-                ),
-                SlotStatus.Older(e("summer"), 4),
-            ),
-            SlotView(
-                SlotState(
-                    "demo",
-                    Slot.all[1],
-                    e("neutral").current.program,
-                    t0 - 600_000,
-                    PushRecord("neutral", 1, ""),
-                ),
-                SlotStatus.InSync(e("neutral")),
-            ),
-            SlotView(
-                SlotState(
-                    "demo",
-                    Slot.all[2],
-                    revs.getValue("sleep")[0].program,
-                    t0 - 600_000,
-                    PushRecord("sleep", 2, ""),
-                ),
-                SlotStatus.ChangedOutside(e("sleep"), 3),
-            ),
-        )
-
-    override fun entries(): Flow<List<LibraryEntry>> = flowOf(entryList)
-
-    override fun slots(device: String): Flow<List<SlotView>> = flowOf(slotList)
-
-    override suspend fun revisions(programId: String) = revs[programId].orEmpty()
-
-    override suspend fun rankSlots(device: String, programId: String) =
-        when (programId) {
-            "summer" -> Slot.all
-            else -> listOf(1, 0, 2).map(Slot.all::get)
-        }
-
-    var log = MutableStateFlow(listOf<String>())
-
-    private fun note(s: String) = log.update { it + s }
-
-    override fun run(slot: Slot, programId: String) = note("run $programId in ${slot.number}")
-
-    override fun push(slot: Slot, programId: String) = note("push $programId to ${slot.number}")
-
-    override fun resolve(slot: Slot, resolution: Resolution) =
-        note("resolve ${slot.number} $resolution")
-
-    override fun keep(slot: Slot) = note("keep ${slot.number}")
-
-    override fun restore(programId: String) = note("restore $programId")
-
-    override fun delete(programId: String) = note("delete $programId")
-}
-
-private fun <T> MutableStateFlow<T>.update(f: (T) -> T) {
-    value = f(value)
 }
 
 @Preview(widthDp = 390, heightDp = 844, backgroundColor = 0xFF07090C, showBackground = true)

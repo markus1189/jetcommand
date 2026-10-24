@@ -6,6 +6,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -62,8 +63,9 @@ class LibraryTest {
     private val b = Program("Bravo", listOf(cool(9, 2)))
     private val foreign = Program("Official", listOf(cool(12, 3)))
 
-    private suspend fun code(code: ErrorCode, block: suspend () -> Unit) =
-        assertEquals(code, assertFailsWith<BedJetException> { block() }.code)
+    private fun refused(reason: Refusal) = LibraryOutcome.Refused(reason)
+
+    private val done = LibraryOutcome.Done(Unit)
 
     // ---- encoding ----
 
@@ -105,7 +107,7 @@ class LibraryTest {
         r.refresh()
         assertEquals(SlotStatus.InSync(alpha), r.status(0))
         assertEquals(SlotStatus.Empty, r.status(1))
-        assertEquals(SlotStatus.NotInLibrary, r.status(2))
+        assertEquals(SlotStatus.NotInLibrary(foreign), r.status(2))
     }
 
     @Test
@@ -148,7 +150,7 @@ class LibraryTest {
         r.lib.delete(alpha.id)
         r.sim.slots[0] = b
         r.refresh()
-        assertEquals(SlotStatus.NotInLibrary, r.status(0))
+        assertEquals(SlotStatus.NotInLibrary(b), r.status(0))
         assertEquals(1, r.lib.revisions(alpha.id).size)
     }
 
@@ -163,7 +165,7 @@ class LibraryTest {
         assertEquals(listOf(2, 1), revs.map { it.rev })
         assertEquals(Origin.OUTSIDE, revs[0].origin)
         assertEquals(1, r.store.entry(alpha.id)!!.current.rev)
-        assertEquals(SlotStatus.ChangedOutside(r.store.entry(alpha.id)!!, 2), r.status(0))
+        assertEquals(SlotStatus.ChangedOutside(r.store.entry(alpha.id)!!, 2, foreign), r.status(0))
     }
 
     @Test
@@ -192,7 +194,7 @@ class LibraryTest {
     @Test
     fun `take theirs makes the outside revision current`() = runTest {
         val (r, alpha) = changedOutside()
-        r.lib.resolve(DEV, slot(0), Resolution.TAKE_THEIRS)
+        assertEquals(done, r.lib.resolve(DEV, slot(0), Resolution.TAKE_THEIRS))
         val entry = r.store.entry(alpha.id)!!
         assertEquals(2, entry.current.rev)
         assertEquals(SlotStatus.InSync(entry), r.status(0))
@@ -203,7 +205,7 @@ class LibraryTest {
     @Test
     fun `keep mine shows the slot as holding an older revision`() = runTest {
         val (r, alpha) = changedOutside()
-        r.lib.resolve(DEV, slot(0), Resolution.KEEP_MINE)
+        assertEquals(done, r.lib.resolve(DEV, slot(0), Resolution.KEEP_MINE))
         val entry = r.store.entry(alpha.id)!!
         assertEquals(1, entry.current.rev)
         assertEquals(SlotStatus.Older(entry, 2), r.status(0))
@@ -214,7 +216,7 @@ class LibraryTest {
     @Test
     fun `split off creates a new entry linked to the slot`() = runTest {
         val (r, alpha) = changedOutside()
-        r.lib.resolve(DEV, slot(0), Resolution.SPLIT_OFF)
+        assertEquals(done, r.lib.resolve(DEV, slot(0), Resolution.SPLIT_OFF))
         val split = (r.status(0) as SlotStatus.InSync).entry
         assertNotEquals(alpha.id, split.id)
         assertEquals(Origin.OUTSIDE, split.current.origin)
@@ -226,9 +228,19 @@ class LibraryTest {
     fun `keep saves an unknown slot and links it`() = runTest {
         val r = rig(listOf(foreign, null, null))
         r.refresh()
-        val kept = r.lib.keep(DEV, slot(0))
+        val kept = assertIs<LibraryOutcome.Done<LibraryEntry>>(r.lib.keep(DEV, slot(0))).value
         assertEquals(Origin.KEPT_FROM_SLOT, kept.current.origin)
         assertEquals(SlotStatus.InSync(kept), r.status(0))
+    }
+
+    @Test
+    fun `resolve and keep refuse a slot that left their state`() = runTest {
+        val r = rig(listOf(a, null, null))
+        r.lib.create(a)
+        r.refresh()
+        assertEquals(refused(Refusal.STALE), r.lib.resolve(DEV, slot(0), Resolution.TAKE_THEIRS))
+        assertEquals(refused(Refusal.STALE), r.lib.keep(DEV, slot(0)))
+        assertEquals(refused(Refusal.STALE), r.lib.keep(DEV, slot(1)))
     }
 
     // ---- push ----
@@ -273,10 +285,21 @@ class LibraryTest {
         val alpha = r.lib.create(a)
         r.refresh()
         r.device.startProgram(slot(0))
-        val e = assertFailsWith<BedJetException> { r.lib.push(DEV, r.device, slot(1), alpha.id) }
-        assertEquals(ErrorCode.INVALID_PROGRAM, e.code)
-        assertTrue("Stop the program" in e.message!!)
+        assertEquals(refused(Refusal.PROGRAM_RUNNING), r.lib.push(DEV, r.device, slot(1), alpha.id))
         assertNull(r.sim.slots[1])
+    }
+
+    @Test
+    fun `push refuses a deleted or unknown program and writes nothing`() = runTest {
+        val r = rig()
+        val alpha = r.lib.create(a)
+        r.refresh()
+        r.lib.delete(alpha.id)
+        assertEquals(refused(Refusal.DELETED), r.lib.push(DEV, r.device, slot(0), alpha.id))
+        assertEquals(refused(Refusal.NOT_IN_LIBRARY), r.lib.push(DEV, r.device, slot(0), "nope"))
+        assertEquals(refused(Refusal.DELETED), r.lib.run(DEV, r.device, slot(0), alpha.id))
+        assertNull(r.sim.slots[0])
+        assertNull(r.lib.started.value)
     }
 
     @Test
@@ -286,7 +309,7 @@ class LibraryTest {
         val bravo = r.lib.create(b)
         r.refresh()
         r.sim.slots[0] = foreign
-        code(ErrorCode.SLOT_CHANGED) { r.lib.push(DEV, r.device, slot(0), bravo.id) }
+        assertEquals(refused(Refusal.SLOT_CHANGED), r.lib.push(DEV, r.device, slot(0), bravo.id))
         assertEquals(foreign, r.sim.slots[0])
         assertTrue(r.status(0) is SlotStatus.ChangedOutside)
         assertEquals(2, r.lib.revisions(alpha.id).size)
@@ -340,17 +363,17 @@ class LibraryTest {
         r.lib.push(DEV, r.device, slot(2), bravo.id)
         advanceTimeBy(1000)
         r.lib.push(DEV, r.device, slot(1), other.id)
-        assertEquals(listOf(0, 2, 1).map(::slot), r.lib.rankSlots(DEV, alpha.id))
+        assertEquals(listOf(0, 2, 1).map(::slot), rankSlots(r.views(), alpha.id))
         r.lib.push(DEV, r.device, slot(0), alpha.id)
-        assertEquals(listOf(0, 2, 1).map(::slot), r.lib.rankSlots(DEV, alpha.id))
+        assertEquals(listOf(0, 2, 1).map(::slot), rankSlots(r.views(), alpha.id))
         r.store.addRevision(alpha.id, a2, Origin.EDIT, currentTime, makeCurrent = true)
         r.lib.push(DEV, r.device, slot(1), alpha.id)
         // 1 holds current, 0 holds rev 1, 2 is in sync with Bravo.
-        assertEquals(listOf(1, 0, 2).map(::slot), r.lib.rankSlots(DEV, alpha.id))
+        assertEquals(listOf(1, 0, 2).map(::slot), rankSlots(r.views(), alpha.id))
         r.sim.slots[2] = Program("Mystery", listOf(cool(3)))
         r.refresh()
         assertTrue(r.status(2) is SlotStatus.ChangedOutside)
-        assertEquals(listOf(1, 0, 2).map(::slot), r.lib.rankSlots(DEV, alpha.id))
+        assertEquals(listOf(1, 0, 2).map(::slot), rankSlots(r.views(), alpha.id))
     }
 
     // ---- link fairness ----

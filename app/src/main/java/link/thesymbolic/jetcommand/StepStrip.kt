@@ -62,6 +62,28 @@ fun stepDetail(step: Step): String =
         else -> "fan ${fanPercent(step.fan)} % · ${formatTemp(step.temp)}"
     }
 
+/**
+ * Widths proportional to [minutes] filling [avail]; short steps (turbo, 3 min) still need to be
+ * seen, so they get [minW] and the rest scale into what's left.
+ */
+fun stripWidths(minutes: List<Int>, avail: Float, minW: Float): List<Float> {
+    val total = minutes.sum().coerceAtLeast(1)
+    val raw = minutes.map { avail * it / total }
+    var small = raw.map { it < minW }
+    // Scaling the rest down can push another step under minW: repeat until no new one does.
+    while (true) {
+        val bigSum = raw.filterIndexed { i, _ -> !small[i] }.sum().coerceAtLeast(1f)
+        val scale = (avail - small.count { it } * minW) / bigSum
+        val next = raw.mapIndexed { i, r -> small[i] || r * scale < minW }
+        if (next == small) return raw.mapIndexed { i, r -> if (small[i]) minW else r * scale }
+        small = next
+    }
+}
+
+/** The span [minute] falls in; past the end, the last. [spans] must not be empty. */
+fun spanIndexAt(spans: List<Span>, minute: Double): Int =
+    spans.indexOfFirst { minute < it.to }.takeIf { it >= 0 } ?: spans.lastIndex
+
 private val WaitStub = Color(0xFF4A515C)
 
 /**
@@ -79,15 +101,8 @@ fun StepStrip(
         if (spans.isEmpty()) return@Canvas
         val gap = 2.dp.toPx()
         val minW = 4.dp.toPx()
-        val total = spans.sumOf { it.minutes }.coerceAtLeast(1)
-        val avail = size.width - gap * (spans.size - 1)
-        // Short steps (turbo, 3 min) still need to be seen: give them minW and scale the rest into
-        // what's left.
-        val raw = spans.map { avail * it.minutes / total }
-        val small = raw.count { it < minW }
-        val bigSum = raw.filter { it >= minW }.sum().coerceAtLeast(1f)
-        val scale = (avail - small * minW) / bigSum
-        val widths = raw.map { if (it < minW) minW else it * scale }
+        val widths =
+            stripWidths(spans.map { it.minutes }, size.width - gap * (spans.size - 1), minW)
         val minH = 6.dp.toPx()
         val r = CornerRadius(3.dp.toPx())
         var x = 0f
@@ -104,7 +119,7 @@ fun StepStrip(
             x += w + gap
         }
         nowMinute?.let { m ->
-            val i = spans.indexOfFirst { m < it.to }.takeIf { it >= 0 } ?: spans.lastIndex
+            val i = spanIndexAt(spans, m)
             val s = spans[i]
             val nx =
                 xs[i] +
