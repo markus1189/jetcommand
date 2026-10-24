@@ -8,7 +8,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import java.time.LocalTime
@@ -78,8 +77,6 @@ fun stripWidths(minutes: List<Int>, avail: Float, minW: Float): List<Float> {
 fun spanIndexAt(spans: List<Span>, minute: Double): Int =
     spans.indexOfFirst { minute < it.to }.takeIf { it >= 0 } ?: spans.lastIndex
 
-private val WaitStub = Color(0xFF4A515C)
-
 /**
  * The one step strip (library rows, detail, Now): width = duration, height = target °C over 19–43,
  * a wait is a low grey stub. [nowMinute] draws the now-line, minutes since the program's start.
@@ -119,7 +116,7 @@ fun StepStrip(
                 xs[i] +
                     widths[i] *
                         ((m - s.from) / s.minutes.coerceAtLeast(1)).toFloat().coerceIn(0f, 1f)
-            drawLine(Color(0xFFE8EAED), Offset(nx, 0f), Offset(nx, size.height), 2.dp.toPx())
+            drawLine(NowLine, Offset(nx, 0f), Offset(nx, size.height), 2.dp.toPx())
         }
     }
 }

@@ -57,15 +57,6 @@ import link.thesymbolic.jetcommand.night.timeTicks
 import link.thesymbolic.jetcommand.night.timeline
 import link.thesymbolic.jetcommand.protocol.NightDetail
 
-val Amber = Color(0xFFE8B04A)
-private val HatchBase = Color(0xFF1A1F25)
-private val HatchStripe = Color(0xFF3A2E14)
-private val Room = Color(0xFFC8CDD3)
-private val Target = Color(0xFF8FB4D9)
-private val Air = Color(0xFF4C9AFF)
-private val FanColor = Color(0xFF9AB0A8)
-private val Cursor = Color(0xFFCFE2F5)
-
 /** Same width on every panel, so their plot areas line up on one time axis. */
 private val AxisWidth = 36.dp
 
@@ -192,7 +183,7 @@ private class Unobserved(
     private val top: Float = 0f,
     private val bottom: Float = 1f,
 ) : Decoration {
-    private val base = Paint().apply { color = HatchBase }
+    private val base = Paint().apply { color = ChartGrid }
     private val stripe =
         Paint().apply {
             color = HatchStripe
@@ -224,7 +215,7 @@ private class Unobserved(
 private class CursorLine(private val cursor: MutableState<Double?>) : Decoration {
     private val paint =
         Paint().apply {
-            color = Cursor
+            color = ScrubLine
             strokeWidth = 3f
         }
 
@@ -260,7 +251,7 @@ private class LaneBands(private val m: Timeline) : Decoration {
                 val l = px(x0)
                 canvas.drawRect(Rect(l, y0, maxOf(px(x1), l + minPx), y1), paint)
             }
-            bar(0.0, m.maxX, b.top, linkBottom, Target)
+            bar(0.0, m.maxX, b.top, linkBottom, TargetLine)
             m.drops.forEach { bar(it.start, it.endInclusive, b.top, linkBottom, Amber, minPx = 3f) }
             m.modes.forEach { (r, mode) ->
                 bar(r.start, r.endInclusive, modeTop, b.bottom, modeColor(mode))
@@ -395,7 +386,7 @@ private fun TempChart(
             "grid" to invisibleLine(),
             "target" to
                 LineCartesianLayer.rememberLine(
-                    fill = remember { LineCartesianLayer.LineFill.single(Fill(Target)) },
+                    fill = remember { LineCartesianLayer.LineFill.single(Fill(TargetLine)) },
                     stroke =
                         LineCartesianLayer.LineStroke.Dashed(
                             thickness = 2.dp,
@@ -406,13 +397,13 @@ private fun TempChart(
                 ),
             "air" to
                 LineCartesianLayer.rememberLine(
-                    fill = remember { LineCartesianLayer.LineFill.single(Fill(Air)) },
+                    fill = remember { LineCartesianLayer.LineFill.single(Fill(AirLine)) },
                     stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 1.5.dp),
                     interpolator = remember { GapInterpolator(step = false) },
                 ),
             "room" to
                 LineCartesianLayer.rememberLine(
-                    fill = remember { LineCartesianLayer.LineFill.single(Fill(Room)) },
+                    fill = remember { LineCartesianLayer.LineFill.single(Fill(RoomLine)) },
                     stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 2.dp),
                     interpolator = remember { GapInterpolator(step = false) },
                 ),
@@ -455,14 +446,14 @@ private fun FanChart(
     decorations: List<Decoration>,
 ) {
     val dot = remember {
-        LineCartesianLayer.Point(ShapeComponent(Fill(Room), CircleShape), size = DotSize)
+        LineCartesianLayer.Point(ShapeComponent(Fill(RoomLine), CircleShape), size = DotSize)
     }
     val lines =
         mapOf(
             "grid" to invisibleLine(),
             "fan" to
                 LineCartesianLayer.rememberLine(
-                    fill = remember { LineCartesianLayer.LineFill.single(Fill(FanColor)) },
+                    fill = remember { LineCartesianLayer.LineFill.single(Fill(Sage)) },
                     stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 2.dp),
                     interpolator = remember { GapInterpolator(step = true) },
                 ),

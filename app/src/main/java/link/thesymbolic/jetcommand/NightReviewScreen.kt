@@ -55,9 +55,6 @@ import link.thesymbolic.jetcommand.protocol.NightDetail
 import link.thesymbolic.jetcommand.protocol.NightSummary
 import link.thesymbolic.jetcommand.protocol.NightsSource
 
-private val CalloutBg = Color(0xFF2A2310)
-private val CalloutText = Color(0xFFD9CBA8)
-
 @Composable
 fun NightReviewScreen(
     source: NightsSource,
@@ -133,7 +130,7 @@ private fun Callout(title: String, body: String) {
     Column(
         Modifier.fillMaxWidth()
             .background(CalloutBg, RoundedCornerShape(16.dp))
-            .border(1.dp, ChipWarnBorder, RoundedCornerShape(16.dp))
+            .border(1.dp, AmberLine, RoundedCornerShape(16.dp))
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -225,9 +222,9 @@ private fun Legend() {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Text(
         buildAnnotatedString {
-            withStyle(SpanStyle(color = Color(0xFFC8CDD3))) { append("— room   ") }
-            withStyle(SpanStyle(color = Color(0xFF8FB4D9))) { append("- - target   ") }
-            withStyle(SpanStyle(color = Color(0xFF4C9AFF))) { append("— air out   ") }
+            withStyle(SpanStyle(color = RoomLine)) { append("— room   ") }
+            withStyle(SpanStyle(color = TargetLine)) { append("- - target   ") }
+            withStyle(SpanStyle(color = AirLine)) { append("— air out   ") }
             withStyle(SpanStyle(color = muted)) { append("● press   ") }
             withStyle(SpanStyle(color = Amber)) { append("▮ drop   ") }
             withStyle(SpanStyle(color = muted)) { append("▨ not recorded") }

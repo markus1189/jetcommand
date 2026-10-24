@@ -40,8 +40,6 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
-val DeleteFg = Color(0xFFF0A070)
-private val DeleteBg = Color(0xFF2A1D14)
 private val PanelWidth = 88.dp
 
 private enum class Reveal {
@@ -81,7 +79,7 @@ fun SwipeToDelete(
     LaunchedEffect(isOpen) {
         if (!isOpen && state.settledValue == Reveal.Open) state.animateTo(Reveal.Closed)
     }
-    Box(modifier.clip(RoundedCornerShape(16.dp)).background(DeleteBg)) {
+    Box(modifier.clip(RoundedCornerShape(16.dp)).background(WarmBg)) {
         Column(
             Modifier.matchParentSize()
                 .wrapContentWidth(Alignment.End)
@@ -92,7 +90,7 @@ fun SwipeToDelete(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             TrashIcon(22.dp)
-            Text("Delete", fontSize = 12.sp, color = DeleteFg)
+            Text("Delete", fontSize = 12.sp, color = Warm)
         }
         content(
             Modifier.offset { IntOffset(state.offset.takeIf { !it.isNaN() }?.roundToInt() ?: 0, 0) }
@@ -108,7 +106,7 @@ fun SwipeToDelete(
 
 /** The design's trash glyph (24-unit viewBox), drawn so the app needs no icon dependency. */
 @Composable
-fun TrashIcon(size: Dp, modifier: Modifier = Modifier, color: Color = DeleteFg) =
+fun TrashIcon(size: Dp, modifier: Modifier = Modifier, color: Color = Warm) =
     Canvas(modifier.size(size)) {
         val u = this.size.width / 24f
         val p =
