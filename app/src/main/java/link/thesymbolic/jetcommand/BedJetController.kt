@@ -44,6 +44,7 @@ import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.NightEvent
 import link.thesymbolic.jetcommand.protocol.NightLogStore
 import link.thesymbolic.jetcommand.protocol.NightRecorder
+import link.thesymbolic.jetcommand.protocol.ProcessEvent
 import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 import link.thesymbolic.jetcommand.protocol.SimTransport
@@ -119,7 +120,7 @@ class BedJetController(
     fun nightLog(limit: Int = 50): Flow<List<NightEvent>> = store.recent(limit)
 
     fun lifecycle(
-        event: link.thesymbolic.jetcommand.protocol.ProcessEvent,
+        event: ProcessEvent,
         at: Long = System.currentTimeMillis(),
     ) {
         scope.launch { store.append(NightEvent.process(at, event)) }
@@ -127,7 +128,7 @@ class BedJetController(
 
     /** For the service's notes; the text is stored as given. */
     fun lifecycle(detail: String, at: Long = System.currentTimeMillis()) =
-        lifecycle(link.thesymbolic.jetcommand.protocol.ProcessEvent.parse(detail), at)
+        lifecycle(ProcessEvent.parse(detail), at)
 
     private var switching: Job? = null
     private var autoConnectTried = false
