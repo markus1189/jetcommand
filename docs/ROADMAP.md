@@ -37,17 +37,16 @@ appears.
 | 4 | `GattTransport`, scanner, permissions | done, works on a real unit |
 | 5 | Full-stack debug screen, Demo BedJet | done |
 | 6 | Real-device test (checklist below) | done (API 31/32 path untested) |
-| 7 | Foreground service owning the link + night log (Room) | done on the emulator; overnight on a real unit open |
-| 8 | Real UI: status/controls, program editor + library, night log + review | iteration 1 (night loop: Now screen, lock-screen notification controls, bottom nav, dark theme) on the user's phone 2026-10-22; night 1: service SIGKILLed at 22:55 as FGS (likely Samsung battery optimisation), night 2 pending; then a design round; nights tab on the emulator 2026-10-23; program library (slot sync, picker, conflicts, step strip) on the emulator 2026-10-23; editor open |
+| 7 | Foreground service owning the link + night log (Room) | done; night 2 (2026-10-23/24, battery Unrestricted) on the user's phone: no kill, a sample every minute 22:01–07:23, two drops reconnected in 4 s |
+| 8 | Real UI: status/controls, program editor + library, night log + review | iteration 1 (night loop: Now screen, lock-screen notification controls, bottom nav, dark theme) on the user's phone 2026-10-22; night 1: service SIGKILLed at 22:55 as FGS (likely Samsung battery optimisation), night 2 survived; then a design round; nights tab on the emulator 2026-10-23; program library (slot sync, picker, conflicts, step strip) on the emulator 2026-10-23; editor open |
 | 9 | Notification actions → exact-alarm program chaining → morning review (WorkManager) → CompanionDeviceManager auto-connect → QS tile/widget → Health Connect | |
 | 10 | ~~Import of the PWA's backup text format~~ | dropped 2026-10-23 |
 
 ## Next
 
-1. Night 2 (battery now Unrestricted): did the service survive? Check `dumpsys activity exit-info link.thesymbolic.jetcommand` first (logcat rotates past a kill by morning), then the night log (`run-as link.thesymbolic.jetcommand`, `databases/night-log.db` plus `-wal`): `PROCESS` rows, drops, reconnects; reconnect gaps should now stay under ~30 s (wait capped at 10 s).
-2. If the service died again: START_STICKY plus a restart path, or CompanionDeviceManager.
-3. Design round on iteration 1 with the user's notes from the nights.
-4. Nights screen landed (list, review, Vico timeline with scrubbing; design on https://claude.ai/artifact/Xe8NsmhAqKkYV9Zxv91CQo): check it against night 2's real data. Vico joins points across gaps unless `GapInterpolator` lifts the pen; there is no dual y-axis, so °C and fan are stacked panels.
+1. Checking a night: `dumpsys activity exit-info link.thesymbolic.jetcommand` first (logcat rotates past a kill by morning), then the night log (`run-as link.thesymbolic.jetcommand`, `databases/night-log.db` plus `-wal`).
+2. Design round on iteration 1 with the user's notes from the nights.
+3. Nights screen landed (list, review, Vico timeline with scrubbing; design on https://claude.ai/artifact/Xe8NsmhAqKkYV9Zxv91CQo): check it against night 2's real data. Vico joins points across gaps unless `GapInterpolator` lifts the pen; there is no dual y-axis, so °C and fan are stacked panels.
 
 
 ## Program library (design 2026-10-23)
@@ -105,3 +104,12 @@ Record results here (date, phone, Android version) when run.
 - "Programs" = "Memories" names is the unit (`BEDJET_PROTOCOL.md:109`), not a bug.
 - Open: 10 (no API 31/32 phone).
 - Lesson: a scripted tap hit a mode button after read results shifted the layout. Keep commands that change the bed apart from reads.
+
+### 2026-10-24: same phone, after the FP refactor (`8aa851a`), reads only
+
+- 3: auto-connect to the remembered unit, Ready; MTU 500, replies from 2006.
+- 4: extra 0.1–1.9 s old over 24 s; remainder read every ~2.25 s.
+- 6: name, memories, program names and all three slots on connect; firmware unchanged. Programs tab: all three slots "In sync" with the library, so the refactored fingerprint matches the stored one.
+- 8 (Bluetooth off/on): lost with status 22, attempts 2–4 while off, Ready 4.3 s after Bluetooth returned (10-22: ~13 s); no 133.
+- 9: three rotations, 30 s on the home screen with the service in the foreground: Ready, same pid, no drop.
+- Open: 5 and 7 (writes, need the user's go), 11, 12, 13.
