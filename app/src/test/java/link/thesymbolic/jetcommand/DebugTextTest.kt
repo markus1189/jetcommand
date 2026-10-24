@@ -72,6 +72,11 @@ class DebugTextTest {
     }
 
     @Test
+    fun `an extra newer than the screen's clock tick is 0 s old, not negative`() {
+        assertEquals("Program step -   extra 0.0 s old", statusLines(status(), -200).last())
+    }
+
+    @Test
     fun `program names mark empty slots`() {
         assertEquals("A | - | C", programNamesText(listOf("A", null, "C")))
         assertEquals("", programNamesText(emptyList()))

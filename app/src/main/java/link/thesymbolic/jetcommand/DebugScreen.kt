@@ -297,12 +297,17 @@ internal fun debugLinkLine(link: LinkState): String =
                 if (link.gaveUp) "Disconnected (gave up)" else "Disconnected"
         }
 
-/** [extraAgeMs]: since the last fresh extra read, null if none this stack. */
+/**
+ * [extraAgeMs]: since the last fresh extra read, null if none this stack. Up to 250 ms negative:
+ * the screen's clock ticks slower than extras arrive.
+ */
 internal fun statusLines(st: Status?, extraAgeMs: Long?): List<String> {
     if (st == null) return listOf("Status: -")
     val x = st.extra
     val r = st.remainingSeconds
-    val extraAge = extraAgeMs?.let { "%.1f s old".format(Locale.ROOT, it / 1000.0) } ?: "never read"
+    val extraAge =
+        extraAgeMs?.let { "%.1f s old".format(Locale.ROOT, it.coerceAtLeast(0) / 1000.0) }
+            ?: "never read"
     val notification =
         x?.notification
             ?.takeIf { it != 0 }
