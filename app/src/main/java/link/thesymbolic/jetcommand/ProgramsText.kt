@@ -102,7 +102,7 @@ fun programMeta(rev: Int?, steps: List<Step>, start: LocalTime): String {
 /** A library row's pills: the slots holding [entryId], with the revision when it's older. */
 fun libraryBadges(entryId: String, slots: List<SlotView>): List<String> = slots.mapNotNull { v ->
     when (val s = v.status) {
-        is SlotStatus.InSync -> "Slot ${v.state.slot.number}".takeIf { s.entry.id == entryId }
+        is SlotStatus.InSync -> "Slot ${v.state.slot.number}".takeIf { s.holdsCurrent(entryId) }
         is SlotStatus.Older ->
             "Slot ${v.state.slot.number} has r${s.slotRev}".takeIf { s.entry.id == entryId }
         else -> null
@@ -146,7 +146,7 @@ data class PickNote(val text: String, val warn: Boolean = false)
 fun pickNote(v: SlotView, entry: LibraryEntry): PickNote =
     when (val s = v.status) {
         is SlotStatus.InSync ->
-            if (s.entry.id == entry.id) PickNote("Already loaded · runs as it is")
+            if (s.holdsCurrent(entry.id)) PickNote("Already loaded · runs as it is")
             else PickNote("In sync · stays in your library")
         is SlotStatus.Older ->
             if (s.entry.id == entry.id) PickNote("Older version · r${s.slotRev} stays in history")
@@ -168,7 +168,7 @@ fun optionTitle(v: SlotView): String =
 data class PickerText(val title: String, val sub: String, val button: String, val caption: String)
 
 fun pickerText(entry: LibraryEntry, slots: List<SlotView>, picked: Slot, run: Boolean): PickerText {
-    fun holds(v: SlotView?) = (v?.status as? SlotStatus.InSync)?.entry?.id == entry.id
+    fun holds(v: SlotView?) = v?.status?.holdsCurrent(entry.id) == true
     val older = slots.firstOrNull { (it.status as? SlotStatus.Older)?.entry?.id == entry.id }
     val pickedHolds = holds(slots.getOrNull(picked.index))
     val n = picked.number

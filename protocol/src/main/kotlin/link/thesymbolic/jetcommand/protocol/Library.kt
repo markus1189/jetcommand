@@ -80,6 +80,9 @@ data class SlotState(
 )
 
 sealed interface SlotStatus {
+    /** The slot holds the current revision of library entry [programId]. */
+    fun holdsCurrent(programId: String) = this is InSync && entry.id == programId
+
     data object Unknown : SlotStatus
 
     data object Empty : SlotStatus
@@ -205,7 +208,7 @@ fun rankSlots(views: List<SlotView>, programId: String): List<Slot> {
     fun rank(v: SlotView): Pair<Int, Long> =
         when (val s = v.status) {
             is SlotStatus.InSync ->
-                if (s.entry.id == programId) 0 to 0L else 3 to (v.state.pushed?.at ?: 0L)
+                if (s.holdsCurrent(programId)) 0 to 0L else 3 to (v.state.pushed?.at ?: 0L)
             is SlotStatus.Older -> if (s.entry.id == programId) 1 to 0L else 4 to 0L
             SlotStatus.Empty -> 2 to 0L
             else -> 4 to 0L
@@ -359,7 +362,7 @@ class ProgramLibrary(
         programId: String,
     ): LibraryOutcome<Unit> {
         val status = slotStatus(store.slot(device, slot) ?: blankSlot(device, slot), snapshot())
-        if (!(status is SlotStatus.InSync && status.entry.id == programId)) {
+        if (!status.holdsCurrent(programId)) {
             val pushed = push(device, bedJet, slot, programId)
             if (pushed is LibraryOutcome.Refused) return pushed
         }

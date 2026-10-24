@@ -148,6 +148,22 @@ class SlotStatusTest {
         }
 
     @Test
+    fun `holds current only in sync with that entry`() {
+        listOf(
+                SlotStatus.InSync(alpha) to "alpha" to true,
+                SlotStatus.InSync(alpha) to "gone" to false,
+                SlotStatus.Older(alpha, 1) to "alpha" to false,
+                SlotStatus.ChangedOutside(alpha, 2, p1) to "alpha" to false,
+                SlotStatus.Deleted(gone) to "gone" to false,
+                SlotStatus.Empty to "alpha" to false,
+            )
+            .forEach { (case, holds) ->
+                val (status, id) = case
+                assertEquals(holds, status.holdsCurrent(id), "$status / $id")
+            }
+    }
+
+    @Test
     fun `InSync exactly when the slot holds its linked live entry's current revision`() = runTest {
         checkAll(catalogs, states) { catalog, state ->
             val status = slotStatus(state, catalog)
