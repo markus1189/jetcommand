@@ -103,120 +103,188 @@ class NightRecorder(
 ) {
     private val queue = Channel<NightEvent>(Channel.UNLIMITED)
     private val sampleQueue = Channel<NightSample>(Channel.UNLIMITED)
-    private var nextSampleAt = Long.MIN_VALUE
-    private var everReady = false
-    private var userDisconnect = false
-    private var lostAt: Long? = null
-    private var mode: Mode? = null
-    private var target: Int? = null
-    private var fan: Int? = null
-    private var step: Int? = null
-    private var notification: Int? = null
-    private var shutdown = 0
+    private var state = RecorderState(link.state.value)
 
     init {
         // One writer keeps the store in event order even when append suspends on another thread.
         scope.launch { for (e in queue) store.append(e) }
         scope.launch { for (s in sampleQueue) store.appendSample(s) }
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            var previous: LinkState = link.state.value
-            link.state.collect { state ->
-                onState(previous, state)
-                previous = state
+            link.state.collect {
+                feed(
+                    RecorderInput.Link(
+                        clock(),
+                        it,
+                        link.deviceName,
+                        link.reconnectAttempt,
+                        link.lastDropReason,
+                    )
+                )
             }
         }
-        scope.launch(start = CoroutineStart.UNDISPATCHED) { link.statuses.collect(::onStatus) }
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            link.statuses.collect { feed(RecorderInput.Update(clock(), it)) }
+        }
     }
 
     /** Call before [BedJetLink.disconnect], so the drop is recorded as asked for, not lost. */
-    fun userDisconnecting() {
-        userDisconnect = true
-    }
+    fun userDisconnecting() = feed(RecorderInput.UserDisconnecting)
 
-    fun command(bytes: ByteArray) =
-        record(NightEvent.Kind.COMMAND, "${describeCommand(bytes)} (${bytes.toHex()})")
-
-    private fun onState(previous: LinkState, state: LinkState) {
-        if (state == LinkState.Ready && previous != LinkState.Ready) {
-            val since = lostAt
-            if (everReady && since != null)
-                record(
-                    NightEvent.Kind.RECONNECTED,
-                    "after ${(clock() - since) / 1000} s",
-                    link.reconnectAttempt,
-                )
-            else record(NightEvent.Kind.CONNECTED, link.deviceName ?: "BedJet")
-            everReady = true
-            lostAt = null
-            userDisconnect = false
-        } else if (previous == LinkState.Ready && state != LinkState.Ready) {
-            if (userDisconnect) {
-                record(NightEvent.Kind.DISCONNECTED, "by the app")
-                everReady = false
-            } else {
-                lostAt = clock()
-                record(NightEvent.Kind.LOST, link.lastDropReason ?: "unknown")
-            }
-        }
-        if (state is LinkState.Disconnected && state.gaveUp)
-            record(NightEvent.Kind.GAVE_UP, "reconnect stopped")
-    }
-
-    private fun onStatus(update: StatusUpdate) {
-        val s = update.status
-        val now = clock()
-        if (now >= nextSampleAt) {
-            sampleQueue.trySend(
-                NightSample(now, s.ambientTemp, s.actualTemp, s.targetTemp, s.fanStep, s.mode)
+    fun command(bytes: ByteArray) {
+        queue.trySend(
+            NightEvent(
+                clock(),
+                NightEvent.Kind.COMMAND,
+                "${describeCommand(bytes)} (${bytes.toHex()})",
             )
-            nextSampleAt = now + sampleMs
-        }
-        recordSettings(s)
-        val x = s.extra ?: return
-        if (update.extraFresh) recordExtra(x)
+        )
     }
 
-    private fun recordSettings(s: Status) {
-        if (s.mode != mode)
-            record(NightEvent.Kind.MODE, s.mode.label, s.mode.ordinal).also { mode = s.mode }
-        if (s.targetTemp != target)
-            record(NightEvent.Kind.TARGET, formatTemp(s.targetTemp), s.targetTemp).also {
-                target = s.targetTemp
+    private fun feed(input: RecorderInput) {
+        val (next, out) = state.next(input, sampleMs)
+        state = next
+        out.forEach {
+            when (it) {
+                is RecorderOutput.Event -> queue.trySend(it.event)
+                is RecorderOutput.Sample -> sampleQueue.trySend(it.sample)
             }
-        if (s.fanStep != fan)
-            record(NightEvent.Kind.FAN, "${s.fanPercent}%", s.fanStep).also { fan = s.fanStep }
-        if (s.shutdownReason != shutdown) {
-            shutdown = s.shutdownReason
-            if (shutdown != 0) record(NightEvent.Kind.SHUTDOWN, "reason $shutdown", shutdown)
         }
+    }
+}
+
+/**
+ * What [NightRecorder] remembers between inputs. [link] is the last state seen; [lostAt] is set
+ * while a loss awaits its reconnect; the settings are the last values recorded, null before the
+ * first status.
+ */
+internal data class RecorderState(
+    val link: LinkState,
+    val nextSampleAt: Long? = null,
+    val everReady: Boolean = false,
+    val userDisconnect: Boolean = false,
+    val lostAt: Long? = null,
+    val mode: Mode? = null,
+    val target: Int? = null,
+    val fan: Int? = null,
+    val step: Int? = null,
+    val notification: Int? = null,
+    val shutdown: Int = 0,
+)
+
+internal sealed interface RecorderInput {
+    /** The link's name, attempt and drop reason as they read when [state] arrived. */
+    data class Link(
+        val at: Long,
+        val state: LinkState,
+        val deviceName: String?,
+        val reconnectAttempt: Int,
+        val dropReason: String?,
+    ) : RecorderInput
+
+    data class Update(val at: Long, val update: StatusUpdate) : RecorderInput
+
+    data object UserDisconnecting : RecorderInput
+}
+
+internal sealed interface RecorderOutput {
+    data class Event(val event: NightEvent) : RecorderOutput
+
+    data class Sample(val sample: NightSample) : RecorderOutput
+}
+
+internal fun RecorderState.next(
+    input: RecorderInput,
+    sampleMs: Long,
+): Pair<RecorderState, List<RecorderOutput>> =
+    when (input) {
+        RecorderInput.UserDisconnecting -> copy(userDisconnect = true) to emptyList()
+        is RecorderInput.Link -> onLink(input)
+        is RecorderInput.Update -> onUpdate(input, sampleMs)
     }
 
-    private fun recordExtra(x: StatusExtra) {
-        if (x.programStep != step) {
-            if (x.programStep != 0 || step != null) {
-                record(
-                    NightEvent.Kind.PROGRAM_STEP,
-                    if (x.programStep == 0) "none" else "step ${x.programStep}",
-                    x.programStep,
-                )
-            }
-            step = x.programStep
-        }
-        if (x.notification != notification) {
-            if (x.notification != 0 || notification != null) {
-                record(
-                    NightEvent.Kind.NOTIFICATION,
-                    Notification.TEXT[x.notification] ?: "code ${x.notification}",
-                    x.notification,
-                )
-            }
-            notification = x.notification
-        }
-    }
+private class Outputs(private val at: Long) {
+    val list = mutableListOf<RecorderOutput>()
 
-    private fun record(kind: NightEvent.Kind, detail: String, value: Int? = null) {
-        queue.trySend(NightEvent(clock(), kind, detail, value))
+    fun event(kind: NightEvent.Kind, detail: String, value: Int? = null) {
+        list += RecorderOutput.Event(NightEvent(at, kind, detail, value))
     }
+}
+
+private fun RecorderState.onLink(i: RecorderInput.Link): Pair<RecorderState, List<RecorderOutput>> {
+    val out = Outputs(i.at)
+    var s = copy(link = i.state)
+    if (i.state == LinkState.Ready && link != LinkState.Ready) {
+        if (everReady && lostAt != null)
+            out.event(
+                NightEvent.Kind.RECONNECTED,
+                "after ${(i.at - lostAt) / 1000} s",
+                i.reconnectAttempt,
+            )
+        else out.event(NightEvent.Kind.CONNECTED, i.deviceName ?: "BedJet")
+        s = s.copy(everReady = true, lostAt = null, userDisconnect = false)
+    } else if (link == LinkState.Ready && i.state != LinkState.Ready) {
+        if (userDisconnect) {
+            out.event(NightEvent.Kind.DISCONNECTED, "by the app")
+            s = s.copy(everReady = false)
+        } else {
+            out.event(NightEvent.Kind.LOST, i.dropReason ?: "unknown")
+            s = s.copy(lostAt = i.at)
+        }
+    }
+    if (i.state is LinkState.Disconnected && i.state.gaveUp)
+        out.event(NightEvent.Kind.GAVE_UP, "reconnect stopped")
+    return s to out.list
+}
+
+private fun RecorderState.onUpdate(
+    i: RecorderInput.Update,
+    sampleMs: Long,
+): Pair<RecorderState, List<RecorderOutput>> {
+    val out = Outputs(i.at)
+    val st = i.update.status
+    val sampled = nextSampleAt == null || i.at >= nextSampleAt
+    if (sampled)
+        out.list +=
+            RecorderOutput.Sample(
+                NightSample(i.at, st.ambientTemp, st.actualTemp, st.targetTemp, st.fanStep, st.mode)
+            )
+    out.settings(this, st)
+    val x = st.extra?.takeIf { i.update.extraFresh }
+    x?.let { out.extra(this, it) }
+    return copy(
+        nextSampleAt = if (sampled) i.at + sampleMs else nextSampleAt,
+        mode = st.mode,
+        target = st.targetTemp,
+        fan = st.fanStep,
+        shutdown = st.shutdownReason,
+        step = x?.programStep ?: step,
+        notification = x?.notification ?: notification,
+    ) to out.list
+}
+
+private fun Outputs.settings(was: RecorderState, st: Status) {
+    if (st.mode != was.mode) event(NightEvent.Kind.MODE, st.mode.label, st.mode.ordinal)
+    if (st.targetTemp != was.target)
+        event(NightEvent.Kind.TARGET, formatTemp(st.targetTemp), st.targetTemp)
+    if (st.fanStep != was.fan) event(NightEvent.Kind.FAN, "${st.fanPercent}%", st.fanStep)
+    if (st.shutdownReason != was.shutdown && st.shutdownReason != 0)
+        event(NightEvent.Kind.SHUTDOWN, "reason ${st.shutdownReason}", st.shutdownReason)
+}
+
+// A first reading of 0 (no program, no notification) is the resting state, not a change.
+private fun Outputs.extra(was: RecorderState, x: StatusExtra) {
+    if (x.programStep != was.step && (x.programStep != 0 || was.step != null))
+        event(
+            NightEvent.Kind.PROGRAM_STEP,
+            if (x.programStep == 0) "none" else "step ${x.programStep}",
+            x.programStep,
+        )
+    if (x.notification != was.notification && (x.notification != 0 || was.notification != null))
+        event(
+            NightEvent.Kind.NOTIFICATION,
+            Notification.TEXT[x.notification] ?: "code ${x.notification}",
+            x.notification,
+        )
 }
 
 private val BUTTON_NAMES =
