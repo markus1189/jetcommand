@@ -259,9 +259,8 @@ private fun describeButton(code: Int): String =
             in Button.MEMORY_1..Button.MEMORY_3 -> "recall memory ${code - Button.MEMORY_1 + 1}"
             in Button.SAVE_MEMORY_1..Button.SAVE_MEMORY_3 ->
                 "save memory ${code - Button.SAVE_MEMORY_1 + 1}"
-            in Button.START_PROGRAM until Button.START_PROGRAM + Limits.SLOTS ->
-                "start program ${code - Button.START_PROGRAM}"
-            in Button.DELETE_PROGRAM until Button.DELETE_PROGRAM + Limits.SLOTS ->
-                "delete program ${code - Button.DELETE_PROGRAM}"
-            else -> "button"
+            else ->
+                Button.slotOfStartProgram(code)?.let { "start program ${it.index}" }
+                    ?: Button.slotOfDeleteProgram(code)?.let { "delete program ${it.index}" }
+                    ?: "button"
         }

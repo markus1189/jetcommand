@@ -65,6 +65,7 @@ import link.thesymbolic.jetcommand.protocol.Button as Btn
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Program
+import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.Status
 import link.thesymbolic.jetcommand.protocol.fanPercent
 import link.thesymbolic.jetcommand.protocol.formatTemp
@@ -230,7 +231,7 @@ private fun ColumnScope.Connected(
     setMode: (Mode) -> Unit,
     setTemperature: (Int) -> Unit,
     setFan: (Int) -> Unit,
-    startProgram: (Int) -> Unit,
+    startProgram: (Slot) -> Unit,
 ) {
     LaunchedEffect(Unit) { loadPrograms() }
 
@@ -348,8 +349,8 @@ private fun ColumnScope.ValueFields(
 }
 
 @Composable
-private fun ColumnScope.ProgramButtons(names: List<String?>, start: (Int) -> Unit) {
-    val programs = names.withIndex().filter { it.value != null }
+private fun ColumnScope.ProgramButtons(names: List<String?>, start: (Slot) -> Unit) {
+    val programs = Slot.all.zip(names).mapNotNull { (slot, name) -> name?.let { slot to it } }
     if (programs.isNotEmpty()) {
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -364,7 +365,7 @@ private fun ColumnScope.ProgramButtons(names: List<String?>, start: (Int) -> Uni
                     verticalArrangement = Arrangement.Center,
                 ) {
                     Text(
-                        prettyName(name!!),
+                        prettyName(name),
                         fontSize = 15.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -404,7 +405,7 @@ private fun runningProgram(source: ProgramsSource, step: Int): Program? {
     started
         ?.takeIf { it.device == device }
         ?.let { s ->
-            fits(slots.getOrNull(s.slot)?.state?.program)?.let {
+            fits(slots.getOrNull(s.slot.index)?.state?.program)?.let {
                 return it
             }
         }

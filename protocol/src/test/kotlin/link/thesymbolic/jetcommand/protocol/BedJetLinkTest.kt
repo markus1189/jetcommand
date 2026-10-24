@@ -55,14 +55,8 @@ class BedJetLinkTest {
 
     private suspend fun TestScope.connected(rig: Rig) = rig.also { it.link.connect() }
 
-    private fun step(
-        mode: Mode,
-        fan: Int,
-        temp: Int,
-        hours: Int,
-        minutes: Int,
-        clock: Boolean = false,
-    ) = Step(mode, fan, temp, hours, minutes, clock)
+    private fun step(mode: Mode, fan: Int, temp: Int, hours: Int, minutes: Int) =
+        Step(mode, fan, temp, Timing.For(hours, minutes))
 
     private suspend fun code(code: ErrorCode, block: suspend () -> Unit) =
         assertEquals(code, assertFailsWith<BedJetException> { block() }.code)
@@ -260,7 +254,7 @@ class BedJetLinkTest {
         assertEquals(22, replies[Characteristic.REPLY]!!.size)
         assertNull(replies[Characteristic.REPLY_ALT])
         // 5 steps don't fit a 22-byte read.
-        code(ErrorCode.BAD_RESPONSE) { r.device.programSteps(0) }
+        code(ErrorCode.BAD_RESPONSE) { r.device.programSteps(slot(0)) }
         assertEquals(
             1,
             r.reads(Characteristic.REPLY_ALT),
@@ -272,7 +266,7 @@ class BedJetLinkTest {
     fun `without 2006 but with a large MTU, store works through 2005`() = runTest {
         val r = connected(rig(mtu = 247, hasReplyAlt = false))
         val steps = List(11) { step(Mode.COOL, it, 44, 0, 20 + it) }
-        assertEquals(Program("Long", steps), r.device.store(Program("Long", steps), 2))
+        assertEquals(Program("Long", steps), r.device.store(Program("Long", steps), slot(2)))
     }
 
     @Test
@@ -368,7 +362,7 @@ class BedJetLinkTest {
             )
         val steps =
             List(11) { i -> step(if (i % 2 == 1) Mode.HEAT else Mode.COOL, i, 50, 0, 20 + i) }
-        assertEquals("Deep Sleep", r.device.store(Program("Deep Sleep", steps), 1).name)
+        assertEquals("Deep Sleep", r.device.store(Program("Deep Sleep", steps), slot(1)).name)
         assertEquals(
             listOf(
                 Program("old", listOf(step(Mode.DRY, 1, 50, 1, 0))),
@@ -385,7 +379,7 @@ class BedJetLinkTest {
         val r = connected(rig())
         val e =
             assertFailsWith<BedJetException> {
-                r.device.store(Program("too hot", listOf(step(Mode.HEAT, 19, 80, 3, 0))), 0)
+                r.device.store(Program("too hot", listOf(step(Mode.HEAT, 19, 80, 3, 0))), slot(0))
             }
         assertEquals(ErrorCode.STEP_TOO_LONG, e.code)
         assertTrue(e.message!!.startsWith("Step 1"), e.message)
@@ -398,14 +392,14 @@ class BedJetLinkTest {
         val r = connected(rig())
         val steps = List(12) { step(Mode.COOL, 5, 44, 0, 30) }
         r.transport.inject(Fault.LoseLink) {
-            it is Op.Write && it.bytes.u(1) == Query.fragment(0, 1)
+            it is Op.Write && it.bytes.u(1) == Query.fragment(slot(0), 1)
         }
-        code(ErrorCode.NOT_CONNECTED) { r.device.store(Program("Night", steps), 0) }
+        code(ErrorCode.NOT_CONNECTED) { r.device.store(Program("Night", steps), slot(0)) }
         assertEquals(LinkState.Connecting(1), r.link.state.value)
-        code(ErrorCode.NOT_CONNECTED) { r.device.store(Program("Night", steps), 0) }
+        code(ErrorCode.NOT_CONNECTED) { r.device.store(Program("Night", steps), slot(0)) }
         advanceTimeBy(3_001)
         assertEquals(LinkState.Ready, r.link.state.value)
-        assertEquals(Program("Night", steps), r.device.store(Program("Night", steps), 0))
+        assertEquals(Program("Night", steps), r.device.store(Program("Night", steps), slot(0)))
     }
 
     @Test
@@ -413,10 +407,10 @@ class BedJetLinkTest {
         val r = connected(rig(time = LocalTime.of(22, 15)))
         r.device.store(
             Program("Night", listOf(step(Mode.COOL, 5, 44, 2, 0), step(Mode.WAIT, 19, 80, 0, 30))),
-            0,
+            slot(0),
         )
         assertNull(r.sim.clock)
-        val status = r.device.startProgram(0)
+        val status = r.device.startProgram(slot(0))
         assertEquals(
             22 * 60 + 15,
             r.sim.clock!! / 60,
@@ -456,7 +450,7 @@ class BedJetLinkTest {
         backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
             r.device.notifications.collect { shown += it.code }
         }
-        val e = assertFailsWith<BedJetException> { r.device.startProgram(0) }
+        val e = assertFailsWith<BedJetException> { r.device.startProgram(slot(0)) }
         assertEquals(ErrorCode.STEP_TOO_LONG, e.code)
         assertEquals(Notification.TEXT[Notification.PROGRAM_TOO_LONG], e.message)
         assertEquals(listOf(Notification.PROGRAM_TOO_LONG), shown)
@@ -473,9 +467,9 @@ class BedJetLinkTest {
     @Test
     fun `start program times out when the unit never confirms`() = runTest {
         val r = connected(rig())
-        r.device.store(Program("Night", listOf(step(Mode.COOL, 5, 44, 2, 0))), 0)
+        r.device.store(Program("Night", listOf(step(Mode.COOL, 5, 44, 2, 0))), slot(0))
         r.transport.dropNotifications = 100
-        code(ErrorCode.TIMEOUT) { r.device.startProgram(0) }
+        code(ErrorCode.TIMEOUT) { r.device.startProgram(slot(0)) }
     }
 
     @Test
@@ -500,10 +494,10 @@ class BedJetLinkTest {
             listOf(
                 step(Mode.COOL, 5, 44, 2, 0),
                 step(Mode.DRY, 9, 50, 1, 0),
-                step(Mode.WAIT, 19, 80, 6, 30, clock = true),
+                Step(Mode.WAIT, 19, 80, Timing.Until(6, 30)),
             )
-        r.device.store(Program("Night", night), 0)
-        r.device.startProgram(0)
+        r.device.store(Program("Night", night), slot(0))
+        r.device.startProgram(slot(0))
         advanceTimeBy(3.5.hours)
         r.link.disconnect()
         advanceTimeBy(1.hours)

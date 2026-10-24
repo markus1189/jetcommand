@@ -47,13 +47,13 @@ class NightRecorderTest {
                 Program(
                     "Night",
                     listOf(
-                        Step(Mode.COOL, 5, 44, 2, 0, false),
-                        Step(Mode.HEAT, 9, 60, 3, 0, false),
+                        Step(Mode.COOL, 5, 44, Timing.For(2, 0)),
+                        Step(Mode.HEAT, 9, 60, Timing.For(3, 0)),
                     ),
                 ),
-                0,
+                slot(0),
             )
-            device.startProgram(0)
+            device.startProgram(slot(0))
             advanceTimeBy(1.hours)
 
             var away = true

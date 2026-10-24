@@ -33,13 +33,15 @@ class FixtureTest {
 
     private fun step(json: JsonElement) =
         json.jsonObject.let {
+            val hours = it.getValue("hours").num
+            val minutes = it.getValue("minutes").num
             Step(
                 mode = checkNotNull(Mode.of(it.getValue("mode").num)),
                 fan = it.getValue("fan").num,
                 temp = it.getValue("temp").num,
-                hours = it.getValue("hours").num,
-                minutes = it.getValue("minutes").num,
-                clock = it.getValue("clock").jsonPrimitive.boolean,
+                timing =
+                    if (it.getValue("clock").jsonPrimitive.boolean) Timing.Until(hours, minutes)
+                    else Timing.For(hours, minutes),
             )
         }
 
@@ -47,10 +49,23 @@ class FixtureTest {
         put("mode", s.mode.ordinal)
         put("fan", s.fan)
         put("temp", s.temp)
-        put("hours", s.hours)
-        put("minutes", s.minutes)
-        put("clock", s.clock)
+        when (val t = s.timing) {
+            is Timing.For -> {
+                put("hours", t.hours)
+                put("minutes", t.minutes)
+                put("clock", false)
+            }
+            is Timing.Until -> {
+                put("hours", t.hour)
+                put("minutes", t.minute)
+                put("clock", true)
+            }
+        }
     }
+
+    /** The JS codec refuses a bad slot number with a RangeError. */
+    private fun slotArg(n: Int) =
+        Slot.of(n) ?: throw IllegalArgumentException("Program slot must be 0–2, got $n")
 
     private fun statusJson(s: Status?): JsonElement =
         if (s == null) JsonNull
@@ -142,8 +157,8 @@ class FixtureTest {
             "setFan" to Command::setFan,
             "recallMemory" to Command::recallMemory,
             "saveMemory" to Command::saveMemory,
-            "startProgram" to Command::startProgram,
-            "deleteProgram" to Command::deleteProgram,
+            "startProgram" to { Command.startProgram(slotArg(it)) },
+            "deleteProgram" to { Command.deleteProgram(slotArg(it)) },
         )
 
     private fun encode(fn: String, args: JsonArray) =
@@ -154,7 +169,7 @@ class FixtureTest {
             "query" -> hexList(listOf(Command.query(args[0].num, args[1].num)))
             "nameFrame" -> hexList(listOf(Command.nameFrame(args[0].num, args[1].str)))
             "writeProgram" ->
-                hexList(Command.writeProgram(args[0].num, args[1].jsonArray.map(::step)))
+                hexList(Command.writeProgram(slotArg(args[0].num), args[1].jsonArray.map(::step)))
             else -> error("unknown encoder $fn")
         }
 

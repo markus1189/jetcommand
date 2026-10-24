@@ -42,9 +42,9 @@ class BedJetSim(
     var step = 0
     var notification = 0
 
-    private class Run(val slot: Int, var index: Int, var left: Int)
+    private class Run(val slot: Slot, var index: Int, var left: Int)
 
-    private val pending = mutableMapOf<Int, MutableList<Step>>()
+    private val pending = mutableMapOf<Slot, MutableList<Step>>()
     private var run: Run? = null
 
     /** A write to the command characteristic. */
@@ -80,15 +80,15 @@ class BedJetSim(
                         }
                 }
             }
-        return when (id) {
-            Query.DEVICE_NAME -> text(deviceName)
-            Query.FIRMWARE -> text(firmware)
-            Query.MEMORY_NAMES -> nameBlock(memories.map { it.name })
-            Query.PROGRAM_NAMES -> nameBlock(slots.map { it?.name })
-            in 7 until 19 -> {
-                val slot = (id - 7) / 4
-                val index = (id - 7) % 4
-                val steps = slots[slot]?.steps.orEmpty()
+        val fragment = Query.fragmentOf(id)
+        return when {
+            id == Query.DEVICE_NAME -> text(deviceName)
+            id == Query.FIRMWARE -> text(firmware)
+            id == Query.MEMORY_NAMES -> nameBlock(memories.map { it.name })
+            id == Query.PROGRAM_NAMES -> nameBlock(slots.map { it?.name })
+            fragment != null -> {
+                val (slot, index) = fragment
+                val steps = slots[slot.index]?.steps.orEmpty()
                 val frames = Command.writeProgram(slot, steps)
                 if (index < frames.size) frames[index].copyOfRange(2, 43)
                 else byteArrayOf(steps.size.toByte())
@@ -176,10 +176,10 @@ class BedJetSim(
             Button.MUTE,
             Button.UNMUTE -> muted = code == Button.MUTE
             Button.ACK -> notification = Notification.NONE
-            in Button.START_PROGRAM until Button.START_PROGRAM + 3 ->
-                start(code - Button.START_PROGRAM)
-            in Button.DELETE_PROGRAM until Button.DELETE_PROGRAM + 3 ->
-                slots[code - Button.DELETE_PROGRAM] = null
+            else -> {
+                Button.slotOfStartProgram(code)?.let(::start)
+                Button.slotOfDeleteProgram(code)?.let { slots[it.index] = null }
+            }
         }
     }
 
@@ -204,8 +204,8 @@ class BedJetSim(
         enterManual(memory.mode)
     }
 
-    private fun start(slot: Int) {
-        val program = slots[slot] ?: return
+    private fun start(slot: Slot) {
+        val program = slots[slot.index] ?: return
         // Like the real unit: refuse up front rather than stop partway through the night.
         val now =
             clock
@@ -223,7 +223,7 @@ class BedJetSim(
 
     private fun nextStep() {
         val current = run
-        val program = current?.let { slots[it.slot] }
+        val program = current?.let { slots[it.slot.index] }
         if (current == null || program == null || current.index + 1 >= program.steps.size) {
             run = null
             step = 0
@@ -233,10 +233,12 @@ class BedJetSim(
         current.index += 1
         val next = program.steps[current.index]
         val minutes =
-            if (next.clock) {
-                Math.floorMod(next.totalMinutes - (clock ?: 0) / 60, 1440).takeIf { it != 0 }
-                    ?: 1440
-            } else next.totalMinutes
+            when (val t = next.timing) {
+                is Timing.Until ->
+                    Math.floorMod(t.minuteOfDay - (clock ?: 0) / 60, 1440).takeIf { it != 0 }
+                        ?: 1440
+                is Timing.For -> t.totalMinutes
+            }
         current.left = minutes * 60
         enter(next.mode, minutes)
         fan = next.fan
@@ -308,22 +310,23 @@ class BedJetSim(
     private fun store(b: ByteArray) {
         if (b.size < 3) return
         val target = b.u(1)
+        val nameSlot = NameParam.slotOf(target)
+        val fragmentId = Query.fragmentOf(target)
         when {
             target <= 3 -> {
                 val name = Reply.parseText(b.copyOfRange(3, b.size))
                 if (target == 0) deviceName = name
                 else memories[target - 1] = memories[target - 1].copy(name = name)
             }
-            target <= 6 -> {
-                val slot = target - 4
+            nameSlot != null -> {
+                val i = nameSlot.index
                 val name = Reply.parseText(b.copyOfRange(3, b.size))
-                val steps = pending.remove(slot)
-                if (steps != null) slots[slot] = Program(name, steps.toList())
-                else slots[slot]?.let { slots[slot] = it.copy(name = name) }
+                val steps = pending.remove(nameSlot)
+                if (steps != null) slots[i] = Program(name, steps.toList())
+                else slots[i]?.let { slots[i] = it.copy(name = name) }
             }
-            target < 19 -> {
-                val slot = (target - 7) / 4
-                val index = (target - 7) % 4
+            fragmentId != null -> {
+                val (slot, index) = fragmentId
                 val fragment = Reply.parseFragment(b.copyOfRange(2, b.size), index) ?: return
                 // Not cleared on completion: a later name frame for this slot re-commits these
                 // steps, as on the JS side.
@@ -331,7 +334,7 @@ class BedJetSim(
                 steps += fragment.steps
                 pending[slot] = steps
                 if (steps.size >= fragment.total)
-                    slots[slot] = Program(slots[slot]?.name ?: "", steps.toList())
+                    slots[slot.index] = Program(slots[slot.index]?.name ?: "", steps.toList())
             }
         }
     }

@@ -12,6 +12,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -85,7 +86,7 @@ class BedJetDevice(
 
     suspend fun stopProgram() = send(Command.button(Button.OFF))
 
-    suspend fun deleteProgram(slot: Int) = send(Command.deleteProgram(slot))
+    suspend fun deleteProgram(slot: Slot) = send(Command.deleteProgram(slot))
 
     suspend fun rename(param: Int, name: String) = send(Command.nameFrame(param, name))
 
@@ -105,7 +106,7 @@ class BedJetDevice(
     suspend fun programNames() =
         Reply.parseNames(link.query(Query.PROGRAM_NAMES)).take(Limits.SLOTS)
 
-    suspend fun programSteps(slot: Int): List<Step> {
+    suspend fun programSteps(slot: Slot): List<Step> {
         val steps = mutableListOf<Step>()
         for (index in 0 until Limits.FRAGMENTS_PER_SLOT) {
             val fragment =
@@ -119,8 +120,8 @@ class BedJetDevice(
 
     suspend fun storedPrograms(): List<Program?> {
         val names = programNames()
-        return (0 until Limits.SLOTS).map { slot ->
-            val name = names.getOrNull(slot) ?: return@map null
+        return Slot.all.map { slot ->
+            val name = names.getOrNull(slot.index) ?: return@map null
             programSteps(slot).takeIf { it.isNotEmpty() }?.let { Program(name, it) }
         }
     }
@@ -130,11 +131,9 @@ class BedJetDevice(
      */
     suspend fun store(
         program: Program,
-        slot: Int,
+        slot: Slot,
         nowMinutes: Int = clock().let { it.hour * 60 + it.minute },
     ): Program {
-        if (slot !in 0 until Limits.SLOTS)
-            throw BedJetException(ErrorCode.INVALID_PROGRAM, "Choose program slot 1, 2 or 3.")
         validateProgram(program.steps, nowMinutes).firstOrNull()?.let { first ->
             val where = if (first.index >= 0) "Step ${first.index + 1}: " else ""
             throw BedJetException(first.code, "$where${first.message}")
@@ -144,7 +143,7 @@ class BedJetDevice(
         send(Command.nameFrame(NameParam.program(slot), name))
         val back = programSteps(slot)
         val names = programNames()
-        if (back != program.steps || names[slot] != name)
+        if (back != program.steps || names[slot.index] != name)
             throw BedJetException(ErrorCode.VERIFY_FAILED)
         return Program(name, back)
     }
@@ -153,22 +152,23 @@ class BedJetDevice(
      * Syncs the clock and starts [slot]; the status that confirmed it, or the unit's refusal as a
      * typed error.
      */
-    suspend fun startProgram(slot: Int, time: LocalTime = clock(), timeoutMs: Long = 4000): Status {
+    suspend fun startProgram(
+        slot: Slot,
+        time: LocalTime = clock(),
+        timeoutMs: Long = 4000,
+    ): Status {
         val pending = status?.status?.extra?.notification
         if (pending == Notification.PROGRAM_NEEDS_CLOCK || pending == Notification.PROGRAM_TOO_LONG)
             ack()
         syncClock(time)
-        val update =
+        val (status, extra) =
             coroutineScope {
                 val outcome =
                     async(start = CoroutineStart.UNDISPATCHED) {
-                        waitForStatus(timeoutMs) {
-                            val extra = it.status.extra
-                            it.extraFresh &&
-                                extra != null &&
-                                (extra.programStep > 0 ||
-                                    extra.notification == Notification.PROGRAM_NEEDS_CLOCK ||
-                                    extra.notification == Notification.PROGRAM_TOO_LONG)
+                        waitForExtra(timeoutMs) {
+                            it.programStep > 0 ||
+                                it.notification == Notification.PROGRAM_NEEDS_CLOCK ||
+                                it.notification == Notification.PROGRAM_TOO_LONG
                         }
                     }
                 send(Command.startProgram(slot))
@@ -178,8 +178,7 @@ class BedJetDevice(
                     ErrorCode.TIMEOUT,
                     "Your BedJet didn't confirm that the program started.",
                 )
-        val extra = update.status.extra!!
-        if (extra.programStep > 0) return update.status
+        if (extra.programStep > 0) return status
         if (autoAck) ackJob?.join() else ack()
         throw BedJetException(
             if (extra.notification == Notification.PROGRAM_NEEDS_CLOCK) ErrorCode.CLOCK_NOT_SET
@@ -192,6 +191,19 @@ class BedJetDevice(
         timeoutMs: Long = 4000,
         predicate: (StatusUpdate) -> Boolean,
     ): StatusUpdate? = withTimeoutOrNull(timeoutMs) { seen.first(predicate) }
+
+    /** Like [waitForStatus], over statuses whose [StatusExtra] is fresh. */
+    private suspend fun waitForExtra(
+        timeoutMs: Long,
+        predicate: (StatusExtra) -> Boolean,
+    ): Pair<Status, StatusExtra>? =
+        withTimeoutOrNull(timeoutMs) {
+            seen
+                .mapNotNull { u ->
+                    u.status.extra?.takeIf { u.extraFresh && predicate(it) }?.let { u.status to it }
+                }
+                .first()
+        }
 
     // The official app acknowledges every notification at once and shows its text once per code
     // until byte 29 returns to 0 (MainFragment.java:370-386).
@@ -212,13 +224,13 @@ class BedJetDevice(
         }
         if (!autoAck || link.state.value != LinkState.Ready) return
         val t = now()
-        if (t - (ackedAt[code] ?: Long.MIN_VALUE / 2) < 2000) return
+        if (ackedAt[code]?.let { t - it < 2000 } == true) return
         ackedAt[code] = t
         ackJob = scope.launch {
             try {
                 ack()
             } catch (_: BedJetException) {
-                ackedAt[code] = Long.MIN_VALUE / 2
+                ackedAt.remove(code)
             }
         }
     }

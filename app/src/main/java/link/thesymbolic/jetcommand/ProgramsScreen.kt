@@ -66,11 +66,13 @@ import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 import link.thesymbolic.jetcommand.protocol.ProgramRevision
 import link.thesymbolic.jetcommand.protocol.PushRecord
 import link.thesymbolic.jetcommand.protocol.Resolution
+import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.SlotState
 import link.thesymbolic.jetcommand.protocol.SlotStatus
 import link.thesymbolic.jetcommand.protocol.SlotView
 import link.thesymbolic.jetcommand.protocol.StartedSlot
 import link.thesymbolic.jetcommand.protocol.Step
+import link.thesymbolic.jetcommand.protocol.Timing
 
 /**
  * Everything the program screens read or do; [LibraryPrograms] in the app, [FakePrograms] for
@@ -91,15 +93,15 @@ interface ProgramsSource {
 
     suspend fun revisions(programId: String): List<ProgramRevision>
 
-    suspend fun rankSlots(device: String, programId: String): List<Int>
+    suspend fun rankSlots(device: String, programId: String): List<Slot>
 
-    fun run(slot: Int, programId: String)
+    fun run(slot: Slot, programId: String)
 
-    fun push(slot: Int, programId: String)
+    fun push(slot: Slot, programId: String)
 
-    fun resolve(slot: Int, resolution: Resolution)
+    fun resolve(slot: Slot, resolution: Resolution)
 
-    fun keep(slot: Int)
+    fun keep(slot: Slot)
 
     fun restore(programId: String)
 
@@ -153,11 +155,11 @@ class LibraryPrograms(
         }
     }
 
-    override fun run(slot: Int, programId: String) =
-        onUnit("run program in slot ${slot + 1}") { id, s -> run(id, s.device, slot, programId) }
+    override fun run(slot: Slot, programId: String) =
+        onUnit("run program in slot ${slot.number}") { id, s -> run(id, s.device, slot, programId) }
 
-    override fun push(slot: Int, programId: String) =
-        onUnit("load slot ${slot + 1}") { id, s -> push(id, s.device, slot, programId) }
+    override fun push(slot: Slot, programId: String) =
+        onUnit("load slot ${slot.number}") { id, s -> push(id, s.device, slot, programId) }
 
     private fun local(what: String, block: suspend ProgramLibrary.(String) -> Unit) {
         val id = device.value ?: return
@@ -171,10 +173,10 @@ class LibraryPrograms(
         }
     }
 
-    override fun resolve(slot: Int, resolution: Resolution) =
-        local("resolve slot ${slot + 1}") { resolve(it, slot, resolution) }
+    override fun resolve(slot: Slot, resolution: Resolution) =
+        local("resolve slot ${slot.number}") { resolve(it, slot, resolution) }
 
-    override fun keep(slot: Int) = local("keep slot ${slot + 1}") { keep(it, slot) }
+    override fun keep(slot: Slot) = local("keep slot ${slot.number}") { keep(it, slot) }
 
     override fun restore(programId: String) = local("restore") { restore(programId) }
 
@@ -186,7 +188,7 @@ private sealed interface Route {
 
     data class Detail(val id: String) : Route
 
-    data class Conflict(val slot: Int) : Route
+    data class Conflict(val slot: Slot) : Route
 }
 
 @Composable
@@ -235,7 +237,7 @@ fun ProgramsScreen(source: ProgramsSource, modifier: Modifier = Modifier) {
                     } ?: LaunchedEffect(r) { route = Route.List }
             is Route.Conflict ->
                 slots
-                    .getOrNull(r.slot)
+                    .getOrNull(r.slot.index)
                     ?.takeIf { it.status is SlotStatus.ChangedOutside }
                     ?.let { v ->
                         ConflictScreen(source, v, back = { route = Route.List })
@@ -329,7 +331,8 @@ fun programMeta(rev: Int?, steps: List<Step>, start: LocalTime): String {
     return listOfNotNull(
             rev?.takeIf { it > 1 }?.let { "r$it" },
             "${steps.size} step${if (steps.size == 1) "" else "s"}",
-            if (steps.any { it.clock }) "until ${clockAt(start, end)}" else duration(end),
+            if (steps.any { it.timing is Timing.Until }) "until ${clockAt(start, end)}"
+            else duration(end),
         )
         .joinToString(" · ")
 }
@@ -393,7 +396,7 @@ fun ProgramsList(
     slots: List<SlotView>,
     live: Boolean,
     open: (String) -> Unit,
-    review: (Int) -> Unit,
+    review: (Slot) -> Unit,
     act: (SlotView) -> Unit,
     delete: (LibraryEntry) -> Unit,
     modifier: Modifier = Modifier,
@@ -426,7 +429,7 @@ private fun SlotsSection(
     slots: List<SlotView>,
     live: Boolean,
     open: (String) -> Unit,
-    review: (Int) -> Unit,
+    review: (Slot) -> Unit,
     act: (SlotView) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -500,7 +503,7 @@ private fun SlotRow(
     v: SlotView,
     live: Boolean,
     open: (String) -> Unit,
-    review: (Int) -> Unit,
+    review: (Slot) -> Unit,
     act: (SlotView) -> Unit,
 ) {
     val line = slotLine(v.status)
@@ -526,7 +529,7 @@ private fun SlotRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SlotBadge(v.state.slot + 1)
+        SlotBadge(v.state.slot.number)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(slotName(v), fontSize = 15.sp, fontWeight = FontWeight.Medium)
             Text(line.text, fontSize = 12.sp, color = line.color)
@@ -591,9 +594,9 @@ private fun LibraryRow(
         StepStrip(timeline(p.steps, start), height = 24.dp)
         val badges = slots.mapNotNull { v ->
             when (val s = v.status) {
-                is SlotStatus.InSync -> "Slot ${v.state.slot + 1}".takeIf { s.entry.id == e.id }
+                is SlotStatus.InSync -> "Slot ${v.state.slot.number}".takeIf { s.entry.id == e.id }
                 is SlotStatus.Older ->
-                    "Slot ${v.state.slot + 1} has r${s.slotRev}".takeIf { s.entry.id == e.id }
+                    "Slot ${v.state.slot.number} has r${s.slotRev}".takeIf { s.entry.id == e.id }
                 else -> null
             }
         }
@@ -618,8 +621,11 @@ class FakePrograms : ProgramsSource {
     private val day = 86_400_000L
     private val t0 = System.currentTimeMillis()
 
-    private fun s(mode: Mode, fan: Int, c: Double, min: Int, clock: Boolean = false) =
-        Step(mode, (fan / 5) - 1, (c * 2).toInt(), min / 60, min % 60, clock)
+    private fun s(mode: Mode, fan: Int, c: Double, timing: Timing) =
+        Step(mode, (fan / 5) - 1, (c * 2).toInt(), timing)
+
+    private fun s(mode: Mode, fan: Int, c: Double, min: Int) =
+        s(mode, fan, c, Timing.For(min / 60, min % 60))
 
     private val summer =
         listOf(
@@ -627,8 +633,8 @@ class FakePrograms : ProgramsSource {
             s(Mode.WAIT, 5, 40.0, 10),
             s(Mode.COOL, 40, 20.0, 30),
             s(Mode.COOL, 30, 20.0, 240),
-            s(Mode.COOL, 25, 20.0, 5 * 60 + 30, clock = true),
-            s(Mode.EXT_HEAT, 35, 31.0, 6 * 60 + 30, clock = true),
+            s(Mode.COOL, 25, 20.0, Timing.Until(5, 30)),
+            s(Mode.EXT_HEAT, 35, 31.0, Timing.Until(6, 30)),
         )
 
     private fun rev(
@@ -780,7 +786,7 @@ class FakePrograms : ProgramsSource {
             SlotView(
                 SlotState(
                     "demo",
-                    0,
+                    Slot.all[0],
                     revs.getValue("summer")[2].program,
                     t0 - 600_000,
                     PushRecord("summer", 4, ""),
@@ -790,7 +796,7 @@ class FakePrograms : ProgramsSource {
             SlotView(
                 SlotState(
                     "demo",
-                    1,
+                    Slot.all[1],
                     e("neutral").current.program,
                     t0 - 600_000,
                     PushRecord("neutral", 1, ""),
@@ -800,7 +806,7 @@ class FakePrograms : ProgramsSource {
             SlotView(
                 SlotState(
                     "demo",
-                    2,
+                    Slot.all[2],
                     revs.getValue("sleep")[0].program,
                     t0 - 600_000,
                     PushRecord("sleep", 2, ""),
@@ -817,22 +823,22 @@ class FakePrograms : ProgramsSource {
 
     override suspend fun rankSlots(device: String, programId: String) =
         when (programId) {
-            "summer" -> listOf(0, 1, 2)
-            else -> listOf(1, 0, 2)
+            "summer" -> Slot.all
+            else -> listOf(1, 0, 2).map(Slot.all::get)
         }
 
     var log = MutableStateFlow(listOf<String>())
 
     private fun note(s: String) = log.update { it + s }
 
-    override fun run(slot: Int, programId: String) = note("run $programId in ${slot + 1}")
+    override fun run(slot: Slot, programId: String) = note("run $programId in ${slot.number}")
 
-    override fun push(slot: Int, programId: String) = note("push $programId to ${slot + 1}")
+    override fun push(slot: Slot, programId: String) = note("push $programId to ${slot.number}")
 
-    override fun resolve(slot: Int, resolution: Resolution) =
-        note("resolve ${slot + 1} $resolution")
+    override fun resolve(slot: Slot, resolution: Resolution) =
+        note("resolve ${slot.number} $resolution")
 
-    override fun keep(slot: Int) = note("keep ${slot + 1}")
+    override fun keep(slot: Slot) = note("keep ${slot.number}")
 
     override fun restore(programId: String) = note("restore $programId")
 

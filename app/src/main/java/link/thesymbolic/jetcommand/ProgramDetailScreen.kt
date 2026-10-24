@@ -30,7 +30,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -56,9 +55,11 @@ import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Origin
 import link.thesymbolic.jetcommand.protocol.ProgramRevision
 import link.thesymbolic.jetcommand.protocol.Resolution
+import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.SlotStatus
 import link.thesymbolic.jetcommand.protocol.SlotView
 import link.thesymbolic.jetcommand.protocol.Step
+import link.thesymbolic.jetcommand.protocol.Timing
 import link.thesymbolic.jetcommand.protocol.formatTemp
 
 private val Warm = Color(0xFFF0A070)
@@ -124,7 +125,7 @@ fun ProgramDetailScreen(
     picker?.let { mode ->
         val device by source.device.collectAsState()
         val ranked by
-            produceState(listOf(0, 1, 2), entry, device) {
+            produceState(Slot.all, entry, device) {
                 device?.let { d ->
                     value = runCatching { source.rankSlots(d, entry.id) }.getOrDefault(value)
                 }
@@ -143,7 +144,7 @@ fun ProgramDetail(
     slots: List<SlotView>,
     live: Boolean,
     back: () -> Unit,
-    update: (Int) -> Unit,
+    update: (Slot) -> Unit,
     run: () -> Unit,
     load: () -> Unit,
     modifier: Modifier = Modifier,
@@ -235,7 +236,7 @@ private fun OlderSlotBanner(
     s: SlotStatus.Older,
     entry: LibraryEntry,
     live: Boolean,
-    update: (Int) -> Unit,
+    update: (Slot) -> Unit,
 ) {
     Row(
         Modifier.padding(horizontal = 16.dp)
@@ -247,7 +248,7 @@ private fun OlderSlotBanner(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        val n = v.state.slot + 1
+        val n = v.state.slot.number
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 "Slot $n still holds r${s.slotRev}",
@@ -322,7 +323,8 @@ private fun StepRow(s: Span, start: LocalTime) =
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                if (s.step.clock) "until ${clockAt(start, s.to)}" else duration(s.minutes),
+                if (s.step.timing is Timing.Until) "until ${clockAt(start, s.to)}"
+                else duration(s.minutes),
                 fontSize = 14.sp,
             )
             Text("ends ${clockAt(start, s.to)}", fontSize = 12.sp, color = Muted)
@@ -376,7 +378,7 @@ private fun RevisionRow(r: ProgramRevision, entry: LibraryEntry, slots: List<Slo
                     MaterialTheme.colorScheme.onPrimaryContainer,
                     MaterialTheme.colorScheme.primaryContainer,
                 )
-            onSlot != null -> Pill("on slot ${onSlot.state.slot + 1}", Amber, AmberLine)
+            onSlot != null -> Pill("on slot ${onSlot.state.slot.number}", Amber, AmberLine)
             r.origin == Origin.OUTSIDE -> Pill("outside", Warm, WarmLine)
         }
     }
@@ -404,10 +406,10 @@ private fun pickNote(v: SlotView, entry: LibraryEntry): Pair<String, Boolean> =
 private fun SlotPicker(
     entry: LibraryEntry,
     slots: List<SlotView>,
-    ranked: List<Int>,
+    ranked: List<Slot>,
     mode: PickFor,
     dismiss: () -> Unit,
-    go: (Int) -> Unit,
+    go: (Slot) -> Unit,
 ) {
     ModalBottomSheet(dismiss, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
         SlotPickerBody(entry, slots, ranked, mode == PickFor.RUN, go = go)
@@ -418,12 +420,12 @@ private fun SlotPicker(
 fun SlotPickerBody(
     entry: LibraryEntry,
     slots: List<SlotView>,
-    ranked: List<Int>,
+    ranked: List<Slot>,
     run: Boolean,
     modifier: Modifier = Modifier,
-    go: (Int) -> Unit,
+    go: (Slot) -> Unit,
 ) {
-    var picked by remember(ranked) { mutableIntStateOf(ranked.firstOrNull() ?: 0) }
+    var picked by remember(ranked) { mutableStateOf(ranked.firstOrNull() ?: Slot.all.first()) }
     val name = prettyName(entry.current.program.name)
     val holds = slots.any { (it.status as? SlotStatus.InSync)?.entry?.id == entry.id }
     val older = slots.firstOrNull { (it.status as? SlotStatus.Older)?.entry?.id == entry.id }
@@ -434,7 +436,7 @@ fun SlotPickerBody(
         PickerHeader(if (run) "Run" else "Load", name, holds, older)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ranked
-                .mapNotNull { n -> slots.getOrNull(n) }
+                .mapNotNull { n -> slots.getOrNull(n.index) }
                 .forEachIndexed { i, v ->
                     SlotOption(v, entry, on = v.state.slot == picked, suggested = i == 0) {
                         picked = v.state.slot
@@ -442,13 +444,13 @@ fun SlotPickerBody(
                 }
         }
         val pickedHolds =
-            (slots.getOrNull(picked)?.status as? SlotStatus.InSync)?.entry?.id == entry.id
+            (slots.getOrNull(picked.index)?.status as? SlotStatus.InSync)?.entry?.id == entry.id
         Button({ go(picked) }, Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
             Text(
                 when {
-                    run && pickedHolds -> "Run from slot ${picked + 1}"
-                    run -> "Load into slot ${picked + 1} and run"
-                    else -> "Load into slot ${picked + 1}"
+                    run && pickedHolds -> "Run from slot ${picked.number}"
+                    run -> "Load into slot ${picked.number} and run"
+                    else -> "Load into slot ${picked.number}"
                 },
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -480,7 +482,7 @@ private fun PickerHeader(verb: String, name: String, holds: Boolean, older: Slot
             when {
                 holds -> "It's on the BedJet already."
                 older != null ->
-                    "Slot ${older.state.slot + 1} holds an older version. Which slot gets this one?"
+                    "Slot ${older.state.slot.number} holds an older version. Which slot gets this one?"
                 else -> "It isn't on the BedJet yet. Which slot does it replace?"
             },
             fontSize = 14.sp,
@@ -517,7 +519,7 @@ private fun SlotOption(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SlotBadge(v.state.slot + 1)
+        SlotBadge(v.state.slot.number)
         Column(
             Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -575,8 +577,10 @@ private fun stepCell(s: Step?): Pair<String, String> =
         s.mode.label to
             listOfNotNull(
                     stepDetail(s).takeIf { s.mode != Mode.WAIT },
-                    if (s.clock) "until %02d:%02d".format(s.hours, s.minutes)
-                    else duration(s.totalMinutes),
+                    when (val t = s.timing) {
+                        is Timing.Until -> "until %02d:%02d".format(t.hour, t.minute)
+                        is Timing.For -> duration(t.totalMinutes)
+                    },
                 )
                 .joinToString(" · ")
 
@@ -589,7 +593,7 @@ fun Conflict(
     modifier: Modifier = Modifier,
     resolve: (Resolution) -> Unit,
 ) {
-    val n = v.state.slot + 1
+    val n = v.state.slot.number
     val mine = s.entry.current
     val name = prettyName(mine.program.name)
     Column(
@@ -738,5 +742,5 @@ private fun PickerPreview() = JetCommandTheme {
     val f = remember { FakePrograms() }
     val e = LibraryEntry("hot", f.revs.getValue("hot").first())
     val slots by f.slots("demo").collectAsState(emptyList())
-    SlotPickerBody(e, slots, listOf(1, 0, 2), run = true) {}
+    SlotPickerBody(e, slots, listOf(1, 0, 2).map(Slot.all::get), run = true) {}
 }

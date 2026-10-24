@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.Mode
+import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.fanPercent
 import link.thesymbolic.jetcommand.protocol.formatTemp
 
@@ -72,8 +73,8 @@ class BedJetViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun loadPrograms() = act("programs") { programs = it.device.programNames() }
 
-    fun startProgram(slot: Int) =
-        act("start program ${slot + 1}") {
+    fun startProgram(slot: Slot) =
+        act("start program ${slot.number}") {
             it.device.startProgram(slot)
             controller.deviceId.value?.let { id -> app.library.noteStarted(id, slot) }
         }
