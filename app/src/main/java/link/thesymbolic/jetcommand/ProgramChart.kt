@@ -42,6 +42,17 @@ private val Label = Color(0xFF9AA2AB)
 private val AxisColor = Color(0xFF3A424B)
 private val ScrubColor = Color(0xFFCFE2F5)
 
+/** The step under [minute]; past the end, the last one. */
+fun spanAt(spans: List<Span>, minute: Double): Span? =
+    spans.firstOrNull { minute <= it.to } ?: spans.lastOrNull()
+
+fun chartCaption(spans: List<Span>, start: LocalTime, minute: Double?): String {
+    val at = minute?.let { spanAt(spans, it) }
+    return if (minute == null || at == null) "Touch and drag across the chart to read each step."
+    else
+        "${clockAt(start, minute.toInt())} · step ${at.index + 1} of ${spans.size} · ${at.step.mode.label} · ${stepDetail(at.step)}"
+}
+
 /**
  * The program's profile: mode band, target °C and fan % as step lines over one time axis. The °C
  * line lifts the pen where a step has no set point (turbo, wait), the fan line where the air is
@@ -51,12 +62,10 @@ private val ScrubColor = Color(0xFFCFE2F5)
 fun ProgramChart(spans: List<Span>, start: LocalTime, modifier: Modifier = Modifier) {
     var cursor by remember { mutableStateOf<Double?>(null) }
     val total = spans.lastOrNull()?.to?.coerceAtLeast(1) ?: 1
-    val at = cursor?.let { m -> spans.firstOrNull { m <= it.to } ?: spans.last() }
+    val at = cursor?.let { spanAt(spans, it) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            if (cursor == null || at == null) "Touch and drag across the chart to read each step."
-            else
-                "${clockAt(start, cursor!!.toInt())} · step ${at.index + 1} of ${spans.size} · ${at.step.mode.label} · ${stepDetail(at.step)}",
+            chartCaption(spans, start, cursor),
             color = if (cursor == null) Label else MaterialTheme.colorScheme.onSurface,
             fontSize = 13.sp,
             modifier = Modifier.padding(horizontal = 4.dp).heightIn(min = 36.dp),

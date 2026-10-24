@@ -188,7 +188,7 @@ private suspend fun AwaitPointerEventScope.adjust(
                 val change = awaitPointerEvent().changes.first()
                 if (!change.pressed) break
                 change.consume()
-                set(((1 - change.position.y / size.height) * (count - 1)).roundToInt())
+                set(dragValue(change.position.y, size.height.toFloat(), count))
             }
         null -> {
             var delay = 350L
@@ -201,6 +201,10 @@ private suspend fun AwaitPointerEventScope.adjust(
     }
     return value
 }
+
+/** The value under a finger at [y] in a field [height] tall: bottom = 0, top = `count - 1`. */
+fun dragValue(y: Float, height: Float, count: Int): Int =
+    ((1 - y / height) * (count - 1)).roundToInt().coerceIn(0, (count - 1).coerceAtLeast(0))
 
 private suspend fun AwaitPointerEventScope.awaitRelease() {
     do {
