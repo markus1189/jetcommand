@@ -87,23 +87,30 @@ fun NightTimeline(
     val m = remember(d) { TimelineData(d) }
     val listener =
         remember(cursor) {
+            val main = android.os.Handler(android.os.Looper.getMainLooper())
             object : CartesianMarkerVisibilityListener {
                 override fun onShown(
                     marker: CartesianMarker,
                     targets: List<CartesianMarker.Target>,
                 ) {
-                    cursor.value = targets.firstOrNull()?.x
+                    publish(targets.firstOrNull()?.x)
                 }
 
                 override fun onUpdated(
                     marker: CartesianMarker,
                     targets: List<CartesianMarker.Target>,
                 ) {
-                    cursor.value = targets.firstOrNull()?.x
+                    publish(targets.firstOrNull()?.x)
                 }
 
                 override fun onHidden(marker: CartesianMarker) {
-                    cursor.value = null
+                    publish(null)
+                }
+
+                // Vico calls this from the touched chart's draw pass: a direct write leaves panels
+                // already drawn this frame on the old minute until something else redraws them.
+                private fun publish(x: Double?) {
+                    main.post { cursor.value = x }
                 }
             }
         }
