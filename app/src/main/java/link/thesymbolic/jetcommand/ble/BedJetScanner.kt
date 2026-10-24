@@ -50,7 +50,10 @@ class BedJetScanner(context: Context) {
         val settings =
             ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
         scanner.startScan(null, settings, cb)
-        awaitClose { runCatching { scanner.stopScan(cb) } }
+        awaitClose {
+            // Not suspend, so no cancellation to swallow; stopScan must never fail the close.
+            @Suppress("ForbiddenMethodCall") runCatching { scanner.stopScan(cb) }
+        }
     }
 
     companion object {
