@@ -37,7 +37,7 @@
       };
     in {
       devShells.${system}.default = pkgs.mkShell {
-        packages = [ android.androidsdk emu pkgs.jdk21 pkgs.gradle_9 pkgs.nodejs ];
+        packages = [ android.androidsdk emu pkgs.jdk21 pkgs.gradle_9 pkgs.nodejs pkgs.sqlite ];
         ANDROID_HOME = sdk;
         ANDROID_SDK_ROOT = sdk;
         JAVA_HOME = pkgs.jdk21.home;
