@@ -76,6 +76,7 @@ import link.thesymbolic.jetcommand.now.nowState
 import link.thesymbolic.jetcommand.now.programButtons
 import link.thesymbolic.jetcommand.now.runningView
 import link.thesymbolic.jetcommand.now.shortLabel
+import link.thesymbolic.jetcommand.now.steadyActual
 import link.thesymbolic.jetcommand.now.tempField
 import link.thesymbolic.jetcommand.now.undoTarget
 import link.thesymbolic.jetcommand.protocol.Mode
@@ -278,6 +279,9 @@ private class Pending {
     var sent by mutableStateOf<Int?>(null)
 }
 
+/** Plain field, not snapshot state: it is derived from [Status] during composition. */
+private class HeldActual(var value: Int? = null)
+
 private const val PENDING_MS = 5_000L
 
 @Composable
@@ -325,8 +329,10 @@ private fun ModeRow(mode: Mode, setMode: (Mode) -> Unit) {
 private fun ColumnScope.ValueFields(st: Status, onEvent: (NowEvent) -> Unit) {
     val temp = rememberPending()
     val fan = rememberPending()
+    val held = remember { HeldActual() }
+    val actual = steadyActual(held.value, st.actualTemp).also { held.value = it }
     Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Field("Temp", tempField(st, temp.preview, temp.sent), st.mode, temp) {
+        Field("Temp", tempField(st, temp.preview, temp.sent, actual), st.mode, temp) {
             onEvent(NowEvent.SetTemperature(it))
         }
         Field("Fan", fanField(st, fan.preview, fan.sent), st.mode, fan) {

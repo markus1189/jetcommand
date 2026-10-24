@@ -288,6 +288,14 @@ class NowStateTest {
     }
 
     @Test
+    fun `actual holds through half-degree dither`() {
+        val shown = listOf(61, 62, 61, 62, 63, 62, 63, 60).runningFold(null as Int?, ::steadyActual)
+        assertEquals(listOf(null, 61, 61, 61, 61, 63, 63, 63, 60), shown)
+        assertEquals("30.0°C", formatActual(60))
+        assertEquals("actual 31.0°C", tempField(status(mode = Mode.HEAT), null, null, 62).sub)
+    }
+
+    @Test
     fun `fields never throw`() = runTest {
         checkAll(statusArb, Arb.int(-5..300).orNull(), Arb.int(-5..300).orNull()) { st, a, b ->
             tempField(st, a, b)

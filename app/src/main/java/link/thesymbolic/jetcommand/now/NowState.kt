@@ -196,8 +196,21 @@ data class FieldView(
     fun valueAt(index: Int) = offset + index
 }
 
-/** [preview] is the value under the finger, [sent] the last one sent; both null when idle. */
-fun tempField(st: Status, preview: Int?, sent: Int?): FieldView {
+/**
+ * The sensor dithers between neighbouring half-degrees; the shown reading moves only once [reading]
+ * is a full degree away, so it lags the truth by at most 0.5 °C.
+ */
+fun steadyActual(shown: Int?, reading: Int): Int =
+    if (shown == null || kotlin.math.abs(reading - shown) >= 2) reading else shown
+
+/** Always one decimal, so the line keeps its width when the reading crosses a half-degree. */
+fun formatActual(halfC: Int): String = "%.1f°C".format(java.util.Locale.ROOT, halfC / 2.0)
+
+/**
+ * [preview] is the value under the finger, [sent] the last one sent; both null when idle. [actual]
+ * is the held reading from [steadyActual].
+ */
+fun tempField(st: Status, preview: Int?, sent: Int?, actual: Int = st.actualTemp): FieldView {
     val (range, _) = tempRange(st.mode, st)
     val unconfirmed = sent?.takeIf { it != st.targetTemp }
     val shown = preview ?: unconfirmed ?: st.targetTemp
@@ -207,7 +220,7 @@ fun tempField(st: Status, preview: Int?, sent: Int?): FieldView {
             when {
                 st.mode == Mode.TURBO -> "fixed in Turbo"
                 unconfirmed != null -> "sending · now ${formatTemp(st.targetTemp)}"
-                else -> "actual ${formatTemp(st.actualTemp)}"
+                else -> "actual ${formatActual(actual)}"
             },
         index = shown - range.min,
         count = range.max - range.min + 1,
