@@ -62,6 +62,14 @@ class SimTransport(
 
     private class Rule(val fault: Fault, var times: Int, val where: (Op) -> Boolean)
 
+    private class ChaosState(val config: Chaos) {
+        private val random = Random(config.seed)
+
+        fun fails() = random.nextDouble() < config.failRate
+
+        fun drops() = random.nextDouble() < config.dropRate
+    }
+
     private val _state = MutableStateFlow<TransportState>(TransportState.Disconnected)
     override val state: StateFlow<TransportState> = _state.asStateFlow()
     private val _notifications = MutableSharedFlow<ByteArray>(extraBufferCapacity = 64)
@@ -70,13 +78,14 @@ class SimTransport(
     var latencyMs = 0L
     var replyLatency = ReplyLatency()
     var dropNotifications = 0
-    var chaos: Chaos? = null
+    /** Setting it, even to the same value, restarts the seeded sequence. */
+    var chaos: Chaos?
+        get() = chaosState?.config
         set(value) {
-            field = value
-            random = value?.let { Random(it.seed) }
+            chaosState = value?.let(::ChaosState)
         }
 
-    private var random: Random? = null
+    private var chaosState: ChaosState? = null
     private val rules = mutableListOf<Rule>()
 
     private val _ops = mutableListOf<Op>()
@@ -128,7 +137,7 @@ class SimTransport(
             dropNotifications--
             return
         }
-        if (random?.let { it.nextDouble() < chaos!!.dropRate } == true) return
+        if (chaosState?.drops() == true) return
         val head = sim.packet().copyOf(headSize)
         head[0] = 1
         _notifications.tryEmit(head)
@@ -233,8 +242,7 @@ class SimTransport(
                 if (rule.times == 0) rules.remove(rule)
                 return rule.fault
             }
-        val c = chaos ?: return null
-        return if (random!!.nextDouble() < c.failRate) Fault.Fail() else null
+        return if (chaosState?.fails() == true) Fault.Fail() else null
     }
 
     private suspend fun <T> perform(op: Op, conn: Job?, body: () -> T): T {
