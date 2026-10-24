@@ -1,6 +1,5 @@
 package link.thesymbolic.jetcommand
 
-import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,7 +22,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.lifecycleScope
+import link.thesymbolic.jetcommand.library.ProgramsViewModel
 import link.thesymbolic.jetcommand.protocol.NightsSource
 
 enum class Place(val label: String, val glyph: String) {
@@ -38,11 +37,9 @@ class MainActivity : ComponentActivity() {
     private val nights: NightsSource
         get() = (application as JetCommandApp).nights
 
-    private val programs: ProgramsSource by lazy {
-        val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
-        if (debuggable && intent.getBooleanExtra("fake_library", false)) FakePrograms()
-        else LibraryPrograms(library, controller, lifecycleScope)
-    }
+    private val programsVm: ProgramsViewModel by viewModels()
+    private val programs: ProgramsSource
+        get() = programsVm.source
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

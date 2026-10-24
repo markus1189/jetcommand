@@ -51,16 +51,13 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import link.thesymbolic.jetcommand.protocol.LibraryEntry
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.Origin
 import link.thesymbolic.jetcommand.protocol.ProgramRevision
 import link.thesymbolic.jetcommand.protocol.Resolution
 import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.SlotStatus
 import link.thesymbolic.jetcommand.protocol.SlotView
-import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.Timing
-import link.thesymbolic.jetcommand.protocol.formatTemp
+import link.thesymbolic.jetcommand.protocol.rankSlots
 
 private val Warm = Color(0xFFF0A070)
 private val AmberBg = Color(0xFF2A2213)
@@ -123,13 +120,7 @@ fun ProgramDetailScreen(
         delete = delete,
     )
     picker?.let { mode ->
-        val device by source.device.collectAsState()
-        val ranked by
-            produceState(Slot.all, entry, device) {
-                device?.let { d ->
-                    value = runCatching { source.rankSlots(d, entry.id) }.getOrDefault(value)
-                }
-            }
+        val ranked = remember(slots, entry.id) { rankSlots(slots, entry.id) }
         SlotPicker(entry, slots, ranked, mode, dismiss = { picker = null }) { slot ->
             picker = null
             if (mode == PickFor.RUN) source.run(slot, entry.id) else source.push(slot, entry.id)
@@ -256,9 +247,8 @@ private fun OlderSlotBanner(
                 fontWeight = FontWeight.Medium,
                 color = Amber,
             )
-            val edits = entry.current.rev - s.slotRev
             Text(
-                "$edits edit${if (edits == 1) "" else "s"} since you last loaded it",
+                "${plural(entry.current.rev - s.slotRev, "edit")} since you last loaded it",
                 fontSize = 12.sp,
                 color = AmberText,
             )
@@ -333,15 +323,6 @@ private fun StepRow(s: Span, start: LocalTime) =
 
 private val When = DateTimeFormatter.ofPattern("EEE d MMM, HH:mm", Locale.ENGLISH)
 
-fun originText(o: Origin) =
-    when (o) {
-        Origin.BLANK -> "Created"
-        Origin.TEMPLATE -> "From a template"
-        Origin.EDIT -> "Edited"
-        Origin.KEPT_FROM_SLOT -> "Kept from the BedJet"
-        Origin.OUTSIDE -> "Read from the BedJet: changed in another app"
-    }
-
 @Composable
 private fun RevisionRow(r: ProgramRevision, entry: LibraryEntry, slots: List<SlotView>) =
     Row(
@@ -364,41 +345,17 @@ private fun RevisionRow(r: ProgramRevision, entry: LibraryEntry, slots: List<Slo
                 color = Muted,
             )
         }
-        val onSlot = slots.firstOrNull { v ->
-            when (val s = v.status) {
-                is SlotStatus.InSync -> s.entry.id == entry.id && r.rev == entry.current.rev
-                is SlotStatus.Older -> s.entry.id == entry.id && s.slotRev == r.rev
-                else -> false
-            }
-        }
-        when {
-            r.rev == entry.current.rev ->
+        when (val pill = revisionPill(r, entry, slots)) {
+            RevisionPill.Current ->
                 Pill(
                     "current",
                     MaterialTheme.colorScheme.onPrimaryContainer,
                     MaterialTheme.colorScheme.primaryContainer,
                 )
-            onSlot != null -> Pill("on slot ${onSlot.state.slot.number}", Amber, AmberLine)
-            r.origin == Origin.OUTSIDE -> Pill("outside", Warm, WarmLine)
+            is RevisionPill.OnSlot -> Pill("on slot ${pill.slot.number}", Amber, AmberLine)
+            RevisionPill.Outside -> Pill("outside", Warm, WarmLine)
+            null -> Unit
         }
-    }
-
-/** The consequence of writing [entry] over [v], as the picker words it; true when it warns. */
-private fun pickNote(v: SlotView, entry: LibraryEntry): Pair<String, Boolean> =
-    when (val s = v.status) {
-        is SlotStatus.InSync ->
-            if (s.entry.id == entry.id) "Already loaded · runs as it is" to false
-            else "In sync · stays in your library" to false
-        is SlotStatus.Older ->
-            if (s.entry.id == entry.id) "Older version · r${s.slotRev} stays in history" to false
-            else "Older version · stays in your library" to false
-        SlotStatus.Empty -> "Empty" to false
-        SlotStatus.Unknown -> "Not read yet · read before writing" to false
-        is SlotStatus.ChangedOutside ->
-            "Changed outside the app · saved to your library first" to true
-        SlotStatus.NotInLibrary -> "Not in your library · saved to your library first" to true
-        is SlotStatus.Deleted -> "Deleted from library · stays restorable" to false
-        is SlotStatus.Interrupted -> "Write interrupted" to true
     }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -426,14 +383,12 @@ fun SlotPickerBody(
     go: (Slot) -> Unit,
 ) {
     var picked by remember(ranked) { mutableStateOf(ranked.firstOrNull() ?: Slot.all.first()) }
-    val name = prettyName(entry.current.program.name)
-    val holds = slots.any { (it.status as? SlotStatus.InSync)?.entry?.id == entry.id }
-    val older = slots.firstOrNull { (it.status as? SlotStatus.Older)?.entry?.id == entry.id }
+    val text = pickerText(entry, slots, picked, run)
     Column(
         modifier.padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        PickerHeader(if (run) "Run" else "Load", name, holds, older)
+        PickerHeader(text.title, text.sub)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ranked
                 .mapNotNull { n -> slots.getOrNull(n.index) }
@@ -443,25 +398,11 @@ fun SlotPickerBody(
                     }
                 }
         }
-        val pickedHolds =
-            (slots.getOrNull(picked.index)?.status as? SlotStatus.InSync)?.entry?.id == entry.id
         Button({ go(picked) }, Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
-            Text(
-                when {
-                    run && pickedHolds -> "Run from slot ${picked.number}"
-                    run -> "Load into slot ${picked.number} and run"
-                    else -> "Load into slot ${picked.number}"
-                },
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Text(text.button, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
         Text(
-            when {
-                run && pickedHolds -> "Sets the clock, then starts."
-                run -> "Writes, reads back to check, sets the clock, then starts."
-                else -> "Writes, then reads back to check."
-            },
+            text.caption,
             fontSize = 12.sp,
             color = Muted,
             modifier = Modifier.fillMaxWidth(),
@@ -471,20 +412,11 @@ fun SlotPickerBody(
 }
 
 @Composable
-private fun PickerHeader(verb: String, name: String, holds: Boolean, older: SlotView?) {
+private fun PickerHeader(title: String, sub: String) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, fontSize = 20.sp, fontWeight = FontWeight.Medium)
         Text(
-            "$verb $name",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Medium,
-        )
-        Text(
-            when {
-                holds -> "It's on the BedJet already."
-                older != null ->
-                    "Slot ${older.state.slot.number} holds an older version. Which slot gets this one?"
-                else -> "It isn't on the BedJet yet. Which slot does it replace?"
-            },
+            sub,
             fontSize = 14.sp,
             color = Muted,
         )
@@ -499,7 +431,7 @@ private fun SlotOption(
     suggested: Boolean,
     pick: () -> Unit,
 ) {
-    val (note, warn) = pickNote(v, entry)
+    val note = pickNote(v, entry)
     Row(
         Modifier.fillMaxWidth()
             .heightIn(min = 64.dp)
@@ -524,13 +456,12 @@ private fun SlotOption(
             Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            val rev = (v.status as? SlotStatus.Older)?.slotRev?.let { " r$it" } ?: ""
             Text(
-                slotName(v) + rev,
+                optionTitle(v),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
             )
-            Text(note, fontSize = 12.sp, color = if (warn) Warm else Muted)
+            Text(note.text, fontSize = 12.sp, color = if (note.warn) Warm else Muted)
         }
         if (suggested)
             Text(
@@ -546,49 +477,9 @@ private fun SlotOption(
 }
 
 @Composable
-fun ConflictScreen(source: ProgramsSource, v: SlotView, back: () -> Unit) {
-    val s = v.status as SlotStatus.ChangedOutside
-    val revisions by
-        produceState(emptyList<ProgramRevision>(), s.entry.id, s.outsideRev) {
-            value = source.revisions(s.entry.id)
-        }
-    Conflict(
-        v,
-        s,
-        revisions.firstOrNull { it.rev == s.outsideRev }?.program?.steps
-            ?: v.state.program?.steps.orEmpty(),
-        back,
-    ) {
-        source.resolve(v.state.slot, it)
-        back()
-    }
-}
-
-private fun stepListDetail(s: Step): String =
-    when (s.mode) {
-        Mode.TURBO -> "${stepDetail(s)} · ${formatTemp(s.temp)} fixed"
-        Mode.WAIT -> "${stepDetail(s)} · no temperature"
-        else -> stepDetail(s)
-    }
-
-private fun stepCell(s: Step?): Pair<String, String> =
-    if (s == null) "" to "—"
-    else
-        s.mode.label to
-            listOfNotNull(
-                    stepDetail(s).takeIf { s.mode != Mode.WAIT },
-                    when (val t = s.timing) {
-                        is Timing.Until -> "until %02d:%02d".format(t.hour, t.minute)
-                        is Timing.For -> duration(t.totalMinutes)
-                    },
-                )
-                .joinToString(" · ")
-
-@Composable
 fun Conflict(
     v: SlotView,
     s: SlotStatus.ChangedOutside,
-    theirs: List<Step>,
     back: () -> Unit,
     modifier: Modifier = Modifier,
     resolve: (Resolution) -> Unit,
@@ -623,7 +514,7 @@ fun Conflict(
             Modifier.padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            StepDiff(v, s, theirs)
+            StepDiff(s)
         }
         Column(
             Modifier.padding(horizontal = 16.dp),
@@ -653,31 +544,27 @@ fun Conflict(
 }
 
 @Composable
-private fun ColumnScope.StepDiff(v: SlotView, s: SlotStatus.ChangedOutside, theirs: List<Step>) {
+private fun ColumnScope.StepDiff(s: SlotStatus.ChangedOutside) {
     val mine = s.entry.current
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(Modifier.weight(1f)) { SectionTitle("Your library · r${mine.rev}") }
         Box(Modifier.weight(1f)) { SectionTitle("On the BedJet · r${s.outsideRev}") }
     }
-    val rows = maxOf(mine.program.steps.size, theirs.size)
-    var differ = 0
-    for (i in 0 until rows) {
-        val a = mine.program.steps.getOrNull(i)
-        val b = theirs.getOrNull(i)
-        val changed = a != b
-        if (changed) differ++
+    val rows = remember(mine, s.program) { stepDiff(mine.program.steps, s.program.steps) }
+    rows.forEach { row ->
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(a, b).forEach { st ->
+            listOf(row.mine, row.theirs).forEach { st ->
                 val (l1, l2) = stepCell(st)
                 Column(
                     Modifier.weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .background(
-                            if (changed) WarmBg else MaterialTheme.colorScheme.surfaceContainer
+                            if (row.changed) WarmBg else MaterialTheme.colorScheme.surfaceContainer
                         )
                         .border(
                             1.dp,
-                            if (changed) WarmLine else MaterialTheme.colorScheme.surfaceContainer,
+                            if (row.changed) WarmLine
+                            else MaterialTheme.colorScheme.surfaceContainer,
                             RoundedCornerShape(12.dp),
                         )
                         .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -689,9 +576,8 @@ private fun ColumnScope.StepDiff(v: SlotView, s: SlotStatus.ChangedOutside, thei
             }
         }
     }
-    val sameName = v.state.program?.name == mine.program.name
     Text(
-        "$differ step${if (differ == 1) "" else "s"} differ · ${if (sameName) "same name" else "renamed to ${v.state.program?.name?.let(::prettyName)}"}",
+        diffSummary(rows, mine.program.name, s.program.name),
         fontSize = 12.sp,
         color = Muted,
     )
