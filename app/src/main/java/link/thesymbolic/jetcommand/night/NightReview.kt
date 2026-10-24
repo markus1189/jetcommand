@@ -18,7 +18,7 @@ import link.thesymbolic.jetcommand.protocol.formatTemp
 /**
  * What the Nights screens show, derived from the [NightsSource] contract; no Android, no Compose.
  */
-class NightText(private val zone: ZoneId = ZoneId.systemDefault()) {
+class NightText(val zone: ZoneId = ZoneId.systemDefault()) {
     private val hm = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT)
     private val hms = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT)
     private val dayFmt = DateTimeFormatter.ofPattern("EEE d", Locale.ENGLISH)
@@ -45,6 +45,8 @@ class NightText(private val zone: ZoneId = ZoneId.systemDefault()) {
     }
 
     fun span(s: NightSummary) = "${time(s.start)} – ${time(s.end)}"
+
+    fun heading(s: NightSummary) = if (s.ongoing) "Tonight" else title(s)
 }
 
 fun duration(ms: Long): String {
@@ -121,6 +123,17 @@ fun stats(d: NightDetail): Stats {
             ?.let { xs -> xs.sumOf { abs(it.room - it.target) } / 2.0 / xs.size }
     return Stats(s.watched, s.end - s.start, s.drops, s.longestDrop, s.presses, split, deviation)
 }
+
+/** The review's four tiles: value, then caption. */
+fun statTiles(st: Stats): List<Pair<String, String>> =
+    listOf(
+        duration(st.watched) to "watched of ${duration(st.total)}",
+        "${st.drops}" to
+            if (st.drops == 0) "drops" else "drops · longest ${duration(st.longestDrop ?: 0)}",
+        "${st.presses}" to if (st.pressSplit.isEmpty()) "presses" else "presses · ${st.pressSplit}",
+        (st.deviation?.let { "±" + String.format(Locale.ROOT, "%.1f", it) + " °C" } ?: "--") to
+            "room vs target, average",
+    )
 
 fun chips(s: NightSummary, text: NightText): List<Pair<String, Boolean>> = buildList {
     s.killedAt.forEach { add("App killed ${text.time(it)}" to true) }

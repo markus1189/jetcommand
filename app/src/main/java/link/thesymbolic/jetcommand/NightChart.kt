@@ -48,15 +48,14 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoZoomState
 import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.component.ShapeComponent
-import kotlin.math.ceil
-import kotlin.math.floor
-import kotlin.math.roundToLong
+import link.thesymbolic.jetcommand.night.GAP_MINUTES
+import link.thesymbolic.jetcommand.night.Minutes
 import link.thesymbolic.jetcommand.night.NightText
-import link.thesymbolic.jetcommand.protocol.Mode
+import link.thesymbolic.jetcommand.night.Timeline
+import link.thesymbolic.jetcommand.night.atMinute
+import link.thesymbolic.jetcommand.night.timeTicks
+import link.thesymbolic.jetcommand.night.timeline
 import link.thesymbolic.jetcommand.protocol.NightDetail
-import link.thesymbolic.jetcommand.protocol.NightEvent
-import link.thesymbolic.jetcommand.protocol.NightSummary
-import link.thesymbolic.jetcommand.protocol.fanPercent
 
 val Amber = Color(0xFFE8B04A)
 private val HatchBase = Color(0xFF1A1F25)
@@ -84,7 +83,7 @@ fun NightTimeline(
     cursor: MutableState<Double?>,
     modifier: Modifier = Modifier,
 ) {
-    val m = remember(d) { TimelineData(d) }
+    val m = remember(d, text.zone) { timeline(d, text.zone) }
     val listener =
         remember(cursor) {
             val main = android.os.Handler(android.os.Looper.getMainLooper())
@@ -137,74 +136,6 @@ private fun Panel(label: String, content: @Composable () -> Unit) =
         content()
     }
 
-/**
- * Everything the charts plot, in chart units: x in minutes since [NightSummary.start], temperatures
- * in °C.
- */
-private class TimelineData(d: NightDetail) {
-    val s = d.summary
-    val maxX = minuteOf(s.end).coerceAtLeast(1.0)
-
-    private fun minuteOf(t: Long) = ((t - s.start) / 60_000.0).roundToLong().toDouble()
-
-    private val samples = d.samples.distinctBy { minuteOf(it.at) }
-    val room = samples.map { minuteOf(it.at) to it.room / 2.0 }
-    val air = samples.map { minuteOf(it.at) to it.air / 2.0 }
-    val target =
-        samples.filter { it.mode.usesTemperature }.map { minuteOf(it.at) to it.target / 2.0 }
-    val fan = samples.map { minuteOf(it.at) to fanPercent(it.fanStep).toDouble() }
-    val presses =
-        d.events
-            .filter { it.kind == NightEvent.Kind.COMMAND }
-            .map { c ->
-                minuteOf(c.at) to
-                    (d.events
-                            .lastOrNull { it.kind == NightEvent.Kind.FAN && it.at <= c.at + 5_000 }
-                            ?.value
-                            ?.let(::fanPercent) ?: 0)
-                        .toDouble()
-            }
-            .distinctBy { it.first }
-    val all = (room + air + target).map { it.second }
-    val minY = floor(all.minOrNull() ?: 18.0) - 1
-    val maxY = ceil(all.maxOrNull() ?: 26.0) + 1
-    /**
-     * One invisible point a minute across the night: Vico's marker snaps to existing points, so
-     * this lets it land in gaps too.
-     */
-    val everyMinute = (0..maxX.toInt()).map { it.toDouble() }
-    val unobserved = s.gaps.map { minuteOf(it.from)..minuteOf(it.to) }
-    val drops =
-        s.gaps
-            .filter { it.cause == NightSummary.Cause.LINK }
-            .map { minuteOf(it.from)..minuteOf(it.to) }
-    val apps =
-        s.gaps
-            .filter { it.cause == NightSummary.Cause.APP }
-            .map { minuteOf(it.from)..minuteOf(it.to) }
-    val modes: List<Pair<ClosedFloatingPointRange<Double>, Mode>> = buildList {
-        samples.forEach { sample ->
-            val x = minuteOf(sample.at)
-            val last = lastOrNull()
-            if (
-                last != null &&
-                    last.second == sample.mode &&
-                    x - last.first.endInclusive <= GAP_MINUTES
-            )
-                set(size - 1, last.first.start..x + 1 to sample.mode)
-            else add(x..x + 1 to sample.mode)
-        }
-    }
-    val startMinuteOfHour =
-        java.time.Instant.ofEpochMilli(s.start).atZone(java.time.ZoneId.systemDefault()).minute
-}
-
-/**
- * More than this many minutes between samples is a gap, drawn as a break rather than a line across
- * it.
- */
-private const val GAP_MINUTES = 2.5
-
 private val MIN_RUN = 4.dp
 
 /**
@@ -256,7 +187,7 @@ private fun CartesianDrawingContext.px(x: Double): Float =
 
 /** Hatches the stretches nothing was watching, behind the lines. */
 private class Unobserved(
-    private val spans: List<ClosedFloatingPointRange<Double>>,
+    private val spans: List<Minutes>,
     private val full: Boolean = true,
     private val top: Float = 0f,
     private val bottom: Float = 1f,
@@ -316,7 +247,7 @@ private object Scrub : CartesianMarker
  * The link lane and the mode band, painted as decorations so they share the panels' x mapping
  * exactly.
  */
-private class LaneBands(private val m: TimelineData) : Decoration {
+private class LaneBands(private val m: Timeline) : Decoration {
     private val paint = Paint()
 
     override fun drawUnderLayers(context: CartesianDrawingContext) =
@@ -338,7 +269,7 @@ private class LaneBands(private val m: TimelineData) : Decoration {
 }
 
 @Composable
-private fun rememberRange(m: TimelineData, minY: Double, maxY: Double) =
+private fun rememberRange(m: Timeline, minY: Double, maxY: Double) =
     remember(m) {
         CartesianLayerRangeProvider.fixed(minX = 0.0, maxX = m.maxX, minY = minY, maxY = maxY)
     }
@@ -410,7 +341,7 @@ private fun scrubChart(
 ) // written by the marker listener, read by CursorLine at draw time
 @Composable
 private fun Lanes(
-    m: TimelineData,
+    m: Timeline,
     listener: CartesianMarkerVisibilityListener,
     cursor: MutableState<Double?>,
 ) {
@@ -455,7 +386,7 @@ private fun Lanes(
 
 @Composable
 private fun TempChart(
-    m: TimelineData,
+    m: Timeline,
     listener: CartesianMarkerVisibilityListener,
     decorations: List<Decoration>,
 ) {
@@ -518,7 +449,7 @@ private fun TempChart(
 
 @Composable
 private fun FanChart(
-    m: TimelineData,
+    m: Timeline,
     text: NightText,
     listener: CartesianMarkerVisibilityListener,
     decorations: List<Decoration>,
@@ -570,18 +501,13 @@ private fun FanChart(
     Host(chart, model, 96.dp)
 }
 
-/** Bottom axis of clock times, labelled on whole spans aligned to the hour. */
+/** Bottom axis of clock times, labelled per [timeTicks]. */
 @Composable
 private fun rememberTimeAxis(
-    m: TimelineData,
+    m: Timeline,
     text: NightText,
 ): HorizontalAxis<Axis.Position.Horizontal.Bottom> {
-    // At most five labels: Vico ellipsizes a label wider than its share of the axis.
-    val spacing =
-        listOf(15, 30, 60, 120, 180, 240, 360, 720).firstOrNull { m.maxX / it <= 5 } ?: 1440
-    val hour = minOf(spacing, 60)
-    // Vico clips the first label when it sits at the plot's left edge; start one step later then.
-    val offset = ((60 - m.startMinuteOfHour) % hour).let { if (it < m.maxX / 20) it + hour else it }
+    val (spacing, offset) = timeTicks(m)
     return HorizontalAxis.rememberBottom(
         line =
             rememberAxisGuidelineComponent(
@@ -601,7 +527,7 @@ private fun rememberTimeAxis(
         valueFormatter =
             remember(m) {
                 CartesianValueFormatter { _, x, _ ->
-                    text.time(m.s.start + (x * 60_000).toLong())
+                    text.time(atMinute(m.start, x))
                 }
             },
         itemPlacer =

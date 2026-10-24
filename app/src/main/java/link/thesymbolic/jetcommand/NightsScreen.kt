@@ -110,7 +110,7 @@ private fun NightCard(s: NightSummary, text: NightText, onClick: () -> Unit) {
             verticalAlignment = Alignment.Bottom,
         ) {
             Text(
-                if (s.ongoing) "Tonight" else text.title(s),
+                text.heading(s),
                 style = MaterialTheme.typography.titleMedium,
             )
             if (s.ongoing)
