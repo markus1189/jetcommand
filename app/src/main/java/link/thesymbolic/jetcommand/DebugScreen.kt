@@ -35,9 +35,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -283,9 +281,7 @@ private fun ColumnScope.DemoControls(sim: SimTransport, log: (LogLevel, String) 
 private typealias ReadBack = (String, suspend (BedJetStack) -> String) -> Unit
 
 internal fun nightLine(e: NightEvent, zone: ZoneId): String =
-    "${CLOCK.format(Instant.ofEpochMilli(e.at).atZone(zone))} ${e.kind} ${e.detail}"
-
-private val CLOCK = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT)
+    "${hhmmss(e.at, zone)} ${e.kind} ${e.detail}"
 
 internal fun connectionLine(mtu: Int?, replySource: Characteristic?): String =
     "MTU: ${mtu ?: "-"}   Replies from: ${replySource?.uuid?.drop(4)?.take(4) ?: "-"}"
@@ -313,12 +309,10 @@ internal fun statusLines(st: Status?, extraAgeMs: Long?): List<String> {
             ?.let { "\nNotification $it: ${Notification.TEXT[it] ?: "?"}" } ?: ""
     return listOf(
         "Mode ${st.mode.label}   actual ${formatTemp(st.actualTemp)}   target ${formatTemp(st.targetTemp)}   fan ${st.fanPercent}%",
-        "Remaining ${r / 3600}:${pad2(r / 60 % 60)}:${pad2(r % 60)}   ambient ${formatTemp(st.ambientTemp)}",
+        "Remaining ${hoursMinutes(r)}:${pad2(r % 60)}   ambient ${formatTemp(st.ambientTemp)}",
         "Program step ${x?.programStep ?: "-"}   extra $extraAge$notification",
     )
 }
-
-private fun pad2(n: Int) = n.toString().padStart(2, '0')
 
 internal fun programNamesText(names: List<String?>): String =
     names.joinToString(" | ") { it ?: "-" }

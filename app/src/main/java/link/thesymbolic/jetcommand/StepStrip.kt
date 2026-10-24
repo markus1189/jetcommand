@@ -37,12 +37,6 @@ fun timeline(steps: List<Step>, start: LocalTime): List<Span> {
     }
 }
 
-fun clockAt(start: LocalTime, minutes: Int): String =
-    start.plusMinutes(minutes.toLong()).let { "%02d:%02d".format(it.hour, it.minute) }
-
-fun duration(minutes: Int): String =
-    if (minutes < 60) "$minutes min" else "%d h %02d".format(minutes / 60, minutes % 60)
-
 /**
  * The step's set point in °C, null where it has none (turbo runs at a fixed 43 °C, wait has no
  * air).

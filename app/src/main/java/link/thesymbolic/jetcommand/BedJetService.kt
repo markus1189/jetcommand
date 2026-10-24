@@ -19,7 +19,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
-import link.thesymbolic.jetcommand.now.hoursMinutes
 import link.thesymbolic.jetcommand.protocol.Button as Btn
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel

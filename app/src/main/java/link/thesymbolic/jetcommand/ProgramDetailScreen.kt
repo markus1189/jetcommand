@@ -314,7 +314,7 @@ private fun StepRow(s: Span, start: LocalTime) =
         ) {
             Text(
                 if (s.step.timing is Timing.Until) "until ${clockAt(start, s.to)}"
-                else duration(s.minutes),
+                else durationMin(s.minutes),
                 fontSize = 14.sp,
             )
             Text("ends ${clockAt(start, s.to)}", fontSize = 12.sp, color = Muted)

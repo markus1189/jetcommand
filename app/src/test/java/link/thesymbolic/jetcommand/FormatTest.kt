@@ -6,8 +6,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import link.thesymbolic.jetcommand.night.NightText
 import link.thesymbolic.jetcommand.night.chips
-import link.thesymbolic.jetcommand.night.duration as nightDuration
-import link.thesymbolic.jetcommand.now.hoursMinutes
 import link.thesymbolic.jetcommand.now.runningView
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.NightSummary
@@ -73,11 +71,11 @@ class FormatTest {
     fun `step durations in minutes`() =
         check(
             listOf(
-                duration(0) to "0 min",
-                duration(59) to "59 min",
-                duration(60) to "1 h 00",
-                duration(65) to "1 h 05",
-                duration(600) to "10 h 00",
+                durationMin(0) to "0 min",
+                durationMin(59) to "59 min",
+                durationMin(60) to "1 h 00",
+                durationMin(65) to "1 h 05",
+                durationMin(600) to "10 h 00",
                 stepCell(cool(Timing.For(1, 5))).second to "fan 5 % · 20°C · 1 h 05",
                 programMeta(null, listOf(cool(Timing.For(0, 30))), LocalTime.of(6, 0)) to
                     "1 step · 30 min",
@@ -88,13 +86,13 @@ class FormatTest {
     fun `elapsed durations in milliseconds`() =
         check(
             listOf(
-                nightDuration(0) to "0 s",
-                nightDuration(89_999) to "90 s",
-                nightDuration(119_000) to "119 s",
-                nightDuration(120_000) to "2 min",
-                nightDuration(3_570_000) to "1 h",
-                nightDuration(3_600_000) to "1 h",
-                nightDuration(5_400_000) to "1 h 30 m",
+                durationMs(0) to "0 s",
+                durationMs(89_999) to "90 s",
+                durationMs(119_000) to "119 s",
+                durationMs(120_000) to "2 min",
+                durationMs(3_570_000) to "1 h",
+                durationMs(3_600_000) to "1 h",
+                durationMs(5_400_000) to "1 h 30 m",
             )
         )
 
