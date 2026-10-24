@@ -97,8 +97,9 @@ class BedJetLink(
     var deviceName: String? = null
         private set
 
-    var reconnectAttempt = 0
-        private set
+    /** The reconnect waiting or running, 0 when none is; a [connect] taking over keeps it. */
+    val reconnectAttempt: Int
+        get() = session.attempt
 
     /** Why the link last dropped; set before the state leaves [LinkState.Ready]. */
     var lastDropReason: String? = null
@@ -106,19 +107,22 @@ class BedJetLink(
 
     private val queue = Mutex()
     private val connectLock = Mutex()
+    // Kept across reconnects: a reply matches on id and tag, so only consecutive tags must differ.
     private var tag = 0
-    private var attached = false
-    private var wanted = false
-    private var reconnectJob: Job? = null
+    // Per connection, but readReply grows it mid-operation; in the session it would race with
+    // session changes made while that operation suspends.
     private val missing = mutableSetOf<Characteristic>()
-    private var lastHead: ByteArray? = null
-    private var lastExtra: StatusExtra? = null
-    private var lastRemainderRead = Long.MIN_VALUE / 2
-    private var remainderPending = false
+    private var assembler = StatusAssembler()
+
+    private var session: Session = Session.Idle
+        set(value) {
+            field = value
+            _state.value = value.linkState
+        }
 
     init {
         this.scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            transport.notifications.collect { if (attached) receiveStatus(it) }
+            transport.notifications.collect { if (session.attached) receiveStatus(it) }
         }
         this.scope.launch(start = CoroutineStart.UNDISPATCHED) {
             transport.state.collect { if (it is TransportState.Lost) handleDrop(it.reason) }
@@ -126,19 +130,17 @@ class BedJetLink(
     }
 
     suspend fun connect() {
-        if (_state.value == LinkState.Ready) return
-        wanted = true
-        reconnectJob?.cancel()
-        reconnectJob = null
-        try {
-            connectOnce()
-        } catch (e: BedJetException) {
-            if (wanted && config.retryFailedConnect && config.autoReconnect) {
-                log(LogLevel.WARN, "Connect failed: ${e.message}")
-                scheduleReconnect()
-            }
-            throw e
+        session = claimForCaller(session) ?: return
+        val failure =
+            connectOnce { s ->
+                if (s == Session.Idle) throw BedJetException(ErrorCode.NOT_CONNECTED)
+                claimForCaller(s)
+            } ?: return
+        if (failure.owned && config.retryFailedConnect && config.autoReconnect) {
+            log(LogLevel.WARN, "Connect failed: ${failure.error.message}")
+            scheduleReconnect(after = failure.attempt)
         }
+        throw failure.error
     }
 
     /**
@@ -147,25 +149,23 @@ class BedJetLink(
      * gave up while still wanted.
      */
     fun retryNow() {
-        if (!wanted || !config.autoReconnect) return
-        val waiting = reconnectJob?.isActive == true && !connecting
-        val gaveUp = (_state.value as? LinkState.Disconnected)?.gaveUp == true
-        if (!waiting && !gaveUp) return
+        if (!config.autoReconnect) return
+        val s = session
+        if (s !is Session.Waiting && (s as? Session.Down)?.gaveUp != true) return
         log(LogLevel.INFO, "Retrying now")
-        reconnectJob?.cancel()
-        reconnectAttempt = 1
-        runReconnect(0)
+        s.job?.cancel()
+        runReconnect(attempt = 1, wait = 0)
     }
 
     /** Stays down: no reconnect follows. */
     suspend fun disconnect() {
-        wanted = false
-        reconnectAttempt = 0
-        reconnectJob?.cancel()
-        reconnectJob = null
+        session.job?.cancel()
+        session = Session.Idle
         log(LogLevel.INFO, "Disconnecting")
-        runCatching { transport.disconnect() }
-        teardown()
+        attempt(onError = { log(LogLevel.WARN, "Disconnect failed: ${it.message}") }) {
+            transport.disconnect()
+        }
+        assembler = assembler.reset()
     }
 
     suspend fun send(bytes: ByteArray) {
@@ -222,98 +222,183 @@ class BedJetLink(
 
     // ---- connection ----
 
-    private var connecting = false
+    /**
+     * Where the link is, and whether anyone wants it: the one source of [state] and
+     * [reconnectAttempt].
+     */
+    private sealed interface Session {
+        val linkState: LinkState
+        val attempt: Int
+            get() = 0
 
-    private suspend fun connectOnce() = connectLock.withLock {
-        connecting = true
-        try {
-            connectLocked()
-        } finally {
-            connecting = false
+        /** A reconnect waiting or connecting; cancelled when the session is taken over. */
+        val job: Job?
+            get() = null
+
+        /** The transport is up and its notifications are ours. */
+        val attached: Boolean
+            get() = false
+
+        /** Nobody wants the link: before [connect], after [disconnect]. */
+        data object Idle : Session {
+            override val linkState = LinkState.Disconnected()
+        }
+
+        /**
+         * Wanted, but down with nothing scheduled: reconnects [gaveUp], a connect failed, or the
+         * link dropped without auto-reconnect.
+         */
+        data class Down(val gaveUp: Boolean) : Session {
+            override val linkState = LinkState.Disconnected(gaveUp)
+        }
+
+        data class Waiting(override val attempt: Int, override val job: Job) : Session {
+            override val linkState = LinkState.Connecting(attempt)
+        }
+
+        /**
+         * A connect running for the caller ([job] null) or a reconnect. Compared by identity: the
+         * run that set it owns the session until something else replaces it, and after that leaves
+         * the session alone.
+         */
+        class Connecting(
+            override val attempt: Int,
+            override val job: Job?,
+            override val attached: Boolean = false,
+        ) : Session {
+            override val linkState = LinkState.Connecting(attempt)
+        }
+
+        data object Ready : Session {
+            override val linkState = LinkState.Ready
+            override val attached = true
         }
     }
 
-    private suspend fun connectLocked() {
-        if (_state.value == LinkState.Ready) return
-        if (_state.value !is LinkState.Connecting) setState(LinkState.Connecting())
-        cleanupOnFailure({ abortConnect() }) {
-            try {
-                withTimeoutOrNull(config.connectTimeoutMs) { transport.connect() }
-                    ?: throw BedJetException(ErrorCode.TIMEOUT)
-            } catch (e: TransportException) {
-                throw wrap(e, ErrorCode.NOT_CONNECTED)
+    /** [owned]: the failed run still owned the session, so what follows is the run's to decide. */
+    private class ConnectFailure(
+        val error: BedJetException,
+        val attempt: Int,
+        val owned: Boolean,
+    )
+
+    /**
+     * The caller's connect takes over a waiting or running reconnect, keeping its count, and joins
+     * another caller's connect. Null: the link is up.
+     */
+    private fun claimForCaller(s: Session): Session.Connecting? =
+        when (s) {
+            Session.Ready -> null
+            is Session.Connecting ->
+                if (s.job == null) s
+                else {
+                    s.job.cancel()
+                    Session.Connecting(s.attempt, job = null)
+                }
+            is Session.Waiting -> {
+                s.job.cancel()
+                Session.Connecting(s.attempt, job = null)
             }
-            missing.clear()
-            attached = true
-            deviceName = "BedJet"
+            Session.Idle,
+            is Session.Down -> Session.Connecting(0, job = null)
+        }
+
+    /**
+     * Connects as the run [claim] makes of the session found under the lock, or does nothing when
+     * [claim] returns null. Null result: up, or nothing to do.
+     */
+    private suspend fun connectOnce(claim: (Session) -> Session.Connecting?): ConnectFailure? =
+        connectLock.withLock {
+            var mine = claim(session) ?: return@withLock null
+            session = mine
+            var owned = true
             try {
-                Reply.parseText(serial { read(Characteristic.NAME) })
-                    .takeIf { it.isNotEmpty() }
-                    ?.let { deviceName = it }
+                cleanupOnFailure({ owned = abortConnect(mine) }) {
+                    try {
+                        withTimeoutOrNull(config.connectTimeoutMs) { transport.connect() }
+                            ?: throw BedJetException(ErrorCode.TIMEOUT)
+                    } catch (e: TransportException) {
+                        throw wrap(e, ErrorCode.NOT_CONNECTED)
+                    }
+                    // Taken over (disconnect, drop) while the transport connected.
+                    if (session !== mine) throw BedJetException(ErrorCode.NOT_CONNECTED)
+                    missing.clear()
+                    mine = Session.Connecting(mine.attempt, mine.job, attached = true)
+                    session = mine
+                    deviceName = "BedJet"
+                    try {
+                        Reply.parseText(serial { read(Characteristic.NAME) })
+                            .takeIf { it.isNotEmpty() }
+                            ?.let { deviceName = it }
+                    } catch (e: BedJetException) {
+                        log(LogLevel.WARN, "Could not read device name: ${e.message}")
+                    }
+                    if (session !== mine) throw BedJetException(ErrorCode.NOT_CONNECTED)
+                    log(LogLevel.SUCCESS, "Connected to $deviceName")
+                    session = Session.Ready
+                }
+                null
             } catch (e: BedJetException) {
-                log(LogLevel.WARN, "Could not read device name: ${e.message}")
+                ConnectFailure(e, mine.attempt, owned)
             }
-            reconnectAttempt = 0
-            log(LogLevel.SUCCESS, "Connected to $deviceName")
-            setState(LinkState.Ready)
         }
-    }
 
-    private suspend fun abortConnect() {
-        withContext(NonCancellable) { runCatching { transport.disconnect() } }
-        teardown()
-    }
-
-    private fun teardown() {
-        attached = false
-        lastHead = null
-        lastExtra = null
-        remainderPending = false
-        setState(LinkState.Disconnected())
+    /** True when [mine] still owned the session, which is then [Session.Down]. */
+    private suspend fun abortConnect(mine: Session.Connecting): Boolean {
+        withContext(NonCancellable) {
+            attempt(onError = { log(LogLevel.WARN, "Disconnect failed: ${it.message}") }) {
+                transport.disconnect()
+            }
+        }
+        // Under connectLock nobody else is attached, so the assembler is this run's either way.
+        assembler = assembler.reset()
+        if (session !== mine) return false
+        session = Session.Down(gaveUp = false)
+        return true
     }
 
     private fun handleDrop(reason: TransportException) {
-        if (!attached && _state.value is LinkState.Disconnected) return
+        val s = session
+        if (s != Session.Ready && s !is Session.Connecting) return
         log(LogLevel.WARN, "Connection lost: ${reason.message}")
         lastDropReason = reason.message
-        teardown()
-        if (!wanted || !config.autoReconnect) return
-        scheduleReconnect()
+        assembler = assembler.reset()
+        session = Session.Down(gaveUp = false)
+        if (config.autoReconnect) scheduleReconnect(after = s.attempt)
     }
 
-    private fun scheduleReconnect() {
-        val max = config.maxReconnectAttempts
-        if (max != null && reconnectAttempt >= max) {
-            log(LogLevel.ERROR, "Gave up after $reconnectAttempt reconnect attempts")
-            reconnectAttempt = 0
-            setState(LinkState.Disconnected(gaveUp = true))
-            return
-        }
-        reconnectAttempt += 1
-        val wait =
-            minOf(
-                config.reconnectBaseMs shl (reconnectAttempt - 1).coerceAtMost(30),
-                config.reconnectMaxMs,
-            )
-        log(LogLevel.WARN, "Reconnect $reconnectAttempt/${max ?: "∞"} in ${wait / 1000} s")
-        runReconnect(wait)
-    }
-
-    private fun runReconnect(wait: Long) {
-        setState(LinkState.Connecting(reconnectAttempt))
-        reconnectJob = scope.launch {
-            delay(wait)
-            if (!wanted) return@launch
-            try {
-                connectOnce()
-            } catch (e: BedJetException) {
-                log(LogLevel.WARN, "Reconnect $reconnectAttempt failed: ${e.message}")
-                if (wanted) {
-                    setState(LinkState.Connecting(reconnectAttempt))
-                    scheduleReconnect()
-                }
+    private fun scheduleReconnect(after: Int) {
+        when (val decision = reconnectDecision(after, config)) {
+            ReconnectDecision.GiveUp -> {
+                log(LogLevel.ERROR, "Gave up after $after reconnect attempts")
+                session = Session.Down(gaveUp = true)
+            }
+            is ReconnectDecision.Retry -> {
+                val max = config.maxReconnectAttempts ?: "∞"
+                log(
+                    LogLevel.WARN,
+                    "Reconnect ${decision.attempt}/$max in ${decision.waitMs / 1000} s",
+                )
+                runReconnect(decision.attempt, decision.waitMs)
             }
         }
+    }
+
+    private fun runReconnect(attempt: Int, wait: Long) {
+        lateinit var waiting: Session.Waiting
+        val job =
+            scope.launch(start = CoroutineStart.LAZY) {
+                delay(wait)
+                val failure =
+                    connectOnce { s ->
+                        if (s === waiting) Session.Connecting(attempt, waiting.job) else null
+                    } ?: return@launch
+                log(LogLevel.WARN, "Reconnect $attempt failed: ${failure.error.message}")
+                if (failure.owned) scheduleReconnect(after = attempt)
+            }
+        waiting = Session.Waiting(attempt, job)
+        session = waiting
+        job.start()
     }
 
     // ---- operations ----
@@ -370,73 +455,31 @@ class BedJetLink(
 
     // ---- status ----
 
-    private fun receiveStatus(bytes: ByteArray) {
-        if (Reply.isStatusStart(bytes)) receiveHead(bytes)
-        else if (remainderPending) mergeRemainder(bytes)
-    }
+    private fun receiveStatus(bytes: ByteArray) =
+        act(assembler.notified(bytes, now(), config.remainderIntervalMs))
 
-    private fun receiveHead(bytes: ByteArray) {
-        val status =
-            Reply.parseStatus(bytes)
-                ?: return log(LogLevel.WARN, "Unparseable status: ${bytes.toHex()}")
-        val update =
-            if (status.extra != null) {
-                lastExtra = status.extra
-                lastHead = null
-                StatusUpdate(status, extraFresh = true)
-            } else {
-                // Bytes 27–29 lag behind: show the last known ones and fetch the remainder now and
-                // then.
-                lastHead = bytes
-                val t = now()
-                if (
-                    bytes.u(0) == 1 &&
-                        !remainderPending &&
-                        t - lastRemainderRead >= config.remainderIntervalMs
-                ) {
-                    lastRemainderRead = t
-                    readRemainder()
-                }
-                StatusUpdate(status.copy(extra = lastExtra), extraFresh = false)
-            }
-        emit(update)
+    private fun act(step: Assembled) {
+        assembler = step.next
+        if (step.readRemainder) readRemainder()
+        step.warning?.let { log(LogLevel.WARN, it) }
+        step.update?.let(::emit)
     }
 
     private fun readRemainder() {
-        remainderPending = true
         scope.launch {
             try {
-                // Android may also notify the read value; whichever path arrives first merges.
-                val bytes = serial { read(Characteristic.STATUS) }
-                if (remainderPending && !Reply.isStatusStart(bytes)) mergeRemainder(bytes)
+                act(assembler.remainderRead(serial { read(Characteristic.STATUS) }))
             } catch (e: BedJetException) {
                 log(LogLevel.WARN, "Status remainder read failed: ${e.message}")
             } finally {
-                remainderPending = false
+                assembler = assembler.remainderSettled()
             }
         }
-    }
-
-    private fun mergeRemainder(rest: ByteArray) {
-        remainderPending = false
-        val head = lastHead ?: return
-        val status = Reply.parseStatus(head + rest)
-        if (status?.extra == null)
-            return log(
-                LogLevel.WARN,
-                "Status remainder didn't complete the packet: ${rest.toHex()}",
-            )
-        lastExtra = status.extra
-        emit(StatusUpdate(status, extraFresh = true))
     }
 
     private fun emit(update: StatusUpdate) {
         _status.value = update
         _statuses.tryEmit(update)
-    }
-
-    private fun setState(state: LinkState) {
-        _state.value = state
     }
 
     private fun wrap(e: Throwable, fallback: ErrorCode): BedJetException {
