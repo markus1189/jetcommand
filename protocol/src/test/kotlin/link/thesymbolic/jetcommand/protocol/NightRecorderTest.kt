@@ -130,4 +130,37 @@ class NightRecorderTest {
             assertEquals(Kind.DISCONNECTED, kinds.last())
             assertTrue(Kind.LOST !in kinds)
         }
+
+    @Test
+    fun `transition - a reconnect reports the gap, after a user disconnect a connect is fresh`() {
+        var state = RecorderState(LinkState.Disconnected())
+        fun feed(input: RecorderInput): List<Pair<Kind, String>> {
+            val (next, out) = state.next(input, sampleMs = 60_000)
+            state = next
+            return out.map { (it as RecorderOutput.Event).event.let { e -> e.kind to e.detail } }
+        }
+        fun link(at: Long, s: LinkState, attempt: Int = 0, reason: String? = null) =
+            RecorderInput.Link(at, s, "BJ", attempt, reason)
+
+        assertEquals(listOf(Kind.CONNECTED to "BJ"), feed(link(0, LinkState.Ready)))
+        assertEquals(
+            listOf(Kind.LOST to "timeout"),
+            feed(link(1_000, LinkState.Connecting(1), 1, "timeout")),
+        )
+        assertEquals(emptyList(), feed(link(2_000, LinkState.Connecting(2), 2)))
+        assertEquals(
+            listOf(Kind.RECONNECTED to "after 41 s"),
+            feed(link(42_000, LinkState.Ready, 2)),
+        )
+        assertEquals(emptyList(), feed(RecorderInput.UserDisconnecting))
+        assertEquals(
+            listOf(Kind.DISCONNECTED to "by the app"),
+            feed(link(50_000, LinkState.Disconnected())),
+        )
+        assertEquals(listOf(Kind.CONNECTED to "BJ"), feed(link(60_000, LinkState.Ready)))
+        assertEquals(
+            listOf(Kind.LOST to "unknown", Kind.GAVE_UP to "reconnect stopped"),
+            feed(link(70_000, LinkState.Disconnected(gaveUp = true))),
+        )
+    }
 }

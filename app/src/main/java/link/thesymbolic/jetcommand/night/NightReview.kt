@@ -11,14 +11,14 @@ import link.thesymbolic.jetcommand.protocol.NightEvent
 import link.thesymbolic.jetcommand.protocol.NightEvent.Kind
 import link.thesymbolic.jetcommand.protocol.NightSample
 import link.thesymbolic.jetcommand.protocol.NightSummary
-import link.thesymbolic.jetcommand.protocol.ProcessLog
+import link.thesymbolic.jetcommand.protocol.ProcessEvent
 import link.thesymbolic.jetcommand.protocol.fanPercent
 import link.thesymbolic.jetcommand.protocol.formatTemp
 
 /**
  * What the Nights screens show, derived from the [NightsSource] contract; no Android, no Compose.
  */
-class NightText(private val zone: ZoneId = ZoneId.systemDefault()) {
+class NightText(val zone: ZoneId = ZoneId.systemDefault()) {
     private val hm = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT)
     private val hms = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT)
     private val dayFmt = DateTimeFormatter.ofPattern("EEE d", Locale.ENGLISH)
@@ -45,6 +45,8 @@ class NightText(private val zone: ZoneId = ZoneId.systemDefault()) {
     }
 
     fun span(s: NightSummary) = "${time(s.start)} – ${time(s.end)}"
+
+    fun heading(s: NightSummary) = if (s.ongoing) "Tonight" else title(s)
 }
 
 fun duration(ms: Long): String {
@@ -122,6 +124,17 @@ fun stats(d: NightDetail): Stats {
     return Stats(s.watched, s.end - s.start, s.drops, s.longestDrop, s.presses, split, deviation)
 }
 
+/** The review's four tiles: value, then caption. */
+fun statTiles(st: Stats): List<Pair<String, String>> =
+    listOf(
+        duration(st.watched) to "watched of ${duration(st.total)}",
+        "${st.drops}" to
+            if (st.drops == 0) "drops" else "drops · longest ${duration(st.longestDrop ?: 0)}",
+        "${st.presses}" to if (st.pressSplit.isEmpty()) "presses" else "presses · ${st.pressSplit}",
+        (st.deviation?.let { "±" + String.format(Locale.ROOT, "%.1f", it) + " °C" } ?: "--") to
+            "room vs target, average",
+    )
+
 fun chips(s: NightSummary, text: NightText): List<Pair<String, Boolean>> = buildList {
     s.killedAt.forEach { add("App killed ${text.time(it)}" to true) }
     when (s.drops) {
@@ -171,7 +184,7 @@ private class ImportantRows(private val d: NightDetail, private val text: NightT
                 Kind.FAN,
                 Kind.TARGET -> if (pressed(e) && e !in folded) change(i, e)
                 Kind.MODE -> if (pressed(e)) rows += EventRow(e.at, "Mode ${e.detail}")
-                Kind.PROCESS -> if (e.detail.startsWith("exit")) exit(e)
+                Kind.PROCESS -> (e.process as? ProcessEvent.Exit)?.let { exit(e, it) }
                 else -> plain(e)?.let { rows += it }
             }
         }
@@ -191,9 +204,7 @@ private class ImportantRows(private val d: NightDetail, private val text: NightT
     private fun connected(i: Int, e: NightEvent) {
         val started =
             ev.any {
-                it.kind == Kind.PROCESS &&
-                    it.detail == ProcessLog.STARTED &&
-                    it.at in e.at - 60_000..e.at
+                it.process == ProcessEvent.Started && it.at in e.at - 60_000..e.at
             } && rows.isNotEmpty()
         val mode = ev.drop(i + 1).firstOrNull { it.kind == Kind.MODE && it.at - e.at < 60_000 }
         val modeNote = mode?.takeIf { started }?.let { " · BedJet ${it.detail}" } ?: ""
@@ -255,14 +266,12 @@ private class ImportantRows(private val d: NightDetail, private val text: NightT
         folded += run
     }
 
-    private fun exit(e: NightEvent) {
+    private fun exit(e: NightEvent, exit: ProcessEvent.Exit) {
         val killed = e.at in d.summary.killedAt
         rows +=
             EventRow(
                 e.at,
-                if (killed) "App killed by Android"
-                else
-                    "App ended · ${e.detail.removePrefix(ProcessLog.EXIT_PREFIX).substringBefore(" importance")}",
+                if (killed) "App killed by Android" else "App ended · ${exit.reasonLabel}",
                 warn = killed,
             )
         d.summary.gaps
@@ -322,11 +331,15 @@ fun killedCallouts(d: NightDetail, text: NightText): List<Pair<String, String>> 
     d.summary.killedAt.map { at ->
         val why =
             d.events
-                .firstOrNull { it.at == at && it.kind == Kind.PROCESS }
-                ?.detail
-                ?.let { detail ->
-                    Regex("""\(([^()]*)\)""").findAll(detail).lastOrNull()?.groupValues?.get(1)
-                        ?: detail.removePrefix(ProcessLog.EXIT_PREFIX).substringBefore(' ')
+                .firstNotNullOfOrNull { e ->
+                    (e.process as? ProcessEvent.Exit)?.takeIf { e.at == at }
+                }
+                ?.let { exit ->
+                    Regex("""\(([^()]*)\)""")
+                        .findAll(exit.description)
+                        .lastOrNull()
+                        ?.groupValues
+                        ?.get(1) ?: exit.reasonLabel
                 }
         val gap = d.summary.gaps.firstOrNull { it.cause == NightSummary.Cause.APP && it.from == at }
         val mode = gap?.let { g -> d.events.firstOrNull { it.kind == Kind.MODE && it.at >= g.to } }

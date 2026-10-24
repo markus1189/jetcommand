@@ -118,9 +118,16 @@ class BedJetController(
 
     fun nightLog(limit: Int = 50): Flow<List<NightEvent>> = store.recent(limit)
 
-    fun lifecycle(detail: String, at: Long = System.currentTimeMillis()) {
-        scope.launch { store.append(NightEvent(at, NightEvent.Kind.PROCESS, detail)) }
+    fun lifecycle(
+        event: link.thesymbolic.jetcommand.protocol.ProcessEvent,
+        at: Long = System.currentTimeMillis(),
+    ) {
+        scope.launch { store.append(NightEvent.process(at, event)) }
     }
+
+    /** For the service's notes; the text is stored as given. */
+    fun lifecycle(detail: String, at: Long = System.currentTimeMillis()) =
+        lifecycle(link.thesymbolic.jetcommand.protocol.ProcessEvent.parse(detail), at)
 
     private var switching: Job? = null
     private var autoConnectTried = false

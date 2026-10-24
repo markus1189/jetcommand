@@ -40,16 +40,16 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import java.util.Locale
 import link.thesymbolic.jetcommand.night.EventRow
 import link.thesymbolic.jetcommand.night.NightText
 import link.thesymbolic.jetcommand.night.allRows
-import link.thesymbolic.jetcommand.night.duration
+import link.thesymbolic.jetcommand.night.atMinute
 import link.thesymbolic.jetcommand.night.importantRows
 import link.thesymbolic.jetcommand.night.killedCallouts
 import link.thesymbolic.jetcommand.night.readout
 import link.thesymbolic.jetcommand.night.sampleAt
 import link.thesymbolic.jetcommand.night.shareText
+import link.thesymbolic.jetcommand.night.statTiles
 import link.thesymbolic.jetcommand.night.stats
 import link.thesymbolic.jetcommand.protocol.NightDetail
 import link.thesymbolic.jetcommand.protocol.NightSummary
@@ -99,7 +99,7 @@ private fun ReviewHeader(
         IconButton(onClick = onBack) { Icon(BackIcon, contentDescription = "Back to nights") }
         Column(Modifier.weight(1f)) {
             Text(
-                if (night.ongoing) "Tonight" else text.title(night),
+                text.heading(night),
                 style = MaterialTheme.typography.titleLarge,
             )
             Text(
@@ -160,10 +160,7 @@ private fun TimelineCard(
         val x = cursor.value
         Text(
             if (x == null) "Touch and drag the chart to read the values at a time."
-            else
-                (night.start + (x * 60_000).toLong()).let {
-                    readout(sampleAt(d.samples, it), it, text)
-                },
+            else atMinute(night.start, x).let { readout(sampleAt(d.samples, it), it, text) },
             style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
             color =
                 if (x == null) MaterialTheme.colorScheme.onSurfaceVariant
@@ -197,17 +194,7 @@ private fun EventsHeader(important: Boolean, setImportant: (Boolean) -> Unit) {
 
 @Composable
 private fun StatTiles(d: NightDetail) {
-    val st = remember(d) { stats(d) }
-    val tiles =
-        listOf(
-            duration(st.watched) to "watched of ${duration(st.total)}",
-            "${st.drops}" to
-                if (st.drops == 0) "drops" else "drops · longest ${duration(st.longestDrop ?: 0)}",
-            "${st.presses}" to
-                if (st.pressSplit.isEmpty()) "presses" else "presses · ${st.pressSplit}",
-            (st.deviation?.let { "±" + String.format(Locale.ROOT, "%.1f", it) + " °C" } ?: "--") to
-                "room vs target, average",
-        )
+    val tiles = remember(d) { statTiles(stats(d)) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         tiles.chunked(2).forEach { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
