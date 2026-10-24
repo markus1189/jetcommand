@@ -1,0 +1,226 @@
+package link.thesymbolic.jetcommand.now
+
+import java.time.LocalTime
+import link.thesymbolic.jetcommand.Span
+import link.thesymbolic.jetcommand.duration
+import link.thesymbolic.jetcommand.linkText
+import link.thesymbolic.jetcommand.prettyName
+import link.thesymbolic.jetcommand.protocol.Button
+import link.thesymbolic.jetcommand.protocol.LinkState
+import link.thesymbolic.jetcommand.protocol.Mode
+import link.thesymbolic.jetcommand.protocol.Program
+import link.thesymbolic.jetcommand.protocol.Slot
+import link.thesymbolic.jetcommand.protocol.SlotView
+import link.thesymbolic.jetcommand.protocol.StartedSlot
+import link.thesymbolic.jetcommand.protocol.Status
+import link.thesymbolic.jetcommand.protocol.StatusUpdate
+import link.thesymbolic.jetcommand.protocol.fanPercent
+import link.thesymbolic.jetcommand.protocol.formatTemp
+import link.thesymbolic.jetcommand.protocol.tempRange
+import link.thesymbolic.jetcommand.timeline
+
+/** What the Now screen reads, flattened from the view model and the program library. */
+data class NowInputs(
+    val stackLabel: String?,
+    val link: LinkState,
+    val update: StatusUpdate?,
+    val statusAgeSeconds: Long,
+    /** The remembered unit's label. */
+    val remembered: String?,
+    val canConnect: Boolean,
+    /** By slot index, null where empty. */
+    val programNames: List<String?>,
+    val device: String?,
+    val started: StartedSlot?,
+    val slots: List<SlotView>,
+)
+
+data class NowState(val header: String, val canDisconnect: Boolean, val body: NowBody)
+
+sealed interface NowBody {
+    /** [reconnect] is the remembered unit's label, null when it can't be connected. */
+    data class Offline(val reconnect: String?) : NowBody
+
+    /** A unit is (re)connecting: nothing to control yet. */
+    data object Waiting : NowBody
+
+    data class Live(
+        val status: Status,
+        val summary: String,
+        val running: RunningView?,
+        val programs: List<ProgramButton>,
+    ) : NowBody
+}
+
+data class ProgramButton(val slot: Slot, val label: String)
+
+/** [nowMinute] counts from the program's start, like the [spans]. */
+data class RunningView(
+    val title: String,
+    val next: String,
+    val spans: List<Span>,
+    val nowMinute: Double,
+)
+
+sealed interface NowEvent {
+    data object Disconnect : NowEvent
+
+    data object ConnectRemembered : NowEvent
+
+    data object OpenDiagnostics : NowEvent
+
+    /** Off, with an undo offered. */
+    data object TurnOff : NowEvent
+
+    data class SetMode(val mode: Mode) : NowEvent
+
+    data class SetTemperature(val halfC: Int) : NowEvent
+
+    data class SetFan(val step: Int) : NowEvent
+
+    data class StartProgram(val slot: Slot) : NowEvent
+}
+
+fun nowState(inputs: NowInputs, now: LocalTime): NowState {
+    val st = inputs.update?.status?.takeIf { inputs.link == LinkState.Ready }
+    val header =
+        listOfNotNull(
+                inputs.stackLabel,
+                linkText(inputs.link),
+                st?.let { "${inputs.statusAgeSeconds} s ago" },
+            )
+            .joinToString(" · ")
+    val body =
+        when {
+            st != null -> live(st, inputs, now)
+            inputs.stackLabel == null ->
+                NowBody.Offline(inputs.remembered?.takeIf { inputs.canConnect })
+            else -> NowBody.Waiting
+        }
+    return NowState(header, canDisconnect = inputs.stackLabel != null, body)
+}
+
+private fun live(st: Status, inputs: NowInputs, now: LocalTime): NowBody.Live {
+    val step = st.extra?.programStep ?: 0
+    val running =
+        runningProgram(step, inputs.device, inputs.started, inputs.slots)?.let {
+            runningView(it, step, st.remainingSeconds, now)
+        }
+    val summary =
+        listOfNotNull(
+                "auto off ${hoursMinutes(st.remainingSeconds)}".takeIf { st.mode != Mode.STANDBY },
+                "program step $step".takeIf { step > 0 && running == null },
+            )
+            .joinToString(" · ")
+    return NowBody.Live(st, summary, running, programButtons(inputs.programNames))
+}
+
+fun programButtons(names: List<String?>): List<ProgramButton> =
+    Slot.all.zip(names).mapNotNull { (slot, name) ->
+        name?.let { ProgramButton(slot, prettyName(it)) }
+    }
+
+/**
+ * The program the unit is running, from [device]'s slot cache. The status carries only the step
+ * number: the slot this app started, else the one cached program long enough for the step; null
+ * when none or several fit.
+ */
+fun runningProgram(
+    step: Int,
+    device: String?,
+    started: StartedSlot?,
+    slots: List<SlotView>,
+): Program? {
+    if (step <= 0) return null
+    val cached = slots.filter { it.state.device == device }
+    fun fits(p: Program?) = p?.takeIf { it.steps.size >= step }
+    val mine =
+        started
+            ?.takeIf { it.device == device }
+            ?.let { s -> fits(cached.find { it.state.slot == s.slot }?.state?.program) }
+    return mine ?: cached.mapNotNull { fits(it.state.program) }.singleOrNull()
+}
+
+/** "Twostep · step 2/5", the next step and when it starts; null for a program without steps. */
+fun runningView(p: Program, step: Int, remainingSeconds: Int, now: LocalTime): RunningView? {
+    if (p.steps.isEmpty()) return null
+    val i = (step - 1).coerceIn(0, p.steps.lastIndex)
+    // The step's remaining time puts us inside it; clock-time steps depend on the start, so place
+    // it twice.
+    fun place(start: LocalTime) =
+        timeline(p.steps, start).let { sp -> sp to sp[i].to - remainingSeconds / 60.0 }
+    val start = now.minusMinutes(place(now).second.toLong().coerceAtLeast(0))
+    val (spans, nowMinute) = place(start)
+    val at =
+        now.plusSeconds(remainingSeconds.toLong()).let { "${pad2(it.hour)}:${pad2(it.minute)}" }
+    val next =
+        spans.getOrNull(i + 1)?.let {
+            "next $at · ${it.step.mode.label.lowercase()} ${duration(it.minutes)}"
+        } ?: "ends $at"
+    return RunningView("${prettyName(p.name)} · step $step/${p.steps.size}", next, spans, nowMinute)
+}
+
+/**
+ * A slider's view: values are half-°C or fan steps, [index] is the value minus [offset]. Sent but
+ * not yet seen in a status shows hollow.
+ */
+data class FieldView(
+    val text: String,
+    val sub: String,
+    val index: Int,
+    val count: Int,
+    val offset: Int,
+    val enabled: Boolean,
+    val hollow: Boolean,
+) {
+    fun valueAt(index: Int) = offset + index
+}
+
+/** [preview] is the value under the finger, [sent] the last one sent; both null when idle. */
+fun tempField(st: Status, preview: Int?, sent: Int?): FieldView {
+    val (range, _) = tempRange(st.mode, st)
+    val unconfirmed = sent?.takeIf { it != st.targetTemp }
+    val shown = preview ?: unconfirmed ?: st.targetTemp
+    return FieldView(
+        text = if (st.mode.usesTemperature || st.mode == Mode.TURBO) formatTemp(shown) else "--",
+        sub =
+            when {
+                st.mode == Mode.TURBO -> "fixed in Turbo"
+                unconfirmed != null -> "sending · now ${formatTemp(st.targetTemp)}"
+                else -> "actual ${formatTemp(st.actualTemp)}"
+            },
+        index = shown - range.min,
+        count = range.max - range.min + 1,
+        offset = range.min,
+        enabled = st.mode.usesTemperature,
+        hollow = unconfirmed != null,
+    )
+}
+
+fun fanField(st: Status, preview: Int?, sent: Int?): FieldView {
+    val on = st.mode != Mode.STANDBY && st.mode != Mode.WAIT
+    val unconfirmed = sent?.takeIf { it != st.fanStep }
+    val shown = preview ?: unconfirmed ?: st.fanStep
+    return FieldView(
+        text = if (on) "${fanPercent(shown)}%" else "--",
+        sub = if (unconfirmed != null) "sending · now ${st.fanPercent}%" else "",
+        index = shown,
+        count = FAN_STEPS,
+        offset = 0,
+        enabled = on,
+        hollow = unconfirmed != null,
+    )
+}
+
+private const val FAN_STEPS = 20
+
+val MODE_BUTTONS = listOf(Mode.COOL, Mode.DRY, Mode.EXT_HEAT, Mode.HEAT, Mode.TURBO)
+
+fun shortLabel(mode: Mode) = if (mode == Mode.EXT_HEAT) "Ext" else mode.label
+
+/** The mode an undo of Off returns to; WAIT can't be set by a button, programs aren't restored. */
+fun undoTarget(previous: Mode): Mode? = previous.takeIf { Button.forMode(it) != null }
+
+fun hoursMinutes(seconds: Int) = "${seconds / 3600}:${pad2(seconds / 60 % 60)}"
+
+private fun pad2(n: Int) = n.toString().padStart(2, '0')
