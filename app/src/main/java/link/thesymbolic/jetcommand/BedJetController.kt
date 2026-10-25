@@ -38,6 +38,7 @@ import link.thesymbolic.jetcommand.protocol.BedJetException
 import link.thesymbolic.jetcommand.protocol.BedJetLink
 import link.thesymbolic.jetcommand.protocol.BedJetSim
 import link.thesymbolic.jetcommand.protocol.BedJetTransport
+import link.thesymbolic.jetcommand.protocol.CommandOrigin
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.Mode
@@ -52,6 +53,7 @@ import link.thesymbolic.jetcommand.protocol.StatusUpdate
 import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.TappedTransport
 import link.thesymbolic.jetcommand.protocol.Timing
+import link.thesymbolic.jetcommand.protocol.UserCommand
 import link.thesymbolic.jetcommand.protocol.attempt
 
 sealed interface Source {
@@ -281,6 +283,14 @@ class BedJetController(
     fun act(what: String, block: suspend (BedJetStack) -> Unit) {
         val stack = _stack.value ?: return log(LogLevel.ERROR, "$what: no device")
         stack.scope.launch { guard(what) { block(stack) } }
+    }
+
+    /**
+     * The one way commands reach the unit: [plan] decides, this interprets. From [origin]s other
+     * than APP it may connect to the remembered device first, so call it while in the foreground.
+     */
+    fun execute(command: UserCommand, origin: CommandOrigin) {
+        log(LogLevel.WARN, "execute $command from $origin: not implemented")
     }
 
     fun press(what: String, button: Int) = act(what) { it.device.press(button) }
