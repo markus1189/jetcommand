@@ -12,14 +12,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import link.thesymbolic.jetcommand.protocol.CommandOrigin
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Slot
-import link.thesymbolic.jetcommand.protocol.fanPercent
-import link.thesymbolic.jetcommand.protocol.formatTemp
+import link.thesymbolic.jetcommand.protocol.UserCommand
 
 /** The UI's view of [BedJetController]; the connection lives there, not here. */
-class BedJetViewModel(private val app: Application) : AndroidViewModel(app) {
+class BedJetViewModel(app: Application) : AndroidViewModel(app) {
     private val controller = app.controller
     val stack = controller.stack
     val log = controller.log
@@ -63,14 +63,11 @@ class BedJetViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun autoConnectOnce() = controller.autoConnectOnce()
 
-    fun press(what: String, button: Int) = controller.press(what, button)
+    fun setMode(mode: Mode) = execute(UserCommand.SetMode(mode))
 
-    fun setMode(mode: Mode) = controller.setMode(mode)
+    fun setTemperature(halfC: Int) = execute(UserCommand.SetTemperature(halfC))
 
-    fun setTemperature(halfC: Int) =
-        act("temp ${formatTemp(halfC)}") { it.device.setTemperature(halfC) }
-
-    fun setFan(step: Int) = act("fan ${fanPercent(step)} %") { it.device.setFan(step) }
+    fun setFan(step: Int) = execute(UserCommand.SetFan(step))
 
     fun loadPrograms() = act("programs") { _programs.value = it.device.programNames() }
 
@@ -81,11 +78,9 @@ class BedJetViewModel(private val app: Application) : AndroidViewModel(app) {
             _results.update { it + (label to text) }
         }
 
-    fun startProgram(slot: Slot) =
-        act("start program ${slot.number}") {
-            it.device.startProgram(slot)
-            controller.deviceId.value?.let { id -> app.library.noteStarted(id, slot) }
-        }
+    fun startProgram(slot: Slot) = execute(UserCommand.StartProgram(slot))
+
+    private fun execute(command: UserCommand) = controller.execute(command, CommandOrigin.APP)
 
     fun hasConnectPermission() = controller.hasConnectPermission()
 
