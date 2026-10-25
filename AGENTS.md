@@ -11,6 +11,8 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 | `SimTransport`, `BedJetLink`, `BedJetDevice` | `protocol/` | `BedJetLinkTest`, virtual time |
 | `StatusAssembler`, `reconnectDecision` (the link's pure parts) | `protocol/` | `StatusAssemblerTest`, `ReconnectDecisionTest` |
 | `ProgramLibrary`, `slotStatus` over a `Catalog` | `protocol/.../Library.kt` | `LibraryTest`, `SlotStatusTest` |
+| `UserCommand`, `plan()` (command policy) | `protocol/.../UserCommand.kt` | `PlanTest` |
+| `CommandUri` (intent data, also in `shortcuts.xml`) | `app/` | `CommandUriTest` |
 | `NightRecorder`, `NightLogStore`, `ProcessEvent` | `protocol/.../NightLog.kt`, `ProcessEvent.kt` | `NightRecorderTest`, `ProcessEventTest` |
 | `GattTransport`, scanner, permissions | `app/.../ble/` | real device only |
 | Screen state and text: `now/NowState`, `ProgramsText`, `night/` | `app/` | `app/src/test` (JVM) |
@@ -33,6 +35,7 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 - Drive it with `adb`: `am start -n link.thesymbolic.jetcommand/.MainActivity`, `exec-out screencap -p`, `uiautomator dump` for tap coordinates, `input tap|text`.
 - Its virtual Bluetooth never sees a BedJet. The "Demo BedJet" entry runs the full link/device stack on `SimTransport`, with fault buttons; `pm grant link.thesymbolic.jetcommand android.permission.BLUETOOTH_SCAN` (and `_CONNECT`) skips the permission dialog.
 - The user's phone is reachable over wireless adb at `192.168.178.69:<port>`; the port changes whenever wireless debugging restarts, so ask for it. `adb` exists only inside `nix develop`.
+- Shortcuts: long-press the launcher icon in the app drawer; `am start` can't reach the non-exported `CommandActivity`.
 - `pm grant` of the Bluetooth permissions skips the dialog that also asks for POST_NOTIFICATIONS; grant that too or the notification never shows.
 - The user's phone: read a device setting before changing it for a test and restore it after; `batterystats --reset` and other state you can't restore need the user's go; anything that writes to the BedJet needs the user's go, and it ends Off.
 
