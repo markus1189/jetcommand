@@ -65,7 +65,6 @@ Protocol: `BEDJET_PROTOCOL.md:99-198`. Design canvas: https://claude.ai/artifact
 ## Known gaps
 
 - A shortcut's success path (`SHORTCUT … ✓`) has run only before the demo was excluded; the emulator can't reach a real unit.
-- Process-exit rows on the Diagnostics screen show times hours off from the stored `at` (16:13 shown for 10:41:51 on 2026-10-25); unexamined.
 - Night-log program numbers were 0-based before 2026-10-25 (`start program 0` = slot 1).
 - Service is `START_NOT_STICKY` and there is no boot receiver: if the process is killed overnight, the connection stays down until the app is opened (auto-connects to the remembered device then).
 - Without BLUETOOTH_CONNECT the demo runs without the service (Android 14+ refuses a connectedDevice FGS).

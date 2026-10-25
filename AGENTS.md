@@ -36,6 +36,7 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 - Its virtual Bluetooth never sees a BedJet. The "Demo BedJet" entry runs the full link/device stack on `SimTransport`, with fault buttons; `pm grant link.thesymbolic.jetcommand android.permission.BLUETOOTH_SCAN` (and `_CONNECT`) skips the permission dialog.
 - The user's phone is reachable over wireless adb at `192.168.178.69:<port>`; the port changes whenever wireless debugging restarts, so ask for it. `adb` exists only inside `nix develop`.
 - Shortcuts: long-press the launcher icon in the app drawer; `am start` can't reach the non-exported `CommandActivity`.
+- Faking a remembered device: add `device.address`/`device.name` to `shared_prefs/jetcommand.xml` via `run-as`, keeping `exit.seen`, or every past process exit is imported again.
 - `pm grant` of the Bluetooth permissions skips the dialog that also asks for POST_NOTIFICATIONS; grant that too or the notification never shows.
 - The user's phone: read a device setting before changing it for a test and restore it after; `batterystats --reset` and other state you can't restore need the user's go; anything that writes to the BedJet needs the user's go, and it ends Off.
 
