@@ -90,7 +90,7 @@ class NightRecorderTest {
             // reconnect.
             assertTrue(events.single { it.detail == "step 2" }.at >= back.at)
             assertTrue(
-                events.any { it.kind == Kind.COMMAND && it.detail.startsWith("start program 0") }
+                events.any { it.kind == Kind.COMMAND && it.detail.startsWith("start program 1") }
             )
             assertTrue(
                 events.any { it.kind == Kind.COMMAND && it.detail.startsWith("clock 22:00") }

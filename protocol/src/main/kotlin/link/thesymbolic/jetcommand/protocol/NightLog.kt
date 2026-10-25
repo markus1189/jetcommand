@@ -329,7 +329,7 @@ private fun describeButton(code: Int): String =
             in Button.SAVE_MEMORY_1..Button.SAVE_MEMORY_3 ->
                 "save memory ${code - Button.SAVE_MEMORY_1 + 1}"
             else ->
-                Button.slotOfStartProgram(code)?.let { "start program ${it.index}" }
-                    ?: Button.slotOfDeleteProgram(code)?.let { "delete program ${it.index}" }
+                Button.slotOfStartProgram(code)?.let { "start program ${it.number}" }
+                    ?: Button.slotOfDeleteProgram(code)?.let { "delete program ${it.number}" }
                     ?: "button"
         }
