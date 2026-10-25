@@ -52,10 +52,77 @@ sealed interface Plan {
 }
 
 /**
- * Pure: the whole policy for [command] from [origin]; the controller only interprets the result.
+ * How long a shortcut waits for Ready: one reconnect cycle (20 s connect timeout, 10 s backoff, 20
+ * s retry) must fit, or a unit that is just waking up fails the command.
  */
-fun plan(command: UserCommand, origin: CommandOrigin, snapshot: CommandSnapshot): Plan =
-    TODO("protocol agent")
+const val READY_TIMEOUT_MS = 45_000L
+
+// The unit's 20 fan steps, 5–100 %; Codec.kt clamps every fan value to this.
+private val FAN_STEPS = 0..19
+
+// Overall, since the current mode is unknown here; the unit clamps to the mode's own range.
+private val TEMP_LIMITS = TEMP_RANGES.values.minOf { it.min }..TEMP_RANGES.values.maxOf { it.max }
+
+/**
+ * Pure: the whole policy for [command] from [origin]; the controller only interprets the result.
+ * Shortcuts run unseen, so they get the outcome reported, wait for Ready instead of failing fast,
+ * may reconnect, and refuse relative presses whose effect nobody can check.
+ */
+fun plan(command: UserCommand, origin: CommandOrigin, snapshot: CommandSnapshot): Plan {
+    val label = describe(command)
+    val unseen = origin == CommandOrigin.SHORTCUT
+    fun reject(reason: String) = Plan.Rejected(label, reason, report = unseen)
+    fun run(connect: Boolean) =
+        Plan.Run(
+            command,
+            label,
+            connect = connect,
+            readyTimeoutMs = if (unseen) READY_TIMEOUT_MS else null,
+            report = unseen,
+        )
+
+    rangeProblem(command)?.let {
+        return reject(it)
+    }
+    return when {
+        snapshot.connected ->
+            if (unseen && command is UserCommand.Press) reject(PRESS) else run(false)
+        !unseen -> reject("Not connected")
+        command is UserCommand.Press -> reject(PRESS)
+        !snapshot.remembered -> reject("Connect to your BedJet in the app once first.")
+        !snapshot.hasConnectPermission -> reject("Open JetCommand to allow Bluetooth.")
+        else -> run(true)
+    }
+}
+
+private const val PRESS = "Shortcuts can't step up or down; set a temperature or fan level."
+
+private fun rangeProblem(command: UserCommand): String? =
+    when (command) {
+        is UserCommand.SetFan ->
+            if (command.step in FAN_STEPS) null
+            else "Fan must be ${fanPercent(FAN_STEPS.first)}–${fanPercent(FAN_STEPS.last)} %."
+        is UserCommand.SetTemperature ->
+            if (command.halfC in TEMP_LIMITS) null
+            else
+                "Temperature must be ${formatTemp(TEMP_LIMITS.first, withUnit = false)}–" +
+                    "${formatTemp(TEMP_LIMITS.last)}."
+        is UserCommand.Press -> if (command.button in Button.ALLOWED) null else "Unknown button."
+        else -> null
+    }
 
 /** The log and feedback name of [command], e.g. "start program 2". */
-fun describe(command: UserCommand): String = TODO("protocol agent")
+fun describe(command: UserCommand): String =
+    when (command) {
+        is UserCommand.SetMode ->
+            if (command.mode == Mode.STANDBY) "off" else "mode ${command.mode.label}"
+        is UserCommand.SetTemperature -> "temp ${formatTemp(command.halfC)}"
+        is UserCommand.SetFan -> "fan ${fanPercent(command.step)}%"
+        is UserCommand.StartProgram -> "start program ${command.slot.number}"
+        is UserCommand.Press -> "press ${buttonName(command.button)}"
+    }
+
+// The night log's names, through its public frame describer; codes it doesn't know get their hex.
+private fun buttonName(code: Int): String =
+    describeCommand(byteArrayOf(0x01, code.toByte())).takeUnless { it == "button" }
+        ?: "button 0x%02x".format(java.util.Locale.ROOT, code)
