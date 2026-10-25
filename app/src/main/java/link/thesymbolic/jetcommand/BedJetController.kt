@@ -300,6 +300,7 @@ class BedJetController(
         val snapshot =
             CommandSnapshot(
                 connected = _stack.value != null,
+                demo = _stack.value?.source == Source.Demo,
                 // Not [linkState]: that trails a stack switch by a dispatch.
                 link = _stack.value?.link?.state?.value ?: LinkState.Disconnected(),
                 remembered = _remembered.value != null,
@@ -315,7 +316,9 @@ class BedJetController(
     }
 
     private fun interpret(p: Plan.Run) {
-        if (p.connect) _remembered.value?.let(::connect)
+        // switchTo runs later: until then the old stack (the demo, say) is current and may be
+        // Ready.
+        val target = if (p.connect) _remembered.value?.also(::connect) else null
         val timeout = p.readyTimeoutMs
         if (timeout == null) {
             val stack = _stack.value ?: return failed(p, "no device")
@@ -327,7 +330,10 @@ class BedJetController(
                 withTimeoutOrNull(timeout) {
                     _stack
                         .flatMapLatest { s ->
-                            s?.link?.state?.map { state -> s.takeIf { state == LinkState.Ready } }
+                            s?.takeIf { target == null || it.source == target }
+                                ?.link
+                                ?.state
+                                ?.map { state -> s.takeIf { state == LinkState.Ready } }
                                 ?: flowOf(null)
                         }
                         .filterNotNull()

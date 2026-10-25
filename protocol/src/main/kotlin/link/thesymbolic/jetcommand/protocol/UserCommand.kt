@@ -27,6 +27,8 @@ enum class CommandOrigin {
 data class CommandSnapshot(
     /** A stack exists (demo or device), whatever its link state. */
     val connected: Boolean,
+    /** That stack is the Demo BedJet. */
+    val demo: Boolean,
     val link: LinkState,
     /** A real device was connected before, so the controller can reconnect to it. */
     val remembered: Boolean,
@@ -66,7 +68,8 @@ private val TEMP_LIMITS = TEMP_RANGES.values.minOf { it.min }..TEMP_RANGES.value
 /**
  * Pure: the whole policy for [command] from [origin]; the controller only interprets the result.
  * Shortcuts run unseen, so they get the outcome reported, wait for Ready instead of failing fast,
- * may reconnect, and refuse relative presses whose effect nobody can check.
+ * may reconnect, never run on the Demo BedJet (a routine means the real unit), and refuse relative
+ * presses whose effect nobody can check.
  */
 fun plan(command: UserCommand, origin: CommandOrigin, snapshot: CommandSnapshot): Plan {
     val label = describe(command)
@@ -85,7 +88,7 @@ fun plan(command: UserCommand, origin: CommandOrigin, snapshot: CommandSnapshot)
         return reject(it)
     }
     return when {
-        snapshot.connected ->
+        usable(snapshot, unseen) ->
             if (unseen && command is UserCommand.Press) reject(PRESS) else run(false)
         !unseen -> reject("Not connected")
         command is UserCommand.Press -> reject(PRESS)
@@ -94,6 +97,10 @@ fun plan(command: UserCommand, origin: CommandOrigin, snapshot: CommandSnapshot)
         else -> run(true)
     }
 }
+
+// Unseen commands mean the real unit, so the demo doesn't count as connected for them.
+private fun usable(snapshot: CommandSnapshot, unseen: Boolean) =
+    snapshot.connected && !(unseen && snapshot.demo)
 
 private const val PRESS = "Shortcuts can't step up or down; set a temperature or fan level."
 

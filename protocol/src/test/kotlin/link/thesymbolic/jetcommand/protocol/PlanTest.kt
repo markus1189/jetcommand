@@ -15,6 +15,7 @@ class PlanTest {
     private val ready =
         CommandSnapshot(
             connected = true,
+            demo = false,
             link = LinkState.Ready,
             remembered = true,
             hasConnectPermission = true,
@@ -62,6 +63,29 @@ class PlanTest {
         assertEquals(
             run(fan, true, READY_TIMEOUT_MS, true),
             plan(fan, CommandOrigin.SHORTCUT, away),
+        )
+    }
+
+    @Test
+    fun `a shortcut switches from the demo to the remembered unit`() {
+        val demo = ready.copy(demo = true)
+        assertEquals(
+            run(fan, true, READY_TIMEOUT_MS, true),
+            plan(fan, CommandOrigin.SHORTCUT, demo),
+        )
+        assertEquals(
+            rejected(fan, "Connect to your BedJet in the app once first.", true),
+            plan(fan, CommandOrigin.SHORTCUT, demo.copy(remembered = false)),
+        )
+    }
+
+    @Test
+    fun `the app and the notification still drive the demo`() {
+        val demo = ready.copy(demo = true)
+        for (origin in listOf(CommandOrigin.APP, CommandOrigin.NOTIFICATION)) assertEquals(
+            run(fan, false, null, false),
+            plan(fan, origin, demo),
+            "$origin",
         )
     }
 

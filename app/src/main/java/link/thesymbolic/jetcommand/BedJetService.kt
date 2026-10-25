@@ -108,6 +108,9 @@ class BedJetService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        // CommandActivity runs in a task of its own that ends with every shortcut; only the user
+        // swiping the app away is worth a night-log entry.
+        if (rootIntent?.component?.className == CommandActivity::class.java.name) return
         controller.lifecycle("task removed")
     }
 
