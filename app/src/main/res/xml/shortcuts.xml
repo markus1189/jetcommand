@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keep ids stable: pinned shortcuts and automations refer to them. CommandUriTest pins the data. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="off"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_off_short"
+        android:shortcutLongLabel="@string/shortcut_off_long">
+        <intent
+            android:action="link.thesymbolic.jetcommand.COMMAND"
+            android:targetPackage="link.thesymbolic.jetcommand"
+            android:targetClass="link.thesymbolic.jetcommand.CommandActivity"
+            android:data="jetcommand:mode/STANDBY" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="program1"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_program1_short"
+        android:shortcutLongLabel="@string/shortcut_program1_long">
+        <intent
+            android:action="link.thesymbolic.jetcommand.COMMAND"
+            android:targetPackage="link.thesymbolic.jetcommand"
+            android:targetClass="link.thesymbolic.jetcommand.CommandActivity"
+            android:data="jetcommand:program/1" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="program2"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_program2_short"
+        android:shortcutLongLabel="@string/shortcut_program2_long">
+        <intent
+            android:action="link.thesymbolic.jetcommand.COMMAND"
+            android:targetPackage="link.thesymbolic.jetcommand"
+            android:targetClass="link.thesymbolic.jetcommand.CommandActivity"
+            android:data="jetcommand:program/2" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="program3"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_program3_short"
+        android:shortcutLongLabel="@string/shortcut_program3_long">
+        <intent
+            android:action="link.thesymbolic.jetcommand.COMMAND"
+            android:targetPackage="link.thesymbolic.jetcommand"
+            android:targetClass="link.thesymbolic.jetcommand.CommandActivity"
+            android:data="jetcommand:program/3" />
+    </shortcut>
+</shortcuts>

@@ -1,3 +1,12 @@
 <resources>
     <string name="app_name">JetCommand</string>
+    <string name="command_unknown">JetCommand: unknown command</string>
+    <string name="shortcut_off_short">BedJet off</string>
+    <string name="shortcut_off_long">Turn BedJet off</string>
+    <string name="shortcut_program1_short">Program 1</string>
+    <string name="shortcut_program1_long">Start program 1</string>
+    <string name="shortcut_program2_short">Program 2</string>
+    <string name="shortcut_program2_long">Start program 2</string>
+    <string name="shortcut_program3_short">Program 3</string>
+    <string name="shortcut_program3_long">Start program 3</string>
 </resources>
