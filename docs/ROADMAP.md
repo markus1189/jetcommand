@@ -41,7 +41,7 @@ appears.
 | 6 | Real-device test (checklist below) | done (API 31/32 path untested) |
 | 7 | Foreground service owning the link + night log (Room) | done; night 2 (2026-10-23/24, battery Unrestricted) on the user's phone: no kill, a sample every minute 22:01–07:23, two drops reconnected in 4 s |
 | 8 | Real UI: status/controls, program editor + library, night log + review | iteration 1 (night loop: Now screen, lock-screen notification controls, bottom nav, dark theme) on the user's phone 2026-10-22; night 1: service SIGKILLed at 22:55 as FGS (likely Samsung battery optimisation), night 2 survived; then a design round; nights tab on the emulator 2026-10-23; program library (slot sync, picker, conflicts, step strip) on the emulator 2026-10-23; editor open |
-| 9 | Notification actions (done) → external triggers: launcher shortcuts Off / Program 1–3 for Routines (on the emulator 2026-10-25; Routines untested) → exact-alarm program chaining → morning review (WorkManager) → CompanionDeviceManager auto-connect → QS tile/widget → Health Connect | |
+| 9 | Notification actions (done) → external triggers: launcher shortcuts Off / Program 1–3 for Routines (on the emulator 2026-10-25; never the demo; outcome in the night log, failures as a notification; Routines untested) → exact-alarm program chaining → morning review (WorkManager) → CompanionDeviceManager auto-connect → QS tile/widget → Health Connect | |
 | 10 | ~~Import of the PWA's backup text format~~ | dropped 2026-10-23 |
 
 ## Next
@@ -64,7 +64,8 @@ Protocol: `BEDJET_PROTOCOL.md:99-198`. Design canvas: https://claude.ai/artifact
 
 ## Known gaps
 
-- Shortcut commands aren't marked as such in the night log; `NightRecorder` sees only the bytes.
+- A shortcut's success path (`SHORTCUT … ✓`) has run only before the demo was excluded; the emulator can't reach a real unit.
+- Process-exit rows on the Diagnostics screen show times hours off from the stored `at` (16:13 shown for 10:41:51 on 2026-10-25); unexamined.
 - Night-log program numbers were 0-based before 2026-10-25 (`start program 0` = slot 1).
 - Service is `START_NOT_STICKY` and there is no boot receiver: if the process is killed overnight, the connection stays down until the app is opened (auto-connects to the remembered device then).
 - Without BLUETOOTH_CONNECT the demo runs without the service (Android 14+ refuses a connectedDevice FGS).

@@ -309,7 +309,7 @@ class BedJetController(
         when (val p = plan(command, origin, snapshot)) {
             is Plan.Rejected -> {
                 log(LogLevel.WARN, "${p.label}: ${p.reason}")
-                if (p.report) feedback(p.reason)
+                if (p.report) report(p.label, p.reason)
             }
             is Plan.Run -> interpret(p)
         }
@@ -346,12 +346,12 @@ class BedJetController(
     private fun runOn(stack: BedJetStack, p: Plan.Run) =
         stack.scope.launch {
             val error = guard(p.label) { perform(stack, p.command) }
-            if (p.report) feedback(if (error == null) "${p.label} ✓" else "${p.label}: $error")
+            if (p.report) report(p.label, error)
         }
 
     private fun failed(p: Plan.Run, reason: String) {
         log(LogLevel.ERROR, "${p.label}: $reason")
-        if (p.report) feedback(reason)
+        if (p.report) report(p.label, reason)
     }
 
     private suspend fun perform(stack: BedJetStack, command: UserCommand) {
@@ -368,9 +368,13 @@ class BedJetController(
         }
     }
 
-    /** Outcome of a command for a user who isn't looking at the app; one line, so it can move. */
-    private fun feedback(text: String) =
+    /** Outcome of a command nobody watched run: [error] null means it ran. */
+    private fun report(label: String, error: String?) {
+        val text = if (error == null) "$label ✓" else "$label: $error"
         Toast.makeText(context, "BedJet: $text", Toast.LENGTH_SHORT).show()
+        if (error != null) ShortcutAlert.post(context, text)
+        scope.launch { store.append(NightEvent.shortcut(System.currentTimeMillis(), label, error)) }
+    }
 
     // Catches everything: a failed user action is logged, never a crash. Not a
     // CoroutineExceptionHandler, because "connect" runs inline in the switching job that the next

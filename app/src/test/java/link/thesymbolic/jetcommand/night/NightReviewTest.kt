@@ -72,4 +72,20 @@ class NightReviewTest {
             importantRows(d, text),
         )
     }
+
+    @Test
+    fun `shortcut runs always show, failures as warnings`() {
+        val events =
+            listOf(
+                NightEvent.shortcut(h, "start program 2", null),
+                NightEvent.shortcut(2 * h, "off", "couldn't reach the BedJet"),
+            )
+        assertEquals(
+            listOf(
+                EventRow(h, "Shortcut start program 2"),
+                EventRow(2 * h, "Shortcut off: couldn't reach the BedJet", warn = true),
+            ),
+            importantRows(detail(events, emptyList(), emptyList()), text),
+        )
+    }
 }

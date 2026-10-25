@@ -25,6 +25,8 @@ data class NightEvent(val at: Long, val kind: Kind, val detail: String, val valu
         COMMAND,
         /** Our own process and service lifecycle, to tell a killed app from a dropped link. */
         PROCESS,
+        /** A command nobody watched run (Routines, launcher): its outcome; [value] 1 ok, 0 not. */
+        SHORTCUT,
     }
 
     /** [detail] read as a [ProcessEvent] once, here, for [Kind.PROCESS]; null for other kinds. */
@@ -32,6 +34,15 @@ data class NightEvent(val at: Long, val kind: Kind, val detail: String, val valu
 
     companion object {
         fun process(at: Long, event: ProcessEvent) = NightEvent(at, Kind.PROCESS, event.detail)
+
+        /** [error] null: [label] ran. */
+        fun shortcut(at: Long, label: String, error: String?) =
+            NightEvent(
+                at,
+                Kind.SHORTCUT,
+                if (error == null) label else "$label: $error",
+                if (error == null) 1 else 0,
+            )
     }
 }
 

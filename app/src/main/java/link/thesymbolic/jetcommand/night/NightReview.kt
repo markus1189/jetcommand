@@ -190,6 +190,7 @@ private class ImportantRows(private val d: NightDetail, private val text: NightT
             Kind.GAVE_UP -> EventRow(e.at, "Reconnect stopped", warn = true)
             Kind.SHUTDOWN -> EventRow(e.at, "BedJet shut down · ${e.detail}", warn = true)
             Kind.NOTIFICATION -> EventRow(e.at, "BedJet: ${e.detail}")
+            Kind.SHORTCUT -> EventRow(e.at, "Shortcut ${e.detail}", warn = e.value == 0)
             else -> null
         }
 
