@@ -11,9 +11,12 @@ import link.thesymbolic.jetcommand.library.RoomLibraryStore
 import link.thesymbolic.jetcommand.night.NightLogDatabase
 import link.thesymbolic.jetcommand.night.RoomNightLogStore
 import link.thesymbolic.jetcommand.night.RoomNightsSource
+import link.thesymbolic.jetcommand.protocol.NightEvent
+import link.thesymbolic.jetcommand.protocol.NightLogStore
 import link.thesymbolic.jetcommand.protocol.Origin
 import link.thesymbolic.jetcommand.protocol.ProcessEvent
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
+import link.thesymbolic.jetcommand.protocol.unrecorded
 
 class JetCommandApp : Application() {
     lateinit var bedJetController: BedJetController
@@ -29,11 +32,11 @@ class JetCommandApp : Application() {
         super.onCreate()
         val dao = NightLogDatabase.open(this).events()
         programLibrary = ProgramLibrary(RoomLibraryStore(LibraryDatabase.open(this)))
-        bedJetController = BedJetController(this, RoomNightLogStore(dao), programLibrary)
+        val store = RoomNightLogStore(dao)
+        bedJetController = BedJetController(this, store, programLibrary)
         dropSeededTemplates()
         nights = RoomNightsSource(dao)
-        logExits()
-        bedJetController.lifecycle(ProcessEvent.Started)
+        logStart(store)
     }
 
     // Builds from 2026-10-23 seeded the official app's suggestions; the user didn't want them.
@@ -57,24 +60,32 @@ class JetCommandApp : Application() {
         }
     }
 
-    // The system's record survives the process; logcat's kill lines rotate out within hours.
-    private fun logExits() {
+    // The system's record survives the process; logcat's kill lines rotate out within hours. One
+    // coroutine, so the exits land before this start.
+    private fun logStart(store: NightLogStore) {
+        val startedAt = System.currentTimeMillis()
         val prefs = getSharedPreferences("jetcommand", MODE_PRIVATE)
         val seen = prefs.getLong(KEY_EXIT_SEEN, 0)
         val exits =
             getSystemService(ActivityManager::class.java)
                 .getHistoricalProcessExitReasons(packageName, 0, 10)
                 .filter { it.timestamp > seen }
-        exits
-            .sortedBy { it.timestamp }
-            .forEach {
-                bedJetController.lifecycle(
-                    // A null description is stored as "null", as it always was.
-                    ProcessEvent.Exit(it.reason, it.importance, it.description.toString()),
-                    it.timestamp,
-                )
-            }
-        exits.maxOfOrNull { it.timestamp }?.let { prefs.edit { putLong(KEY_EXIT_SEEN, it) } }
+                .sortedBy { it.timestamp }
+                .map {
+                    NightEvent.process(
+                        it.timestamp,
+                        // A null description is stored as "null", as it always was.
+                        ProcessEvent.Exit(it.reason, it.importance, it.description.toString()),
+                    )
+                }
+        bedJetController.scope.launch {
+            val recorded =
+                if (exits.isEmpty()) emptyList()
+                else store.events(exits.first().at, exits.last().at + 1)
+            unrecorded(exits, recorded).forEach { store.append(it) }
+            store.append(NightEvent.process(startedAt, ProcessEvent.Started))
+        }
+        exits.lastOrNull()?.let { prefs.edit { putLong(KEY_EXIT_SEEN, it.at) } }
     }
 
     override fun onTrimMemory(level: Int) {

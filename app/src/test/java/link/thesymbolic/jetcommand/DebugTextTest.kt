@@ -1,5 +1,6 @@
 package link.thesymbolic.jetcommand
 
+import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -101,7 +102,20 @@ class DebugTextTest {
     @Test
     fun `night line is wall-clock time in the given zone`() {
         val e = NightEvent(at = 3_723_000, kind = NightEvent.Kind.LOST, detail = "gatt 8")
-        assertEquals("01:02:03 LOST gatt 8", nightLine(e, ZoneOffset.UTC))
-        assertEquals("03:02:03 LOST gatt 8", nightLine(e, ZoneOffset.ofHours(2)))
+        val day = LocalDate.of(1970, 1, 1)
+        assertEquals("01:02:03 LOST gatt 8", nightLine(e, ZoneOffset.UTC, day))
+        assertEquals("03:02:03 LOST gatt 8", nightLine(e, ZoneOffset.ofHours(2), day))
+    }
+
+    @Test
+    fun `night line from another day carries its date, in the zone's calendar`() {
+        val e = NightEvent(at = 3_723_000, kind = NightEvent.Kind.LOST, detail = "gatt 8")
+        val later = LocalDate.of(1970, 1, 3)
+        assertEquals("01-01 01:02:03 LOST gatt 8", nightLine(e, ZoneOffset.UTC, later))
+        // 22:02 on Dec 31 at UTC-3: the zone decides the date, not UTC.
+        assertEquals(
+            "12-31 22:02:03 LOST gatt 8",
+            nightLine(e, ZoneOffset.ofHours(-3), LocalDate.of(1970, 1, 1)),
+        )
     }
 }

@@ -100,6 +100,9 @@ class RoomNightLogStore(private val dao: NightEventDao) : NightLogStore {
             )
         }
 
+    override suspend fun events(from: Long, to: Long): List<NightEvent> =
+        dao.events(from, to).mapNotNull(NightEventRow::toEvent)
+
     override fun recent(limit: Int): Flow<List<NightEvent>> =
         dao.recent(limit).map { rows ->
             rows.mapNotNull(NightEventRow::toEvent)

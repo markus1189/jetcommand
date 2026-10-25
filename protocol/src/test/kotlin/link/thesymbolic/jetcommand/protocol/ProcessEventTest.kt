@@ -127,4 +127,21 @@ class ProcessEventTest {
                 assertEquals(text, ProcessEvent.parse(text).detail)
             }
         }
+
+    @Test
+    fun `an exit already in the log is not recorded again, a new one at the same time is`() =
+        runTest {
+            val kill = NightEvent.process(1_000, ProcessEvent.Exit(9, 125, "kill (oom)"))
+            val update = NightEvent.process(2_000, ProcessEvent.Exit(4, 100, "stop"))
+            val sameTimeOtherExit = NightEvent.process(1_000, ProcessEvent.Exit(10, 100, "stop"))
+            val store = InMemoryNightLogStore()
+            store.append(kill)
+            store.append(NightEvent.process(3_000, ProcessEvent.Started))
+            val candidates = listOf(kill, sameTimeOtherExit, update)
+            assertEquals(listOf(kill), store.events(1_000, 2_000))
+            assertEquals(
+                listOf(sameTimeOtherExit, update),
+                unrecorded(candidates, store.events(1_000, 2_001)),
+            )
+        }
 }

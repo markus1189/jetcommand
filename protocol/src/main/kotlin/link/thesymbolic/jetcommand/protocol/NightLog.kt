@@ -66,6 +66,18 @@ interface NightLogStore {
 
     /** Newest first. */
     fun recent(limit: Int): Flow<List<NightEvent>>
+
+    /** [from] inclusive, [to] exclusive, oldest first. */
+    suspend fun events(from: Long, to: Long): List<NightEvent>
+}
+
+/**
+ * [candidates] not already in [recorded]. The system's exit records outlive our "seen" mark, so
+ * re-reading them must not log a kill twice.
+ */
+fun unrecorded(candidates: List<NightEvent>, recorded: List<NightEvent>): List<NightEvent> {
+    val known = recorded.toSet()
+    return candidates.filterNot(known::contains)
 }
 
 class InMemoryNightLogStore : NightLogStore {
@@ -84,6 +96,9 @@ class InMemoryNightLogStore : NightLogStore {
     }
 
     override fun recent(limit: Int) = events.map { it.asReversed().take(limit) }
+
+    override suspend fun events(from: Long, to: Long) =
+        events.value.filter { it.at in from until to }.sortedBy { it.at }
 }
 
 /** Passes [BedJetTransport.write]s of commands (not queries) to [onCommand] before sending them. */

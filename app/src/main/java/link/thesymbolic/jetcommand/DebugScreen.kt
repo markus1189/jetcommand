@@ -35,6 +35,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -88,9 +90,10 @@ fun DebugScreen(vm: BedJetViewModel, modifier: Modifier = Modifier) {
         HorizontalDivider()
         Text("Night log", fontWeight = FontWeight.Bold)
         val zone = remember { ZoneId.systemDefault() }
+        val today = LocalDate.now(zone)
         nightLog.forEach {
             Text(
-                nightLine(it, zone),
+                nightLine(it, zone, today),
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
                 lineHeight = 13.sp,
@@ -280,8 +283,14 @@ private fun ColumnScope.DemoControls(sim: SimTransport, log: (LogLevel, String) 
 
 private typealias ReadBack = (String, suspend (BedJetStack) -> String) -> Unit
 
-internal fun nightLine(e: NightEvent, zone: ZoneId): String =
-    "${hhmmss(e.at, zone)} ${e.kind} ${e.detail}"
+/**
+ * Rows from another day than [today] carry their date: the list spans days, and reads newest first.
+ */
+internal fun nightLine(e: NightEvent, zone: ZoneId, today: LocalDate): String {
+    val date = Instant.ofEpochMilli(e.at).atZone(zone).toLocalDate()
+    val day = if (date == today) "" else "${pad2(date.monthValue)}-${pad2(date.dayOfMonth)} "
+    return "$day${hhmmss(e.at, zone)} ${e.kind} ${e.detail}"
+}
 
 internal fun connectionLine(mtu: Int?, replySource: Characteristic?): String =
     "MTU: ${mtu ?: "-"}   Replies from: ${replySource?.uuid?.drop(4)?.take(4) ?: "-"}"
