@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.drawable.Icon
 import android.os.IBinder
+import androidx.core.net.toUri
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,10 +21,12 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
 import link.thesymbolic.jetcommand.protocol.Button as Btn
+import link.thesymbolic.jetcommand.protocol.CommandOrigin
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.ProcessEvent
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
+import link.thesymbolic.jetcommand.protocol.UserCommand
 import link.thesymbolic.jetcommand.protocol.formatTemp
 
 /**
@@ -44,7 +47,11 @@ class BedJetService : Service() {
         // startForeground first, every time: a startForegroundService() that isn't answered within
         // seconds crashes the app.
         if (!startForegroundOrStop(controller)) return START_NOT_STICKY
-        ACTIONS.find { it.action == intent?.action }?.let { controller.press(it.label, it.button) }
+        if (intent?.action == CommandUri.ACTION) {
+            CommandUri.parse(intent.dataString)?.let {
+                controller.execute(it, CommandOrigin.NOTIFICATION)
+            } ?: controller.log(LogLevel.WARN, "Service: bad command ${intent.dataString}")
+        }
         if (scope == null) observe(controller)
         // Not sticky: after the process dies the controller's stack is gone, and a restart from the
         // background may not start a connectedDevice service anyway.
@@ -141,7 +148,9 @@ class BedJetService : Service() {
                     PendingIntent.getService(
                         this,
                         1 + i,
-                        Intent(this, BedJetService::class.java).setAction(a.action),
+                        Intent(this, BedJetService::class.java)
+                            .setAction(CommandUri.ACTION)
+                            .setData(CommandUri.of(UserCommand.Press(a.button)).toUri()),
                         PendingIntent.FLAG_IMMUTABLE,
                     )
                 b.addAction(
@@ -153,9 +162,7 @@ class BedJetService : Service() {
         return b.build()
     }
 
-    private class Action(val label: String, val button: Int, val icon: Int) {
-        val action = "link.thesymbolic.jetcommand.PRESS_$button"
-    }
+    private class Action(val label: String, val button: Int, val icon: Int)
 
     companion object {
         private const val ID = 1

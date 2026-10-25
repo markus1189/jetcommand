@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.core.content.edit
 import java.time.LocalTime
 import kotlinx.coroutines.CancellationException
@@ -25,6 +26,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -32,6 +35,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import link.thesymbolic.jetcommand.ble.GattTransport
 import link.thesymbolic.jetcommand.protocol.BedJetDevice
 import link.thesymbolic.jetcommand.protocol.BedJetException
@@ -39,12 +43,14 @@ import link.thesymbolic.jetcommand.protocol.BedJetLink
 import link.thesymbolic.jetcommand.protocol.BedJetSim
 import link.thesymbolic.jetcommand.protocol.BedJetTransport
 import link.thesymbolic.jetcommand.protocol.CommandOrigin
+import link.thesymbolic.jetcommand.protocol.CommandSnapshot
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.NightEvent
 import link.thesymbolic.jetcommand.protocol.NightLogStore
 import link.thesymbolic.jetcommand.protocol.NightRecorder
+import link.thesymbolic.jetcommand.protocol.Plan
 import link.thesymbolic.jetcommand.protocol.ProcessEvent
 import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
@@ -55,6 +61,7 @@ import link.thesymbolic.jetcommand.protocol.TappedTransport
 import link.thesymbolic.jetcommand.protocol.Timing
 import link.thesymbolic.jetcommand.protocol.UserCommand
 import link.thesymbolic.jetcommand.protocol.attempt
+import link.thesymbolic.jetcommand.protocol.plan
 
 sealed interface Source {
     val label: String
@@ -290,27 +297,94 @@ class BedJetController(
      * than APP it may connect to the remembered device first, so call it while in the foreground.
      */
     fun execute(command: UserCommand, origin: CommandOrigin) {
-        log(LogLevel.WARN, "execute $command from $origin: not implemented")
+        val snapshot =
+            CommandSnapshot(
+                connected = _stack.value != null,
+                // Not [linkState]: that trails a stack switch by a dispatch.
+                link = _stack.value?.link?.state?.value ?: LinkState.Disconnected(),
+                remembered = _remembered.value != null,
+                hasConnectPermission = hasConnectPermission(),
+            )
+        when (val p = plan(command, origin, snapshot)) {
+            is Plan.Rejected -> {
+                log(LogLevel.WARN, "${p.label}: ${p.reason}")
+                if (p.report) feedback(p.reason)
+            }
+            is Plan.Run -> interpret(p)
+        }
     }
 
-    fun press(what: String, button: Int) = act(what) { it.device.press(button) }
+    private fun interpret(p: Plan.Run) {
+        if (p.connect) _remembered.value?.let(::connect)
+        val timeout = p.readyTimeoutMs
+        if (timeout == null) {
+            val stack = _stack.value ?: return failed(p, "no device")
+            runOn(stack, p)
+            return
+        }
+        scope.launch {
+            val ready =
+                withTimeoutOrNull(timeout) {
+                    _stack
+                        .flatMapLatest { s ->
+                            s?.link?.state?.map { state -> s.takeIf { state == LinkState.Ready } }
+                                ?: flowOf(null)
+                        }
+                        .filterNotNull()
+                        .first()
+                }
+            if (ready == null) failed(p, "couldn't reach the BedJet") else runOn(ready, p)
+        }
+    }
 
-    fun setMode(mode: Mode) = act("mode ${mode.label}") { it.device.setMode(mode) }
+    private fun runOn(stack: BedJetStack, p: Plan.Run) =
+        stack.scope.launch {
+            val error = guard(p.label) { perform(stack, p.command) }
+            if (p.report) feedback(if (error == null) "${p.label} ✓" else "${p.label}: $error")
+        }
+
+    private fun failed(p: Plan.Run, reason: String) {
+        log(LogLevel.ERROR, "${p.label}: $reason")
+        if (p.report) feedback(reason)
+    }
+
+    private suspend fun perform(stack: BedJetStack, command: UserCommand) {
+        val device = stack.device
+        when (command) {
+            is UserCommand.SetMode -> device.setMode(command.mode)
+            is UserCommand.SetTemperature -> device.setTemperature(command.halfC)
+            is UserCommand.SetFan -> device.setFan(command.step)
+            is UserCommand.StartProgram -> {
+                device.startProgram(command.slot)
+                library.noteStarted(idOf(stack.source), command.slot)
+            }
+            is UserCommand.Press -> device.press(command.button)
+        }
+    }
+
+    /** Outcome of a command for a user who isn't looking at the app; one line, so it can move. */
+    private fun feedback(text: String) =
+        Toast.makeText(context, "BedJet: $text", Toast.LENGTH_SHORT).show()
 
     // Catches everything: a failed user action is logged, never a crash. Not a
     // CoroutineExceptionHandler, because "connect" runs inline in the switching job that the next
     // switch joins.
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun guard(what: String, block: suspend () -> Unit) {
-        try {
-            block()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: BedJetException) {
-            log(LogLevel.ERROR, "$what: ${e.code} ${e.message}")
-        } catch (e: Exception) {
-            log(LogLevel.ERROR, "$what: ${e::class.simpleName} ${e.message}")
-        }
+    /** Null on success, else the error as logged. */
+    private suspend fun guard(what: String, block: suspend () -> Unit): String? {
+        val error =
+            try {
+                block()
+                return null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: BedJetException) {
+                "${e.code} ${e.message}"
+            } catch (e: Exception) {
+                "${e::class.simpleName} ${e.message}"
+            }
+        log(LogLevel.ERROR, "$what: $error")
+        return error
     }
 
     // SharedPreferences, not DataStore: two strings, read once synchronously at startup to decide

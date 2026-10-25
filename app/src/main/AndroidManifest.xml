@@ -26,6 +26,25 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+        <!-- Not exported: LauncherAppsService starts shortcut intents as this app, never as the
+             launcher or Routines (AOSP LauncherAppsService.startShortcut). Own empty affinity, so
+             it never brings MainActivity's task forward. -->
+        <activity
+            android:name=".CommandActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="link.thesymbolic.jetcommand.COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="jetcommand" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>
