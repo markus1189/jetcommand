@@ -104,18 +104,33 @@ data class CommandSnapshot(
 )
 
 sealed interface Plan {
-    /**
-     * Run [command]: connect to the remembered device first if [connect], then wait up to
-     * [readyTimeoutMs] for Ready (null: run at once, failures go to the log). [label] names it in
-     * the log and feedback; [report] shows the outcome outside the app.
-     */
-    data class Run(
-        val command: UserCommand,
-        val label: String,
-        val connect: Boolean,
-        val readyTimeoutMs: Long?,
-        val report: Boolean,
-    ) : Plan
+    /** Run [command]; [label] names it in the log and feedback. */
+    sealed interface Run : Plan {
+        val command: UserCommand
+        val label: String
+
+        /** Show the outcome outside the app. */
+        val report: Boolean
+
+        /** On the current stack at once; failures go to the log. */
+        data class Now(override val command: UserCommand, override val label: String) : Run {
+            override val report
+                get() = false
+        }
+
+        /**
+         * Wait up to [READY_TIMEOUT_MS] for Ready, connecting to the remembered device first if
+         * [connect]; the outcome is reported.
+         */
+        data class WhenReady(
+            override val command: UserCommand,
+            override val label: String,
+            val connect: Boolean,
+        ) : Run {
+            override val report
+                get() = true
+        }
+    }
 
     /** Not run; [reason] is shown to the user as is. */
     data class Rejected(val label: String, val reason: String, val report: Boolean) : Plan
@@ -149,13 +164,7 @@ fun plan(command: UserCommand, origin: CommandOrigin, snapshot: CommandSnapshot)
     val unseen = origin == CommandOrigin.SHORTCUT
     fun reject(reason: String) = Plan.Rejected(label, reason, report = unseen)
     fun run(connect: Boolean) =
-        Plan.Run(
-            command,
-            label,
-            connect = connect,
-            readyTimeoutMs = if (unseen) READY_TIMEOUT_MS else null,
-            report = unseen,
-        )
+        if (unseen) Plan.Run.WhenReady(command, label, connect) else Plan.Run.Now(command, label)
 
     return when {
         usable(snapshot, unseen) ->

@@ -25,8 +25,16 @@ class PlanTest {
     private val fan = UserCommand.SetFan(FanStep.of(9)!!)
     private val press = UserCommand.Press(Key.FAN_UP)
 
-    private fun run(command: UserCommand, connect: Boolean, timeout: Long?, report: Boolean) =
-        Plan.Run(command, describe(command), connect, timeout, report)
+    private fun run(command: UserCommand, connect: Boolean, timeout: Long?, report: Boolean): Plan {
+        assertEquals(timeout != null, report, "only waiting runs report")
+        return if (timeout == null) {
+            assertEquals(false, connect, "only waiting runs connect")
+            Plan.Run.Now(command, describe(command))
+        } else {
+            assertEquals(READY_TIMEOUT_MS, timeout)
+            Plan.Run.WhenReady(command, describe(command), connect)
+        }
+    }
 
     private fun rejected(command: UserCommand, reason: String, report: Boolean) =
         Plan.Rejected(describe(command), reason, report)

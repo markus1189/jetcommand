@@ -55,6 +55,7 @@ import link.thesymbolic.jetcommand.protocol.Plan
 import link.thesymbolic.jetcommand.protocol.ProcessEvent
 import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
+import link.thesymbolic.jetcommand.protocol.READY_TIMEOUT_MS
 import link.thesymbolic.jetcommand.protocol.RunOutcome
 import link.thesymbolic.jetcommand.protocol.SimTransport
 import link.thesymbolic.jetcommand.protocol.StartOutcome
@@ -335,16 +336,18 @@ class BedJetController(
     private fun interpret(p: Plan.Run) {
         // switchTo runs later: until then the old stack (the demo, say) is current and may be
         // Ready.
-        val target = if (p.connect) _remembered.value?.also(::connect) else null
-        val timeout = p.readyTimeoutMs
-        if (timeout == null) {
-            val stack = _stack.value ?: return failed(p, "no device")
-            runOn(stack, p)
-            return
-        }
+        val target =
+            when (p) {
+                is Plan.Run.Now -> {
+                    val stack = _stack.value ?: return failed(p, "no device")
+                    runOn(stack, p)
+                    return
+                }
+                is Plan.Run.WhenReady -> if (p.connect) _remembered.value?.also(::connect) else null
+            }
         scope.launch {
             val ready =
-                withTimeoutOrNull(timeout) {
+                withTimeoutOrNull(READY_TIMEOUT_MS) {
                     _stack
                         .flatMapLatest { s ->
                             s?.takeIf { target == null || it.source == target }
