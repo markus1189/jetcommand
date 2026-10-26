@@ -40,6 +40,8 @@ data class NightEvent(val at: Long, val kind: Kind, val detail: String, val valu
             when (outcome) {
                 RunOutcome.Ran -> NightEvent(at, Kind.SHORTCUT, label, 1)
                 is RunOutcome.Failed -> NightEvent(at, Kind.SHORTCUT, "$label: ${outcome.error}", 0)
+                is RunOutcome.Unconfirmed ->
+                    NightEvent(at, Kind.SHORTCUT, "$label: ${outcome.note}", 1)
             }
     }
 }

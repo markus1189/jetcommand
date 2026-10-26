@@ -21,7 +21,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 sealed interface LinkState {
-    /** [gaveUp]: auto-reconnect ran out of attempts. */
+    /** [gaveUp]: auto-reconnect ran out of attempts or of [BedJetLink.Config.giveUpAfterDownMs]. */
     data class Disconnected(val gaveUp: Boolean = false) : LinkState
 
     /** [reconnectAttempt] is 0 for a connect the caller asked for. */
@@ -49,8 +49,8 @@ enum class LogLevel {
  * retries, split status packets put back together, reconnects after a lost link.
  *
  * Confine [scope] to one thread (Main, or a `limitedParallelism(1)` dispatcher): status handling
- * and reconnects run there without locks, as the JS ran on one event loop. [now] (ms) only
- * rate-limits remainder reads.
+ * and reconnects run there without locks, as the JS ran on one event loop; a second thread fails
+ * fast. [now] (ms) only rate-limits remainder reads.
  */
 class BedJetLink(
     private val transport: BedJetTransport,
@@ -119,8 +119,12 @@ class BedJetLink(
     // When the link last went from up (or wanted) to down; the give-up clock runs from here.
     private var downSince: Long? = null
 
+    // Taken from the first use, not the constructor: the scope's dispatcher may not have run yet.
+    private var thread: Thread? = null
+
     private var session: Session = Session.Idle
         set(value) {
+            confined()
             field = value
             if (value == Session.Ready || value == Session.Idle) downSince = null
             _state.value = value.linkState
@@ -178,6 +182,17 @@ class BedJetLink(
     suspend fun send(bytes: ByteArray) {
         requireReady()
         serial { write(bytes) }
+    }
+
+    /** Sends [frames] back to back: no other operation reaches the unit between them. */
+    suspend fun sendAll(frames: List<ByteArray>) {
+        requireReady()
+        serial {
+            for (frame in frames) {
+                requireReady()
+                write(frame)
+            }
+        }
     }
 
     /** The payload of the unit's answer to `41 id tag`, without the id and tag. */
@@ -424,11 +439,25 @@ class BedJetLink(
 
     private suspend fun <T : Any> gatt(block: suspend () -> T): T =
         try {
-            withTimeoutOrNull(config.timeoutMs) { block() }
-                ?: throw BedJetException(ErrorCode.TIMEOUT)
+            withTimeoutOrNull(config.timeoutMs) { block() } ?: throw timedOut()
         } catch (e: TransportException) {
             throw wrap(e, ErrorCode.BAD_RESPONSE)
         }
+
+    /** See [BedJetTransport]: after a cancelled operation the connection can't be trusted. */
+    private suspend fun timedOut(): BedJetException {
+        if (session.attached) {
+            withContext(NonCancellable) {
+                attempt(onError = { log(LogLevel.WARN, "Disconnect failed: ${it.message}") }) {
+                    transport.disconnect()
+                }
+            }
+            handleDrop(
+                TransportException(TransportException.Kind.TIMEOUT, message = "operation timed out")
+            )
+        }
+        return BedJetException(ErrorCode.TIMEOUT)
+    }
 
     private suspend fun write(bytes: ByteArray) = gatt {
         transport.write(Characteristic.COMMAND, bytes)
@@ -467,8 +496,16 @@ class BedJetLink(
 
     // ---- status ----
 
-    private fun receiveStatus(bytes: ByteArray) =
+    private fun receiveStatus(bytes: ByteArray) {
+        confined()
         act(assembler.notified(bytes, now(), config.remainderIntervalMs))
+    }
+
+    private fun confined() {
+        val t = Thread.currentThread()
+        val owner = thread ?: t.also { thread = it }
+        check(owner === t) { "BedJetLink used on ${t.name}, confined to ${owner.name}" }
+    }
 
     private fun act(step: Assembled) {
         assembler = step.next

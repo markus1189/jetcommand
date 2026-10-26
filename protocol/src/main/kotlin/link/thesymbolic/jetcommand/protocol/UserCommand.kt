@@ -119,7 +119,7 @@ sealed interface Plan {
         }
 
         /**
-         * Wait up to [READY_TIMEOUT_MS] for Ready, connecting to the remembered device first if
+         * Wait up to [readyTimeoutMs] for Ready, connecting to the remembered device first if
          * [connect]; the outcome is reported.
          */
         data class WhenReady(
@@ -140,15 +140,18 @@ sealed interface Plan {
 sealed interface RunOutcome {
     data object Ran : RunOutcome
 
+    /** Sent, but the unit didn't confirm it in time; [note] as reported. */
+    data class Unconfirmed(val note: String) : RunOutcome
+
     /** [error] as logged and reported. */
     data class Failed(val error: String) : RunOutcome
 }
 
 /**
- * How long a shortcut waits for Ready: one reconnect cycle (20 s connect timeout, 10 s backoff, 20
- * s retry) must fit, or a unit that is just waking up fails the command.
+ * How long a shortcut waits for Ready on a link with [config]: a connect that times out, the
+ * longest backoff and the retry must fit, or a unit that is just waking up fails the command.
  */
-const val READY_TIMEOUT_MS = 45_000L
+fun readyTimeoutMs(config: BedJetLink.Config) = 2 * config.connectTimeoutMs + config.reconnectMaxMs
 
 // The protocol's 12 h step limit; turbo's minute is the shortest the official app sets.
 val RUNTIME_MINUTES = 1..12 * 60

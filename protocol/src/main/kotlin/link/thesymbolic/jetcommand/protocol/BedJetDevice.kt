@@ -48,6 +48,10 @@ class BedJetDevice(
     var status: StatusUpdate? = null
         private set
 
+    /** A [store] is writing; commands sent now wait until it is done. */
+    var storing = false
+        private set
+
     private val _notifications = MutableSharedFlow<Notification>(extraBufferCapacity = 16)
     val notifications: SharedFlow<Notification> = _notifications
 
@@ -152,8 +156,15 @@ class BedJetDevice(
             throw BedJetException(first.code, "$where${first.message}")
         }
         val name = Command.sanitizeName(program.name)
-        for (frame in Command.writeProgram(slot, program.steps)) send(frame)
-        send(Command.nameFrame(NameTarget.ProgramName(slot), name))
+        storing = true
+        try {
+            link.sendAll(
+                Command.writeProgram(slot, program.steps) +
+                    Command.nameFrame(NameTarget.ProgramName(slot), name)
+            )
+        } finally {
+            storing = false
+        }
         val back = programSteps(slot)
         val names = programNames()
         if (back != program.steps || names[slot.index] != name)

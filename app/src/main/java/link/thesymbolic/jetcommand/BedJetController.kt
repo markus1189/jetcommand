@@ -56,9 +56,9 @@ import link.thesymbolic.jetcommand.protocol.Plan
 import link.thesymbolic.jetcommand.protocol.ProcessEvent
 import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
-import link.thesymbolic.jetcommand.protocol.READY_TIMEOUT_MS
 import link.thesymbolic.jetcommand.protocol.RunOutcome
 import link.thesymbolic.jetcommand.protocol.SimTransport
+import link.thesymbolic.jetcommand.protocol.StartFailure
 import link.thesymbolic.jetcommand.protocol.StartOutcome
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
 import link.thesymbolic.jetcommand.protocol.Step
@@ -67,6 +67,7 @@ import link.thesymbolic.jetcommand.protocol.Timing
 import link.thesymbolic.jetcommand.protocol.UserCommand
 import link.thesymbolic.jetcommand.protocol.attempt
 import link.thesymbolic.jetcommand.protocol.plan
+import link.thesymbolic.jetcommand.protocol.readyTimeoutMs
 
 sealed interface Source {
     val label: String
@@ -237,17 +238,7 @@ class BedJetController(
             }
         lateinit var recorder: NightRecorder
         val transport = TappedTransport(raw) { recorder.command(it) }
-        // Night 1's status-8 drops happened in range, yet the default 60 s cap plus 20 s connect
-        // timeouts left a 358 s gap; 10 s keeps it under ~30 s. The BedJet's BLE stays on in
-        // standby, so only leaving the room ends a link: after 15 min down, let go for the day.
-        val config =
-            BedJetLink.Config(
-                maxReconnectAttempts = null,
-                giveUpAfterDownMs = 15 * 60_000L,
-                retryFailedConnect = true,
-                reconnectMaxMs = 10_000,
-            )
-        val link = BedJetLink(transport, scope, config, log = ::log)
+        val link = BedJetLink(transport, scope, LINK_CONFIG, log = ::log)
         recorder = NightRecorder(link, store, scope)
         val device = BedJetDevice(link, scope)
         scope.launch {
@@ -308,6 +299,8 @@ class BedJetController(
     /** Runs [block] on the current stack; failures go to the log, never up. */
     fun act(what: String, block: suspend (BedJetStack) -> Unit) {
         val stack = _stack.value ?: return log(LogLevel.ERROR, "$what: no device")
+        if (stack.scope.coroutineContext[Job]?.isActive != true)
+            return log(LogLevel.ERROR, "$what: $SWITCHING")
         stack.scope.launch { guard(what) { block(stack) } }
     }
 
@@ -348,7 +341,7 @@ class BedJetController(
             }
         scope.launch {
             val ready =
-                withTimeoutOrNull(READY_TIMEOUT_MS) {
+                withTimeoutOrNull(readyTimeoutMs(LINK_CONFIG)) {
                     _stack
                         .flatMapLatest { s ->
                             s?.takeIf { target == null || it.source == target }
@@ -364,11 +357,15 @@ class BedJetController(
         }
     }
 
-    private fun runOn(stack: BedJetStack, p: Plan.Run) =
+    private fun runOn(stack: BedJetStack, p: Plan.Run) {
+        // The stack of a switch in progress: its cancelled scope would drop the command unseen.
+        if (stack.scope.coroutineContext[Job]?.isActive != true) return failed(p, SWITCHING)
+        if (stack.device.storing) return failed(p, "busy writing a program")
         stack.scope.launch {
             val outcome = guarded(p.label) { perform(stack, p.command) }
             if (p.report) report(p.label, outcome)
         }
+    }
 
     private fun failed(p: Plan.Run, reason: String) {
         log(LogLevel.ERROR, "${p.label}: $reason")
@@ -383,8 +380,13 @@ class BedJetController(
             is UserCommand.SetFan -> device.setFan(command.fan.step)
             is UserCommand.StartProgram -> {
                 val started = device.startProgram(command.slot)
-                if (started is StartOutcome.Failed) return RunOutcome.Failed(started.reason.text)
+                val unconfirmed =
+                    started is StartOutcome.Failed && started.reason == StartFailure.UNCONFIRMED
+                if (started is StartOutcome.Failed && !unconfirmed)
+                    return RunOutcome.Failed(started.reason.text)
+                // Unconfirmed starts usually run; the next fresh extra clears this if not.
                 library.noteStarted(idOf(stack.source), command.slot)
+                if (unconfirmed) return RunOutcome.Unconfirmed("sent, not confirmed")
             }
             is UserCommand.Press -> device.press(command.key)
             is UserCommand.SetRuntime -> device.setRuntime(command.autoOff.minutes)
@@ -397,6 +399,7 @@ class BedJetController(
         val text =
             when (outcome) {
                 RunOutcome.Ran -> "$label ✓"
+                is RunOutcome.Unconfirmed -> "$label: ${outcome.note}"
                 is RunOutcome.Failed -> "$label: ${outcome.error}"
             }
         Toast.makeText(context, "BedJet: $text", Toast.LENGTH_SHORT).show()
@@ -416,6 +419,10 @@ class BedJetController(
             try {
                 when (val outcome = block()) {
                     RunOutcome.Ran -> return outcome
+                    is RunOutcome.Unconfirmed -> {
+                        log(LogLevel.WARN, "$what: ${outcome.note}")
+                        return outcome
+                    }
                     is RunOutcome.Failed -> outcome.error
                 }
             } catch (e: CancellationException) {
@@ -453,6 +460,19 @@ class BedJetController(
 
     companion object {
         const val DEMO_ID = "demo"
+
+        // Night 1's status-8 drops happened in range, yet the default 60 s cap plus 20 s connect
+        // timeouts left a 358 s gap; 10 s keeps it under ~30 s. The BedJet's BLE stays on in
+        // standby, so only leaving the room ends a link: after 15 min down, let go for the day.
+        val LINK_CONFIG =
+            BedJetLink.Config(
+                maxReconnectAttempts = null,
+                giveUpAfterDownMs = 15 * 60_000L,
+                retryFailedConnect = true,
+                reconnectMaxMs = 10_000,
+            )
+
+        private const val SWITCHING = "switching device"
 
         /** Two programs to keep or run, one empty slot. */
         fun demoSlots() =

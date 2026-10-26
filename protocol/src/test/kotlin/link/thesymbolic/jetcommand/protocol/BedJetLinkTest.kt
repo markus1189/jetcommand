@@ -295,14 +295,34 @@ class BedJetLinkTest {
     }
 
     @Test
-    fun `a write that never completes times out, the queue goes on`() = runTest {
+    fun `a write that never completes times out and drops the link, which reconnects`() = runTest {
         val r = connected(rig())
         r.transport.inject(Fault.Hang) { it is Op.Write }
         val t0 = currentTime
         code(ErrorCode.TIMEOUT) { r.link.send(Command.setFan(3)) }
         assertEquals(5_000, currentTime - t0)
+        assertEquals(LinkState.Connecting(1), r.link.state.value)
+        assertEquals(Op.Connect, r.transport.ops.last { it == Op.Connect })
+        advanceTimeBy(3_001)
+        assertEquals(LinkState.Ready, r.link.state.value)
         r.link.send(Command.setFan(4))
         assertEquals(4, r.sim.fan)
+    }
+
+    @Test
+    fun `a link used from a second thread fails fast`() = runTest {
+        val r = connected(rig())
+        var error: Throwable? = null
+        Thread {
+            error =
+                runCatching { kotlinx.coroutines.runBlocking { r.link.disconnect() } }
+                    .exceptionOrNull()
+        }
+            .apply {
+                start()
+                join()
+            }
+        assertIs<IllegalStateException>(error)
     }
 
     @Test
@@ -425,6 +445,48 @@ class BedJetLinkTest {
         advanceTimeBy(3_001)
         assertEquals(LinkState.Ready, r.link.state.value)
         assertEquals(Program("Night", steps), r.device.store(Program("Night", steps), slot(0)))
+    }
+
+    @Test
+    fun `a press during a store waits until the program and its name are written`() = runTest {
+        val r = connected(rig())
+        val steps = List(12) { step(Mode.COOL, 5, 44, 0, 30) }
+        r.transport.latencyMs = 100
+        val storing = backgroundScope.launch { r.device.store(Program("Night", steps), slot(0)) }
+        advanceTimeBy(150)
+        assertTrue(r.device.storing)
+        r.device.press(Key.FAN_UP)
+        storing.join()
+        assertFalse(r.device.storing)
+        val writes = r.transport.ops.filterIsInstance<Op.Write>().map { it.bytes.toHex() }
+        val press = writes.indexOf(Command.press(Key.FAN_UP).toHex())
+        val frames = Command.writeProgram(slot(0), steps).size + 1
+        assertEquals(frames, press, "the press follows all fragment frames and the name frame")
+    }
+
+    @Test
+    fun `a notification is acked once per 2 s however often it repeats`() = runTest {
+        val r = connected(rig())
+        r.sim.notification = Notification.CleanFilter
+        advanceTimeBy(1_900)
+        val acks = { r.transport.writes.count { it == Command.ack().toHex() } }
+        assertEquals(1, acks())
+        r.sim.notification = Notification.CleanFilter
+        advanceTimeBy(2_200)
+        assertTrue(acks() <= 2, "at most one more after the debounce")
+    }
+
+    @Test
+    fun `start program with only stale extras is unconfirmed`() = runTest {
+        val r = connected(rig())
+        r.device.store(Program("Night", listOf(step(Mode.COOL, 5, 44, 2, 0))), slot(0))
+        // Every remainder read fails, so no status after the start carries a fresh extra.
+        r.transport.inject(Fault.Fail(), times = 100) { it == Op.Read(Characteristic.STATUS) }
+        assertEquals(
+            StartOutcome.Failed(StartFailure.UNCONFIRMED),
+            r.device.startProgram(slot(0)),
+        )
+        assertTrue(r.sim.step > 0, "the program runs anyway")
     }
 
     @Test

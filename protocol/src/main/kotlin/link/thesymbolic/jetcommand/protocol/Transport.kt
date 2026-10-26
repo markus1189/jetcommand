@@ -59,7 +59,8 @@ inline fun <T> cleanupOnFailure(cleanup: () -> Unit, block: () -> T): T {
 /**
  * GATT primitives against one BedJet, nothing protocol-specific. Implementations may assume one
  * operation at a time: Android GATT drops overlapping operations, so serializing is the caller's
- * (the link's) job.
+ * (the link's) job. An operation the caller cancels may still complete inside the transport and
+ * answer the next one, so the caller disconnects before the next.
  */
 interface BedJetTransport {
     val state: StateFlow<TransportState>

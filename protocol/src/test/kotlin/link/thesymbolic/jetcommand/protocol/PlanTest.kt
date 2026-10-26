@@ -22,6 +22,13 @@ class PlanTest {
         )
     private val away = ready.copy(connected = false, link = LinkState.Disconnected())
 
+    // Marks a run that waits for Ready; how long is [readyTimeoutMs]'s.
+    private val waits = 0L
+
+    @Test
+    fun `a shortcut waits out a timed-out connect, the longest backoff and a retry`() =
+        assertEquals(50_000, readyTimeoutMs(BedJetLink.Config(reconnectMaxMs = 10_000)))
+
     private val fan = UserCommand.SetFan(FanStep.of(9)!!)
     private val press = UserCommand.Press(Key.FAN_UP)
 
@@ -31,7 +38,6 @@ class PlanTest {
             assertEquals(false, connect, "only waiting runs connect")
             Plan.Run.Now(command, describe(command))
         } else {
-            assertEquals(READY_TIMEOUT_MS, timeout)
             Plan.Run.WhenReady(command, describe(command), connect)
         }
     }
@@ -67,7 +73,7 @@ class PlanTest {
     @Test
     fun `a shortcut on a connected unit waits for Ready and reports`() {
         assertEquals(
-            run(fan, false, READY_TIMEOUT_MS, true),
+            run(fan, false, waits, true),
             plan(fan, CommandOrigin.SHORTCUT, ready),
         )
     }
@@ -75,7 +81,7 @@ class PlanTest {
     @Test
     fun `a shortcut reconnects to the remembered unit`() {
         assertEquals(
-            run(fan, true, READY_TIMEOUT_MS, true),
+            run(fan, true, waits, true),
             plan(fan, CommandOrigin.SHORTCUT, away),
         )
     }
@@ -84,7 +90,7 @@ class PlanTest {
     fun `a shortcut switches from the demo to the remembered unit`() {
         val demo = ready.copy(demo = true)
         assertEquals(
-            run(fan, true, READY_TIMEOUT_MS, true),
+            run(fan, true, waits, true),
             plan(fan, CommandOrigin.SHORTCUT, demo),
         )
         assertEquals(
