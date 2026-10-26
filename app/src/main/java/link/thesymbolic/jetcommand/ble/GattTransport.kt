@@ -65,6 +65,8 @@ class GattTransport(context: Context, private val device: BluetoothDevice) : Bed
 
     private val lock = Any()
     private var gatt: BluetoothGatt? = null
+    // Its queued callbacks may still arrive after close(), while [gatt] is null between connects.
+    private var retired: BluetoothGatt? = null
     private var pending: Pending? = null
     private var chars: Map<Characteristic, BluetoothGattCharacteristic> = emptyMap()
 
@@ -276,6 +278,7 @@ class GattTransport(context: Context, private val device: BluetoothDevice) : Bed
             synchronized(lock) {
                 val g = gatt
                 gatt = null
+                if (g != null) retired = g
                 chars = emptyMap()
                 g to pending
             }
@@ -300,7 +303,8 @@ class GattTransport(context: Context, private val device: BluetoothDevice) : Bed
         object : BluetoothGattCallback() {
             override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
                 // gatt is still null if this races connectGatt() returning.
-                if (synchronized(lock) { gatt.let { it != null && it !== g } }) return
+                if (synchronized(lock) { g === retired || gatt.let { it != null && it !== g } })
+                    return
                 if (
                     newState == BluetoothProfile.STATE_CONNECTED &&
                         status == BluetoothGatt.GATT_SUCCESS
