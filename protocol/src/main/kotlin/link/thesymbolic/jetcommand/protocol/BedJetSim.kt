@@ -310,7 +310,7 @@ class BedJetSim(
     private fun store(b: ByteArray) {
         if (b.size < 3) return
         val target = b.u(1)
-        val nameSlot = NameParam.slotOf(target)
+        val nameSlot = (NameTarget.of(target) as? NameTarget.ProgramName)?.slot
         val fragmentId = Query.fragmentOf(target)
         when {
             target <= 3 -> {

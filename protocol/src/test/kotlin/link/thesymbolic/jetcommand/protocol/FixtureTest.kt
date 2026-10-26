@@ -155,11 +155,15 @@ class FixtureTest {
             "setRuntime" to Command::setRuntime,
             "setTemperature" to Command::setTemperature,
             "setFan" to Command::setFan,
-            "recallMemory" to Command::recallMemory,
-            "saveMemory" to Command::saveMemory,
+            "recallMemory" to { Command.recallMemory(typed(MemorySlot.of(it))) },
+            "saveMemory" to { Command.saveMemory(typed(MemorySlot.of(it))) },
             "startProgram" to { Command.startProgram(slotArg(it)) },
             "deleteProgram" to { Command.deleteProgram(slotArg(it)) },
         )
+
+    // The web app range-checks plain numbers; here the type does, so an untypeable one is its
+    // RangeError.
+    private fun <T : Any> typed(value: T?): T = requireNotNull(value)
 
     private fun encode(fn: String, args: JsonArray) =
         when (fn) {
@@ -172,7 +176,8 @@ class FixtureTest {
                 )
             "setClock" -> hexList(listOf(Command.setClock(args[0].num, args[1].num)))
             "query" -> hexList(listOf(Command.query(args[0].num, args[1].num)))
-            "nameFrame" -> hexList(listOf(Command.nameFrame(args[0].num, args[1].str)))
+            "nameFrame" ->
+                hexList(listOf(Command.nameFrame(typed(NameTarget.of(args[0].num)), args[1].str)))
             "writeProgram" ->
                 hexList(Command.writeProgram(slotArg(args[0].num), args[1].jsonArray.map(::step)))
             else -> error("unknown encoder $fn")

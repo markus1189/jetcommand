@@ -164,15 +164,53 @@ object Query {
     }
 }
 
-object NameParam {
-    const val DEVICE = 0
-    private const val FIRST_PROGRAM = 4
+/** One of the unit's three stored settings, numbered 1–3 as on its display. */
+enum class MemorySlot {
+    ONE,
+    TWO,
+    THREE;
 
-    fun memory(n: Int) = n
+    val number
+        get() = ordinal + 1
 
-    fun program(slot: Slot) = FIRST_PROGRAM + slot.index
+    internal val recallButton
+        get() = Button.MEMORY_1 + ordinal
 
-    fun slotOf(param: Int): Slot? = Slot.of(param - FIRST_PROGRAM)
+    internal val saveButton
+        get() = Button.SAVE_MEMORY_1 + ordinal
+
+    companion object {
+        fun of(number: Int): MemorySlot? = entries.getOrNull(number - 1)
+    }
+}
+
+/** What a name frame renames; [param] is its byte on the wire. */
+sealed interface NameTarget {
+    val param: Int
+
+    data object DeviceName : NameTarget {
+        override val param = 0
+    }
+
+    data class MemoryName(val memory: MemorySlot) : NameTarget {
+        override val param
+            get() = memory.number
+    }
+
+    data class ProgramName(val slot: Slot) : NameTarget {
+        override val param
+            get() = FIRST_PROGRAM + slot.index
+    }
+
+    companion object {
+        private const val FIRST_PROGRAM = 4
+
+        fun of(param: Int): NameTarget? =
+            if (param == 0) DeviceName
+            else
+                MemorySlot.of(param)?.let(::MemoryName)
+                    ?: Slot.of(param - FIRST_PROGRAM)?.let(::ProgramName)
+    }
 }
 
 object Limits {
@@ -400,15 +438,9 @@ object Command {
 
     fun ack() = button(Button.ACK)
 
-    fun recallMemory(n: Int): ByteArray {
-        require(n in 1..3) { "Memory must be 1–3, got $n" }
-        return button(Button.MEMORY_1 + n - 1)
-    }
+    fun recallMemory(memory: MemorySlot) = button(memory.recallButton)
 
-    fun saveMemory(n: Int): ByteArray {
-        require(n in 1..3) { "Memory must be 1–3, got $n" }
-        return button(Button.SAVE_MEMORY_1 + n - 1)
-    }
+    fun saveMemory(memory: MemorySlot) = button(memory.saveButton)
 
     fun startProgram(slot: Slot) = button(Button.startProgram(slot))
 
@@ -445,11 +477,10 @@ object Command {
             .collect(::StringBuilder, StringBuilder::appendCodePoint, StringBuilder::append)
             .toString()
 
-    fun nameFrame(param: Int, name: String): ByteArray {
-        require(param in 0..6) { "Name param must be 0–6, got $param" }
+    fun nameFrame(target: NameTarget, name: String): ByteArray {
         val frame = ByteArray(19)
         frame[0] = 0x40
-        frame[1] = param.toByte()
+        frame[1] = target.param.toByte()
         frame[2] = 0x10
         sanitizeName(name).forEachIndexed { i, ch -> frame[3 + i] = ch.code.toByte() }
         return frame

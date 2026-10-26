@@ -114,10 +114,10 @@ class StepCodecTest {
     fun `fragment and name ids round-trip through their slot`() = runTest {
         checkAll(Exhaustive.ints(0..255)) { id ->
             Query.fragmentOf(id)?.let { (s, i) -> assertEquals(id, Query.fragment(s, i)) }
-            NameParam.slotOf(id)?.let { assertEquals(id, NameParam.program(it)) }
+            NameTarget.of(id)?.let { assertEquals(id, it.param) }
         }
         for (s in Slot.all) {
-            assertEquals(s, NameParam.slotOf(NameParam.program(s)))
+            assertEquals(NameTarget.ProgramName(s), NameTarget.of(NameTarget.ProgramName(s).param))
             repeat(Limits.FRAGMENTS_PER_SLOT) { i ->
                 assertEquals(s to i, Query.fragmentOf(Query.fragment(s, i)))
             }

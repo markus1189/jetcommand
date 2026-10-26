@@ -80,15 +80,15 @@ class BedJetDevice(
 
     suspend fun setMuted(muted: Boolean) = send(Command.setMuted(muted))
 
-    suspend fun recallMemory(n: Int) = send(Command.recallMemory(n))
+    suspend fun recallMemory(memory: MemorySlot) = send(Command.recallMemory(memory))
 
-    suspend fun saveMemory(n: Int) = send(Command.saveMemory(n))
+    suspend fun saveMemory(memory: MemorySlot) = send(Command.saveMemory(memory))
 
     suspend fun stopProgram() = press(Key.OFF)
 
     suspend fun deleteProgram(slot: Slot) = send(Command.deleteProgram(slot))
 
-    suspend fun rename(param: Int, name: String) = send(Command.nameFrame(param, name))
+    suspend fun rename(target: NameTarget, name: String) = send(Command.nameFrame(target, name))
 
     suspend fun deviceName() = Reply.parseText(link.query(Query.DEVICE_NAME))
 
@@ -140,7 +140,7 @@ class BedJetDevice(
         }
         val name = Command.sanitizeName(program.name)
         for (frame in Command.writeProgram(slot, program.steps)) send(frame)
-        send(Command.nameFrame(NameParam.program(slot), name))
+        send(Command.nameFrame(NameTarget.ProgramName(slot), name))
         val back = programSteps(slot)
         val names = programNames()
         if (back != program.steps || names[slot.index] != name)
