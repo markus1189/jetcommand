@@ -8,6 +8,7 @@ import link.thesymbolic.jetcommand.hhmm
 import link.thesymbolic.jetcommand.hoursMinutes
 import link.thesymbolic.jetcommand.linkText
 import link.thesymbolic.jetcommand.prettyName
+import link.thesymbolic.jetcommand.protocol.DeviceId
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Program
@@ -36,7 +37,7 @@ data class NowInputs(
     val canConnect: Boolean,
     /** By slot index, null where empty. */
     val programNames: List<String?>,
-    val device: String?,
+    val device: DeviceId?,
     val started: StartedSlot?,
     val slots: List<SlotView>,
 )
@@ -142,7 +143,7 @@ fun programButtons(names: List<String?>): List<ProgramButton> =
  */
 fun runningProgram(
     step: Int,
-    device: String?,
+    device: DeviceId?,
     started: StartedSlot?,
     slots: List<SlotView>,
 ): Program? {

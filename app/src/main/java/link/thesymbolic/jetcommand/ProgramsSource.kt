@@ -2,7 +2,9 @@ package link.thesymbolic.jetcommand
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import link.thesymbolic.jetcommand.protocol.DeviceId
 import link.thesymbolic.jetcommand.protocol.LibraryEntry
+import link.thesymbolic.jetcommand.protocol.ProgramId
 import link.thesymbolic.jetcommand.protocol.ProgramRevision
 import link.thesymbolic.jetcommand.protocol.Resolution
 import link.thesymbolic.jetcommand.protocol.Slot
@@ -15,7 +17,7 @@ import link.thesymbolic.jetcommand.protocol.StartedSlot
  */
 interface ProgramsSource {
     /** The device whose slots are shown; null before any was used. */
-    val device: StateFlow<String?>
+    val device: StateFlow<DeviceId?>
     /** A link is up, so slot actions can reach the unit. */
     val live: StateFlow<Boolean>
     /** Refused or failed actions, as text for the user; each delivered once. */
@@ -24,19 +26,19 @@ interface ProgramsSource {
 
     fun entries(): Flow<List<LibraryEntry>>
 
-    fun slots(device: String): Flow<List<SlotView>>
+    fun slots(device: DeviceId): Flow<List<SlotView>>
 
-    suspend fun revisions(programId: String): List<ProgramRevision>
+    suspend fun revisions(programId: ProgramId): List<ProgramRevision>
 
-    fun run(slot: Slot, programId: String)
+    fun run(slot: Slot, programId: ProgramId)
 
-    fun push(slot: Slot, programId: String)
+    fun push(slot: Slot, programId: ProgramId)
 
     fun resolve(slot: Slot, resolution: Resolution)
 
     fun keep(slot: Slot)
 
-    fun restore(programId: String)
+    fun restore(programId: ProgramId)
 
-    fun delete(programId: String)
+    fun delete(programId: ProgramId)
 }

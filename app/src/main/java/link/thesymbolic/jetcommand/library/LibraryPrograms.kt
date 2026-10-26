@@ -15,10 +15,12 @@ import link.thesymbolic.jetcommand.BedJetController
 import link.thesymbolic.jetcommand.BedJetStack
 import link.thesymbolic.jetcommand.ProgramsSource
 import link.thesymbolic.jetcommand.protocol.BedJetException
+import link.thesymbolic.jetcommand.protocol.DeviceId
 import link.thesymbolic.jetcommand.protocol.ErrorCode
 import link.thesymbolic.jetcommand.protocol.LibraryEntry
 import link.thesymbolic.jetcommand.protocol.LibraryOutcome
 import link.thesymbolic.jetcommand.protocol.LogLevel
+import link.thesymbolic.jetcommand.protocol.ProgramId
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 import link.thesymbolic.jetcommand.protocol.Refusal
 import link.thesymbolic.jetcommand.protocol.Resolution
@@ -50,12 +52,15 @@ class LibraryPrograms(
     private val scope: CoroutineScope,
 ) : ProgramsSource {
     // The remembered unit keeps its cached slots visible while disconnected.
-    override val device: StateFlow<String?> =
-        combine(controller.deviceId, controller.remembered) { id, r -> id ?: r?.address }
+    override val device: StateFlow<DeviceId?> =
+        combine(controller.deviceId, controller.remembered) { id, r ->
+                id ?: r?.let(BedJetController::idOf)
+            }
             .stateIn(
                 scope,
                 SharingStarted.Eagerly,
-                controller.deviceId.value ?: controller.remembered.value?.address,
+                controller.deviceId.value
+                    ?: controller.remembered.value?.let(BedJetController::idOf),
             )
     override val live: StateFlow<Boolean> =
         controller.deviceId
@@ -72,9 +77,9 @@ class LibraryPrograms(
 
     override fun entries() = entries
 
-    override fun slots(device: String) = library.slots(device)
+    override fun slots(device: DeviceId) = library.slots(device)
 
-    override suspend fun revisions(programId: String) = library.revisions(programId)
+    override suspend fun revisions(programId: ProgramId) = library.revisions(programId)
 
     private fun refused(what: String, outcome: LibraryOutcome<*>) {
         if (outcome !is LibraryOutcome.Refused) return
@@ -84,7 +89,7 @@ class LibraryPrograms(
 
     private fun onUnit(
         what: String,
-        block: suspend ProgramLibrary.(String, BedJetStack) -> LibraryOutcome<*>,
+        block: suspend ProgramLibrary.(DeviceId, BedJetStack) -> LibraryOutcome<*>,
     ) {
         val id =
             controller.deviceId.value ?: return controller.log(LogLevel.ERROR, "$what: no device")
@@ -100,10 +105,10 @@ class LibraryPrograms(
         }
     }
 
-    override fun run(slot: Slot, programId: String) =
+    override fun run(slot: Slot, programId: ProgramId) =
         onUnit("run program in slot ${slot.number}") { id, s -> run(id, s.device, slot, programId) }
 
-    override fun push(slot: Slot, programId: String) =
+    override fun push(slot: Slot, programId: ProgramId) =
         onUnit("load slot ${slot.number}") { id, s -> push(id, s.device, slot, programId) }
 
     private fun local(what: String, block: suspend ProgramLibrary.() -> LibraryOutcome<*>) {
@@ -123,7 +128,10 @@ class LibraryPrograms(
         }
     }
 
-    private fun onSlots(what: String, block: suspend ProgramLibrary.(String) -> LibraryOutcome<*>) {
+    private fun onSlots(
+        what: String,
+        block: suspend ProgramLibrary.(DeviceId) -> LibraryOutcome<*>,
+    ) {
         val id = device.value ?: return
         local(what) { block(id) }
     }
@@ -134,9 +142,9 @@ class LibraryPrograms(
     override fun keep(slot: Slot) = onSlots("keep slot ${slot.number}") { keep(it, slot) }
 
     // Library-only: no device needed.
-    override fun restore(programId: String) =
+    override fun restore(programId: ProgramId) =
         local("restore") { LibraryOutcome.Done(restore(programId)) }
 
-    override fun delete(programId: String) =
+    override fun delete(programId: ProgramId) =
         local("delete") { LibraryOutcome.Done(delete(programId)) }
 }

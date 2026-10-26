@@ -18,6 +18,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import link.thesymbolic.jetcommand.hoursMinutes
+import link.thesymbolic.jetcommand.protocol.DeviceId
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Notification
@@ -34,12 +35,13 @@ import link.thesymbolic.jetcommand.protocol.Timing
 import link.thesymbolic.jetcommand.protocol.maxRuntimeMinutes
 import link.thesymbolic.jetcommand.status
 
-private const val DEV = "AA:BB"
+private val DEV = DeviceId("AA:BB")
+private val OTHER = DeviceId("other")
 
 private fun steps(n: Int, minutes: Int = 30) =
     List(n) { Step(Mode.HEAT, 9, 70, Timing.For(minutes / 60, minutes % 60)) }
 
-private fun slot(index: Int, program: Program?, device: String = DEV) =
+private fun slot(index: Int, program: Program?, device: DeviceId = DEV) =
     SlotView(
         SlotState(device, Slot.all[index], program, readAt = 1L),
         program?.let(SlotStatus::NotInLibrary) ?: SlotStatus.Empty,
@@ -78,12 +80,18 @@ class NowStateTest {
                 Row(
                     "started elsewhere",
                     2,
-                    StartedSlot("other", Slot.all[0]),
+                    StartedSlot(OTHER, Slot.all[0]),
                     listOf(slot(0, two), slot(1, five)),
                     null,
                 ),
                 Row("started slot empty", 2, started0, listOf(slot(0, null), slot(1, five)), five),
-                Row("other device's cache", 2, null, listOf(slot(0, five, device = "x")), null),
+                Row(
+                    "other device's cache",
+                    2,
+                    null,
+                    listOf(slot(0, five, device = DeviceId("x"))),
+                    null,
+                ),
                 Row("nothing cached", 1, started0, emptyList(), null),
             )
             .forEach { r ->
@@ -103,7 +111,7 @@ class NowStateTest {
     fun `running program comes from this device's slots and covers the step`() = runTest {
         checkAll(
             Arb.int(-1..8),
-            Arb.element(DEV, "other").orNull(),
+            Arb.element(DEV, OTHER).orNull(),
             startedArb,
             Arb.list(slotArb, 0..3),
         ) { step, device, started, slots ->
@@ -397,12 +405,12 @@ private val slotArb = arbitrary {
     slot(
         Arb.int(0..2).bind(),
         programArb.orNull().bind(),
-        device = Arb.element(DEV, "other").bind(),
+        device = Arb.element(DEV, OTHER).bind(),
     )
 }
 
 private val startedArb = arbitrary {
-    StartedSlot(Arb.element(DEV, "other").bind(), Slot.all[Arb.int(0..2).bind()])
+    StartedSlot(Arb.element(DEV, OTHER).bind(), Slot.all[Arb.int(0..2).bind()])
 }
     .orNull()
 
@@ -438,7 +446,7 @@ private val inputsArb = arbitrary {
         remembered = Arb.string(0..10).orNull().bind(),
         canConnect = Arb.boolean().bind(),
         programNames = Arb.list(Arb.string(0..8).orNull(), 0..5).bind(),
-        device = Arb.element(DEV, "other").orNull().bind(),
+        device = Arb.element(DEV, OTHER).orNull().bind(),
         started = startedArb.bind(),
         slots = Arb.list(slotArb, 0..3).bind(),
     )

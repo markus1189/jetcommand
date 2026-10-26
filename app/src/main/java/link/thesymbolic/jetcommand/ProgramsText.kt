@@ -5,6 +5,7 @@ import java.time.LocalTime
 import link.thesymbolic.jetcommand.protocol.LibraryEntry
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Origin
+import link.thesymbolic.jetcommand.protocol.ProgramId
 import link.thesymbolic.jetcommand.protocol.ProgramRevision
 import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.SlotStatus
@@ -59,7 +60,7 @@ fun slotLine(status: SlotStatus): SlotLine =
 
 /** Where tapping a slot row leads. */
 sealed interface SlotTap {
-    data class Open(val programId: String) : SlotTap
+    data class Open(val programId: ProgramId) : SlotTap
 
     data class Review(val slot: Slot) : SlotTap
 }
@@ -105,7 +106,7 @@ fun programMeta(rev: Int?, steps: List<Step>, start: LocalTime): String {
 }
 
 /** A library row's pills: the slots holding [entryId], with the revision when it's older. */
-fun libraryBadges(entryId: String, slots: List<SlotView>): List<String> = slots.mapNotNull { v ->
+fun libraryBadges(entryId: ProgramId, slots: List<SlotView>): List<String> = slots.mapNotNull { v ->
     when (val s = v.status) {
         is SlotStatus.InSync -> "Slot ${v.state.slot.number}".takeIf { s.holdsCurrent(entryId) }
         is SlotStatus.Older ->

@@ -49,7 +49,9 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import link.thesymbolic.jetcommand.protocol.DeviceId
 import link.thesymbolic.jetcommand.protocol.LibraryEntry
+import link.thesymbolic.jetcommand.protocol.ProgramId
 import link.thesymbolic.jetcommand.protocol.ProgramRevision
 import link.thesymbolic.jetcommand.protocol.Resolution
 import link.thesymbolic.jetcommand.protocol.Slot
@@ -609,8 +611,8 @@ private val PreviewStart: LocalTime = LocalTime.of(22, 30)
 @Composable
 private fun DetailPreview() = JetCommandTheme {
     val f = remember { FakePrograms() }
-    val e = LibraryEntry("summer", f.revs.getValue("summer").first())
-    val slots by f.slots("demo").collectAsState(emptyList())
+    val e = LibraryEntry(ProgramId("summer"), f.revs.getValue("summer").first())
+    val slots by f.slots(DeviceId("demo")).collectAsState(emptyList())
     ProgramDetail(e, f.revs.getValue("summer"), slots, true, {}, {}, {}, {}, start = PreviewStart)
 }
 
@@ -618,7 +620,7 @@ private fun DetailPreview() = JetCommandTheme {
 @Composable
 private fun PickerPreview() = JetCommandTheme {
     val f = remember { FakePrograms() }
-    val e = LibraryEntry("hot", f.revs.getValue("hot").first())
-    val slots by f.slots("demo").collectAsState(emptyList())
+    val e = LibraryEntry(ProgramId("hot"), f.revs.getValue("hot").first())
+    val slots by f.slots(DeviceId("demo")).collectAsState(emptyList())
     SlotPickerBody(e, slots, listOf(1, 0, 2).map(Slot.all::get), run = true) {}
 }

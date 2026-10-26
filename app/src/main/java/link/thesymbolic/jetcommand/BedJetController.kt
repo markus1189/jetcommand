@@ -45,6 +45,7 @@ import link.thesymbolic.jetcommand.protocol.BedJetTransport
 import link.thesymbolic.jetcommand.protocol.CommandOrigin
 import link.thesymbolic.jetcommand.protocol.CommandRequest
 import link.thesymbolic.jetcommand.protocol.CommandSnapshot
+import link.thesymbolic.jetcommand.protocol.DeviceId
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.Mode
@@ -120,7 +121,7 @@ class BedJetController(
             .flatMapLatest { it?.link?.status ?: flowOf(null) }
             .stateIn(scope, SharingStarted.Eagerly, null)
     /** The [ProgramLibrary] device key of the current stack. */
-    val deviceId: StateFlow<String?> =
+    val deviceId: StateFlow<DeviceId?> =
         _stack.map { it?.source?.let(::idOf) }.stateIn(scope, SharingStarted.Eagerly, null)
 
     private val _log = MutableStateFlow<List<String>>(emptyList())
@@ -473,7 +474,8 @@ class BedJetController(
                 null,
             )
 
-        fun idOf(source: Source) = if (source is Source.Device) source.address else DEMO_ID
+        fun idOf(source: Source) =
+            DeviceId(if (source is Source.Device) source.address else DEMO_ID)
 
         private const val KEY_ADDRESS = "device.address"
         private const val KEY_NAME = "device.name"

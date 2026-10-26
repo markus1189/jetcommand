@@ -80,7 +80,7 @@ class StepCodecTest {
         assertEquals("04 09 2c 01 1e 01 0c 46 00 2d 06 13 50 86 0f", encodeSteps(p.steps).toHex())
         assertEquals(
             "23b597cd695d2f15244d9ea9c4c31c476ca3c61b9f7e9d12f277e2d1d6d7e6bd",
-            p.fingerprint(),
+            p.fingerprint().hex,
         )
     }
 

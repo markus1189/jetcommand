@@ -16,13 +16,22 @@ import kotlinx.coroutines.flow.map
 /**
  * Hex SHA-256 over what the unit stores: the sanitized name bytes, then [encodeStep] of every step.
  */
-fun Program.fingerprint(): String {
+fun Program.fingerprint(): Fingerprint {
     val digest = MessageDigest.getInstance("SHA-256")
     digest.update(Command.sanitizeName(name).toByteArray(Charsets.US_ASCII))
     digest.update(0) // a name byte is never 0
     digest.update(encodeSteps(steps))
-    return digest.digest().joinToString("") { "%02x".format(it) }
+    return Fingerprint(digest.digest().joinToString("") { "%02x".format(it) })
 }
+
+/** A BLE address, or "demo" for the Demo BedJet. */
+@JvmInline value class DeviceId(val value: String)
+
+/** A library entry's UUID. */
+@JvmInline value class ProgramId(val value: String)
+
+/** [Program.fingerprint]: equal for programs the unit stores identically. */
+@JvmInline value class Fingerprint(val hex: String)
 
 /** Steps as the 5-byte wire encoding, the form the library stores. */
 fun encodeSteps(steps: List<Step>): ByteArray =
@@ -44,7 +53,7 @@ enum class Origin {
 
 /** Immutable; [rev] counts from 1 per program. */
 data class ProgramRevision(
-    val programId: String,
+    val programId: ProgramId,
     val rev: Int,
     val program: Program,
     val createdAt: Long,
@@ -52,16 +61,20 @@ data class ProgramRevision(
     val note: String? = null,
 )
 
-data class LibraryEntry(val id: String, val current: ProgramRevision, val deletedAt: Long? = null)
+data class LibraryEntry(
+    val id: ProgramId,
+    val current: ProgramRevision,
+    val deletedAt: Long? = null,
+)
 
 /**
  * What the app wrote to a slot, by revision, with the fingerprint of the read-back; [at] orders the
  * run picker.
  */
 data class PushRecord(
-    val programId: String,
+    val programId: ProgramId,
     val rev: Int,
-    val fingerprint: String,
+    val fingerprint: Fingerprint,
     val at: Long = 0,
 )
 
@@ -70,7 +83,7 @@ data class PushRecord(
  * before a write's first fragment and cleared once the read-back settles it.
  */
 data class SlotState(
-    val device: String,
+    val device: DeviceId,
     val slot: Slot,
     val program: Program?,
     val readAt: Long?,
@@ -80,7 +93,7 @@ data class SlotState(
 
 sealed interface SlotStatus {
     /** The slot holds the current revision of library entry [programId]. */
-    fun holdsCurrent(programId: String) = this is InSync && entry.id == programId
+    fun holdsCurrent(programId: ProgramId) = this is InSync && entry.id == programId
 
     data object Unknown : SlotStatus
 
@@ -106,7 +119,7 @@ sealed interface SlotStatus {
 
 data class SlotView(val state: SlotState, val status: SlotStatus)
 
-data class StartedSlot(val device: String, val slot: Slot)
+data class StartedSlot(val device: DeviceId, val slot: Slot)
 
 enum class Resolution {
     TAKE_THEIRS,
@@ -148,7 +161,7 @@ class Catalog(
     /** Most recently edited first. */
     val entries: List<LibraryEntry>,
     revisions: List<ProgramRevision>,
-    fingerprint: (ProgramRevision) -> String = { it.program.fingerprint() },
+    fingerprint: (ProgramRevision) -> Fingerprint = { it.program.fingerprint() },
 ) {
     private val byId = entries.associateBy { it.id }
     // The current revisions too: the two store flows can be one write apart.
@@ -158,26 +171,27 @@ class Catalog(
         }
     private val fingerprints = known.associate { (it.programId to it.rev) to fingerprint(it) }
     private val current = entries.associate { it.id to fingerprints[it.id to it.current.rev] }
-    private val byFingerprint: Map<String, List<ProgramRevision>> =
+    private val byFingerprint: Map<Fingerprint, List<ProgramRevision>> =
         known
             .sortedByDescending { it.rev }
             .groupBy { fingerprints.getValue(it.programId to it.rev) }
 
-    fun entry(id: String): LibraryEntry? = byId[id]
+    fun entry(id: ProgramId): LibraryEntry? = byId[id]
 
-    fun currentFingerprint(entry: LibraryEntry): String? = current[entry.id]
+    fun currentFingerprint(entry: LibraryEntry): Fingerprint? = current[entry.id]
 
     /** Any revision of any entry holds [fp]. */
-    fun holds(fp: String): Boolean = fp in byFingerprint
+    fun holds(fp: Fingerprint): Boolean = fp in byFingerprint
 
     /** Revisions of [programId] holding [fp], newest first. */
-    fun revisions(programId: String, fp: String): List<ProgramRevision> =
+    fun revisions(programId: ProgramId, fp: Fingerprint): List<ProgramRevision> =
         byFingerprint[fp].orEmpty().filter { it.programId == programId }
 
     /** The most recently edited live entry other than [except] whose current revision is [fp]. */
-    fun currentMatch(fp: String, except: String? = null): LibraryEntry? = entries.firstOrNull {
-        it.deletedAt == null && it.id != except && current[it.id] == fp
-    }
+    fun currentMatch(fp: Fingerprint, except: ProgramId? = null): LibraryEntry? =
+        entries.firstOrNull {
+            it.deletedAt == null && it.id != except && current[it.id] == fp
+        }
 }
 
 fun slotStatus(state: SlotState, catalog: Catalog): SlotStatus {
@@ -197,7 +211,7 @@ fun slotStatus(state: SlotState, catalog: Catalog): SlotStatus {
 }
 
 /** Always three, slot order; a slot never stored reads as never read. */
-fun slotViews(device: String, states: List<SlotState>, catalog: Catalog): List<SlotView> =
+fun slotViews(device: DeviceId, states: List<SlotState>, catalog: Catalog): List<SlotView> =
     Slot.all.map { slot ->
         val state = states.firstOrNull { it.slot == slot } ?: blankSlot(device, slot)
         SlotView(state, slotStatus(state, catalog))
@@ -207,7 +221,7 @@ fun slotViews(device: String, states: List<SlotState>, catalog: Catalog): List<S
  * Where to put [programId], best first: holds its current revision, an older one, empty, in sync
  * with another program (oldest push first), anything else.
  */
-fun rankSlots(views: List<SlotView>, programId: String): List<Slot> {
+fun rankSlots(views: List<SlotView>, programId: ProgramId): List<Slot> {
     fun rank(v: SlotView): Pair<Int, Long> =
         when (val s = v.status) {
             is SlotStatus.InSync ->
@@ -221,7 +235,7 @@ fun rankSlots(views: List<SlotView>, programId: String): List<Slot> {
         .map { it.state.slot }
 }
 
-private fun blankSlot(device: String, slot: Slot) =
+private fun blankSlot(device: DeviceId, slot: Slot) =
     SlotState(device, slot, program = null, readAt = null)
 
 /**
@@ -235,36 +249,33 @@ interface LibraryStore {
     /** Every revision of every program, tombstoned ones included, in no particular order. */
     fun allRevisions(): Flow<List<ProgramRevision>>
 
-    fun slots(device: String): Flow<List<SlotState>>
+    fun slots(device: DeviceId): Flow<List<SlotState>>
 
-    suspend fun entry(id: String): LibraryEntry?
+    suspend fun entry(id: ProgramId): LibraryEntry?
 
     /** Newest first. */
-    suspend fun revisions(programId: String): List<ProgramRevision>
+    suspend fun revisions(programId: ProgramId): List<ProgramRevision>
 
-    suspend fun slot(device: String, slot: Slot): SlotState?
+    suspend fun slot(device: DeviceId, slot: Slot): SlotState?
 
     suspend fun createProgram(program: Program, origin: Origin, at: Long): LibraryEntry
 
     suspend fun addRevision(
-        programId: String,
+        programId: ProgramId,
         program: Program,
         origin: Origin,
         at: Long,
         makeCurrent: Boolean,
     ): ProgramRevision
 
-    suspend fun setCurrent(programId: String, rev: Int)
+    suspend fun setCurrent(programId: ProgramId, rev: Int)
 
-    suspend fun setDeleted(programId: String, at: Long?)
+    suspend fun setDeleted(programId: ProgramId, at: Long?)
 
     suspend fun putSlot(state: SlotState)
 }
 
-/**
- * The rules: reconciling slot reads, the write pipeline, conflicts and the run picker. [device]
- * strings are a BLE address, or "demo" for the Demo BedJet.
- */
+/** The rules: reconciling slot reads, the write pipeline, conflicts and the run picker. */
 class ProgramLibrary(
     private val store: LibraryStore,
     private val now: () -> Long = System::currentTimeMillis,
@@ -277,12 +288,12 @@ class ProgramLibrary(
     val started: StateFlow<StartedSlot?> = _started.asStateFlow()
 
     // Revisions are immutable, so (program, rev) keys the SHA-256 for good.
-    private val fingerprints = ConcurrentHashMap<Pair<String, Int>, String>()
+    private val fingerprints = ConcurrentHashMap<Pair<ProgramId, Int>, Fingerprint>()
 
-    private fun fingerprintOf(r: ProgramRevision): String =
+    private fun fingerprintOf(r: ProgramRevision): Fingerprint =
         fingerprints.getOrPut(r.programId to r.rev) { r.program.fingerprint() }
 
-    fun noteStarted(device: String, slot: Slot) {
+    fun noteStarted(device: DeviceId, slot: Slot) {
         _started.value = StartedSlot(device, slot)
     }
 
@@ -298,15 +309,15 @@ class ProgramLibrary(
         }
 
     /** Always three, slot order. */
-    fun slots(device: String): Flow<List<SlotView>> =
+    fun slots(device: DeviceId): Flow<List<SlotView>> =
         combine(store.slots(device), catalog()) { states, catalog ->
             slotViews(device, states, catalog)
         }
 
-    suspend fun revisions(programId: String): List<ProgramRevision> = store.revisions(programId)
+    suspend fun revisions(programId: ProgramId): List<ProgramRevision> = store.revisions(programId)
 
     /** Reads names and steps of all slots and reconciles them; call on every Ready. */
-    suspend fun refresh(device: String, bedJet: BedJetDevice) {
+    suspend fun refresh(device: DeviceId, bedJet: BedJetDevice) {
         // Each query takes the link's queue on its own, so a user command waits behind one query,
         // not the refresh.
         val programs = bedJet.storedPrograms()
@@ -317,10 +328,10 @@ class ProgramLibrary(
      * Validate, re-read the slot and compare to the cache, save an orphan it holds, write, verify.
      */
     suspend fun push(
-        device: String,
+        device: DeviceId,
         bedJet: BedJetDevice,
         slot: Slot,
-        programId: String,
+        programId: ProgramId,
     ): LibraryOutcome<Unit> {
         if ((bedJet.status?.status?.extra?.programStep ?: 0) > 0)
             return LibraryOutcome.Refused(Refusal.PROGRAM_RUNNING)
@@ -359,10 +370,10 @@ class ProgramLibrary(
      * [push] unless the slot already holds the current revision, then [BedJetDevice.startProgram].
      */
     suspend fun run(
-        device: String,
+        device: DeviceId,
         bedJet: BedJetDevice,
         slot: Slot,
-        programId: String,
+        programId: ProgramId,
     ): LibraryOutcome<Unit> {
         val status = slotStatus(store.slot(device, slot) ?: blankSlot(device, slot), snapshot())
         if (!status.holdsCurrent(programId)) {
@@ -382,7 +393,11 @@ class ProgramLibrary(
         return done
     }
 
-    suspend fun resolve(device: String, slot: Slot, resolution: Resolution): LibraryOutcome<Unit> {
+    suspend fun resolve(
+        device: DeviceId,
+        slot: Slot,
+        resolution: Resolution,
+    ): LibraryOutcome<Unit> {
         val state = store.slot(device, slot) ?: blankSlot(device, slot)
         val status =
             slotStatus(state, snapshot()) as? SlotStatus.ChangedOutside
@@ -407,7 +422,7 @@ class ProgramLibrary(
     }
 
     /** Saves the unknown program a slot holds to the library and links the slot to it. */
-    suspend fun keep(device: String, slot: Slot): LibraryOutcome<LibraryEntry> {
+    suspend fun keep(device: DeviceId, slot: Slot): LibraryOutcome<LibraryEntry> {
         val state = store.slot(device, slot) ?: blankSlot(device, slot)
         val status =
             slotStatus(state, snapshot()) as? SlotStatus.NotInLibrary
@@ -425,9 +440,9 @@ class ProgramLibrary(
     suspend fun create(program: Program, origin: Origin = Origin.BLANK): LibraryEntry =
         store.createProgram(program, origin, now())
 
-    suspend fun delete(programId: String) = store.setDeleted(programId, now())
+    suspend fun delete(programId: ProgramId) = store.setDeleted(programId, now())
 
-    suspend fun restore(programId: String) = store.setDeleted(programId, null)
+    suspend fun restore(programId: ProgramId) = store.setDeleted(programId, null)
 
     private suspend fun snapshot(): Catalog = catalog().first()
 
@@ -437,7 +452,7 @@ class ProgramLibrary(
         return if (name == null || steps.isEmpty()) null else Program(name, steps)
     }
 
-    private suspend fun reconcile(device: String, slot: Slot, program: Program?) {
+    private suspend fun reconcile(device: DeviceId, slot: Slot, program: Program?) {
         val old = store.slot(device, slot) ?: blankSlot(device, slot)
         val t = now()
         var state = old.copy(program = program, readAt = t)
@@ -468,7 +483,7 @@ class ProgramLibrary(
         state: SlotState,
         pushed: PushRecord,
         program: Program,
-        fp: String,
+        fp: Fingerprint,
         t: Long,
     ): SlotState {
         val linked = catalog.entry(pushed.programId)
@@ -494,9 +509,9 @@ class ProgramLibrary(
 
 class InMemoryLibraryStore : LibraryStore {
     private data class Data(
-        val entries: Map<String, LibraryEntry> = emptyMap(),
-        val revisions: Map<String, List<ProgramRevision>> = emptyMap(),
-        val slots: Map<Pair<String, Slot>, SlotState> = emptyMap(),
+        val entries: Map<ProgramId, LibraryEntry> = emptyMap(),
+        val revisions: Map<ProgramId, List<ProgramRevision>> = emptyMap(),
+        val slots: Map<Pair<DeviceId, Slot>, SlotState> = emptyMap(),
     )
 
     private val data = MutableStateFlow(Data())
@@ -509,19 +524,19 @@ class InMemoryLibraryStore : LibraryStore {
         d.revisions.values.flatten()
     }
 
-    override fun slots(device: String): Flow<List<SlotState>> = data.map { d ->
+    override fun slots(device: DeviceId): Flow<List<SlotState>> = data.map { d ->
         d.slots.values.filter { it.device == device }.sortedBy { it.slot.index }
     }
 
-    override suspend fun entry(id: String) = data.value.entries[id]
+    override suspend fun entry(id: ProgramId) = data.value.entries[id]
 
-    override suspend fun revisions(programId: String) =
+    override suspend fun revisions(programId: ProgramId) =
         data.value.revisions[programId].orEmpty().sortedByDescending { it.rev }
 
-    override suspend fun slot(device: String, slot: Slot) = data.value.slots[device to slot]
+    override suspend fun slot(device: DeviceId, slot: Slot) = data.value.slots[device to slot]
 
     override suspend fun createProgram(program: Program, origin: Origin, at: Long): LibraryEntry {
-        val id = UUID.randomUUID().toString()
+        val id = ProgramId(UUID.randomUUID().toString())
         val rev = ProgramRevision(id, 1, program, at, origin)
         val entry = LibraryEntry(id, rev)
         data.value =
@@ -535,7 +550,7 @@ class InMemoryLibraryStore : LibraryStore {
     }
 
     override suspend fun addRevision(
-        programId: String,
+        programId: ProgramId,
         program: Program,
         origin: Origin,
         at: Long,
@@ -555,7 +570,7 @@ class InMemoryLibraryStore : LibraryStore {
         return rev
     }
 
-    override suspend fun setCurrent(programId: String, rev: Int) {
+    override suspend fun setCurrent(programId: ProgramId, rev: Int) {
         val d = data.value
         val entry = requireNotNull(d.entries[programId]) { "No program $programId" }
         val target =
@@ -565,7 +580,7 @@ class InMemoryLibraryStore : LibraryStore {
         data.value = d.copy(entries = d.entries + (programId to entry.copy(current = target)))
     }
 
-    override suspend fun setDeleted(programId: String, at: Long?) {
+    override suspend fun setDeleted(programId: ProgramId, at: Long?) {
         val d = data.value
         val entry = requireNotNull(d.entries[programId]) { "No program $programId" }
         data.value = d.copy(entries = d.entries + (programId to entry.copy(deletedAt = at)))

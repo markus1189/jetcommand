@@ -47,7 +47,9 @@ import java.time.LocalTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import link.thesymbolic.jetcommand.protocol.DeviceId
 import link.thesymbolic.jetcommand.protocol.LibraryEntry
+import link.thesymbolic.jetcommand.protocol.ProgramId
 import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.SlotStatus
 import link.thesymbolic.jetcommand.protocol.SlotView
@@ -55,7 +57,7 @@ import link.thesymbolic.jetcommand.protocol.SlotView
 private sealed interface Route {
     data object List : Route
 
-    data class Detail(val id: String) : Route
+    data class Detail(val id: ProgramId) : Route
 
     data class Conflict(val slot: Slot) : Route
 }
@@ -213,7 +215,7 @@ fun ProgramsList(
     entries: List<LibraryEntry>,
     slots: List<SlotView>,
     live: Boolean,
-    open: (String) -> Unit,
+    open: (ProgramId) -> Unit,
     review: (Slot) -> Unit,
     act: (SlotView) -> Unit,
     delete: (LibraryEntry) -> Unit,
@@ -246,7 +248,7 @@ fun ProgramsList(
 private fun SlotsSection(
     slots: List<SlotView>,
     live: Boolean,
-    open: (String) -> Unit,
+    open: (ProgramId) -> Unit,
     review: (Slot) -> Unit,
     act: (SlotView) -> Unit,
 ) {
@@ -281,12 +283,12 @@ private fun SlotsSection(
 private fun LibrarySection(
     entries: List<LibraryEntry>,
     slots: List<SlotView>,
-    open: (String) -> Unit,
+    open: (ProgramId) -> Unit,
     delete: (LibraryEntry) -> Unit,
     start: LocalTime,
 ) {
     val library = entries.filter { it.deletedAt == null }
-    var openRow by remember { mutableStateOf<String?>(null) }
+    var openRow by remember { mutableStateOf<ProgramId?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionTitle(
             "Library",
@@ -320,7 +322,7 @@ private fun LibrarySection(
 private fun SlotRow(
     v: SlotView,
     live: Boolean,
-    open: (String) -> Unit,
+    open: (ProgramId) -> Unit,
     review: (Slot) -> Unit,
     act: (SlotView) -> Unit,
 ) {
@@ -419,7 +421,7 @@ private fun LibraryRow(
 private fun ProgramsListPreview() = JetCommandTheme {
     val fake = remember { FakePrograms() }
     val entries by fake.entries().collectAsState(emptyList())
-    val slots by fake.slots("demo").collectAsState(emptyList())
+    val slots by fake.slots(DeviceId("demo")).collectAsState(emptyList())
     ProgramsList(
         entries,
         slots,

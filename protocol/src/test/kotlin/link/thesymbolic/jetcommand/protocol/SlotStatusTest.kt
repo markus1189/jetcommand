@@ -25,7 +25,7 @@ class SlotStatusTest {
     private val p3 = pool[3]
 
     private fun rev(id: String, n: Int, p: Program, origin: Origin = Origin.EDIT) =
-        ProgramRevision(id, n, p, createdAt = n.toLong(), origin)
+        ProgramRevision(ProgramId(id), n, p, createdAt = n.toLong(), origin)
 
     // "alpha": r1 = p0 (EDIT), r2 = p1 (OUTSIDE), r3 = p2 (OUTSIDE), r4 = p3 current.
     private val alphaRevs =
@@ -35,22 +35,23 @@ class SlotStatusTest {
             rev("alpha", 3, p2, Origin.OUTSIDE),
             rev("alpha", 4, p3),
         )
-    private val alpha = LibraryEntry("alpha", alphaRevs.last())
-    private val gone = LibraryEntry("gone", rev("gone", 1, p0), deletedAt = 5)
+    private val alpha = LibraryEntry(ProgramId("alpha"), alphaRevs.last())
+    private val gone = LibraryEntry(ProgramId("gone"), rev("gone", 1, p0), deletedAt = 5)
     private val catalog = Catalog(listOf(alpha, gone), alphaRevs + gone.current)
 
     private fun read(p: Program?, pushed: PushRecord? = null, pending: PushRecord? = null) =
-        SlotState("d", Slot.all[0], p, readAt = 1, pushed = pushed, pending = pending)
+        SlotState(DeviceId("d"), Slot.all[0], p, readAt = 1, pushed = pushed, pending = pending)
 
     private fun push(id: String, rev: Int, p: Program?) =
-        PushRecord(id, rev, p?.fingerprint() ?: "none")
+        PushRecord(ProgramId(id), rev, p?.fingerprint() ?: Fingerprint("none"))
 
     @Test
     fun `every branch`() {
         val cases =
             listOf(
                 "never read" to
-                    (SlotState("d", Slot.all[0], p0, readAt = null) to SlotStatus.Unknown),
+                    (SlotState(DeviceId("d"), Slot.all[0], p0, readAt = null) to
+                        SlotStatus.Unknown),
                 "empty" to (read(null) to SlotStatus.Empty),
                 "pending not on the unit" to
                     (read(p0, pending = push("alpha", 4, p3)) to
@@ -126,8 +127,11 @@ class SlotStatusTest {
                 specs.take(count).mapIndexed { i, (revs, cur, deleted) ->
                     val id = ids[i]
                     val all = revs.mapIndexed { n, (p, o) -> rev(id, n + 1, p, o) }
-                    LibraryEntry(id, all[cur.coerceAtMost(all.lastIndex)], 1L.takeIf { deleted }) to
-                        all
+                    LibraryEntry(
+                        ProgramId(id),
+                        all[cur.coerceAtMost(all.lastIndex)],
+                        1L.takeIf { deleted },
+                    ) to all
                 }
             Catalog(built.map { it.first }, built.flatMap { it.second })
         }
@@ -144,7 +148,7 @@ class SlotStatusTest {
             records.orNull(0.3),
             records.orNull(0.7),
         ) { p, read, pushed, pending ->
-            SlotState("d", Slot.all[0], p, if (read) 1 else null, pushed, pending)
+            SlotState(DeviceId("d"), Slot.all[0], p, if (read) 1 else null, pushed, pending)
         }
 
     @Test
@@ -159,7 +163,7 @@ class SlotStatusTest {
             )
             .forEach { (case, holds) ->
                 val (status, id) = case
-                assertEquals(holds, status.holdsCurrent(id), "$status / $id")
+                assertEquals(holds, status.holdsCurrent(ProgramId(id)), "$status / $id")
             }
     }
 

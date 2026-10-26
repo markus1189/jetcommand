@@ -93,7 +93,7 @@ class LibraryTest {
 
     @Test
     fun `fingerprint covers sanitized name and every step`() {
-        assertEquals(64, a.fingerprint().length)
+        assertEquals(64, a.fingerprint().hex.length)
         assertEquals(a.fingerprint(), a.copy(name = "Alphaé").fingerprint())
         assertNotEquals(a.fingerprint(), a2.fingerprint())
         assertNotEquals(a.fingerprint(), a.copy(name = "Alph").fingerprint())
@@ -303,7 +303,10 @@ class LibraryTest {
         r.refresh()
         r.lib.delete(alpha.id)
         assertEquals(refused(Refusal.DELETED), r.lib.push(DEV, r.device, slot(0), alpha.id))
-        assertEquals(refused(Refusal.NOT_IN_LIBRARY), r.lib.push(DEV, r.device, slot(0), "nope"))
+        assertEquals(
+            refused(Refusal.NOT_IN_LIBRARY),
+            r.lib.push(DEV, r.device, slot(0), ProgramId("nope")),
+        )
         assertEquals(refused(Refusal.DELETED), r.lib.run(DEV, r.device, slot(0), alpha.id))
         assertNull(r.sim.slots[0])
         assertNull(r.lib.started.value)
@@ -420,6 +423,6 @@ class LibraryTest {
     }
 
     private companion object {
-        const val DEV = "demo"
+        val DEV = DeviceId("demo")
     }
 }

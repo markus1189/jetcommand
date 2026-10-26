@@ -5,10 +5,13 @@ import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import link.thesymbolic.jetcommand.protocol.DeviceId
+import link.thesymbolic.jetcommand.protocol.Fingerprint
 import link.thesymbolic.jetcommand.protocol.LibraryEntry
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Origin
 import link.thesymbolic.jetcommand.protocol.Program
+import link.thesymbolic.jetcommand.protocol.ProgramId
 import link.thesymbolic.jetcommand.protocol.ProgramRevision
 import link.thesymbolic.jetcommand.protocol.PushRecord
 import link.thesymbolic.jetcommand.protocol.Slot
@@ -25,13 +28,22 @@ class ProgramsTextTest {
     private val other = Program("Other", listOf(cool(9, 60)))
 
     private fun rev(id: String, n: Int, prog: Program = p, origin: Origin = Origin.EDIT) =
-        ProgramRevision(id, n, prog, 0, origin)
+        ProgramRevision(ProgramId(id), n, prog, 0, origin)
 
-    private val summer = LibraryEntry("summer", rev("summer", 3))
-    private val neutral = LibraryEntry("neutral", rev("neutral", 1, other))
+    private val summer = LibraryEntry(ProgramId("summer"), rev("summer", 3))
+    private val neutral = LibraryEntry(ProgramId("neutral"), rev("neutral", 1, other))
 
     private fun view(i: Int, status: SlotStatus, prog: Program? = p) =
-        SlotView(SlotState("d", Slot.all[i], prog, readAt = 1, PushRecord("x", 1, "")), status)
+        SlotView(
+            SlotState(
+                DeviceId("d"),
+                Slot.all[i],
+                prog,
+                readAt = 1,
+                PushRecord(ProgramId("x"), 1, Fingerprint("")),
+            ),
+            status,
+        )
 
     private val older = SlotStatus.Older(summer, 2)
     private val outside = SlotStatus.ChangedOutside(summer, 4, other)
@@ -44,7 +56,7 @@ class ProgramsTextTest {
             outside,
             SlotStatus.Deleted(summer),
             SlotStatus.NotInLibrary(other),
-            SlotStatus.Interrupted(PushRecord("summer", 3, "")),
+            SlotStatus.Interrupted(PushRecord(ProgramId("summer"), 3, Fingerprint(""))),
         )
 
     @Test
@@ -85,8 +97,8 @@ class ProgramsTextTest {
             listOf(
                 null,
                 null,
-                SlotTap.Open("summer"),
-                SlotTap.Open("summer"),
+                SlotTap.Open(ProgramId("summer")),
+                SlotTap.Open(ProgramId("summer")),
                 SlotTap.Review(Slot.all[0]),
                 null,
                 null,
@@ -131,9 +143,9 @@ class ProgramsTextTest {
                 view(1, older),
                 view(2, SlotStatus.InSync(neutral)),
             )
-        assertEquals(listOf("Slot 1", "Slot 2 has r2"), libraryBadges("summer", slots))
-        assertEquals(listOf("Slot 3"), libraryBadges("neutral", slots))
-        assertEquals(emptyList(), libraryBadges("nope", slots))
+        assertEquals(listOf("Slot 1", "Slot 2 has r2"), libraryBadges(ProgramId("summer"), slots))
+        assertEquals(listOf("Slot 3"), libraryBadges(ProgramId("neutral"), slots))
+        assertEquals(emptyList(), libraryBadges(ProgramId("nope"), slots))
     }
 
     @Test
