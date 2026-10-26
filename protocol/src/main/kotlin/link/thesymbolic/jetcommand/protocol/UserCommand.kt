@@ -121,6 +121,14 @@ sealed interface Plan {
     data class Rejected(val label: String, val reason: String, val report: Boolean) : Plan
 }
 
+/** How a command that [plan] let through ended. */
+sealed interface RunOutcome {
+    data object Ran : RunOutcome
+
+    /** [error] as logged and reported. */
+    data class Failed(val error: String) : RunOutcome
+}
+
 /**
  * How long a shortcut waits for Ready: one reconnect cycle (20 s connect timeout, 10 s backoff, 20
  * s retry) must fit, or a unit that is just waking up fails the command.

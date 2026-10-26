@@ -9,6 +9,7 @@ import link.thesymbolic.jetcommand.protocol.NightEvent.Kind
 import link.thesymbolic.jetcommand.protocol.NightSummary
 import link.thesymbolic.jetcommand.protocol.NightSummary.Cause
 import link.thesymbolic.jetcommand.protocol.NightSummary.Gap
+import link.thesymbolic.jetcommand.protocol.RunOutcome
 
 class NightReviewTest {
     private val text = NightText(ZoneOffset.UTC)
@@ -77,8 +78,8 @@ class NightReviewTest {
     fun `shortcut runs always show, failures as warnings`() {
         val events =
             listOf(
-                NightEvent.shortcut(h, "start program 2", null),
-                NightEvent.shortcut(2 * h, "off", "couldn't reach the BedJet"),
+                NightEvent.shortcut(h, "start program 2", RunOutcome.Ran),
+                NightEvent.shortcut(2 * h, "off", RunOutcome.Failed("couldn't reach the BedJet")),
             )
         assertEquals(
             listOf(

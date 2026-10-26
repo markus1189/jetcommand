@@ -36,13 +36,11 @@ data class NightEvent(val at: Long, val kind: Kind, val detail: String, val valu
         fun process(at: Long, event: ProcessEvent) = NightEvent(at, Kind.PROCESS, event.detail)
 
         /** [error] null: [label] ran. */
-        fun shortcut(at: Long, label: String, error: String?) =
-            NightEvent(
-                at,
-                Kind.SHORTCUT,
-                if (error == null) label else "$label: $error",
-                if (error == null) 1 else 0,
-            )
+        fun shortcut(at: Long, label: String, outcome: RunOutcome) =
+            when (outcome) {
+                RunOutcome.Ran -> NightEvent(at, Kind.SHORTCUT, label, 1)
+                is RunOutcome.Failed -> NightEvent(at, Kind.SHORTCUT, "$label: ${outcome.error}", 0)
+            }
     }
 }
 

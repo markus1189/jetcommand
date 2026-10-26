@@ -55,6 +55,7 @@ import link.thesymbolic.jetcommand.protocol.Plan
 import link.thesymbolic.jetcommand.protocol.ProcessEvent
 import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
+import link.thesymbolic.jetcommand.protocol.RunOutcome
 import link.thesymbolic.jetcommand.protocol.SimTransport
 import link.thesymbolic.jetcommand.protocol.StartOutcome
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
@@ -325,7 +326,7 @@ class BedJetController(
         when (val p = plan(request, origin, snapshot)) {
             is Plan.Rejected -> {
                 log(LogLevel.WARN, "${p.label}: ${p.reason}")
-                if (p.report) report(p.label, p.reason)
+                if (p.report) report(p.label, RunOutcome.Failed(p.reason))
             }
             is Plan.Run -> interpret(p)
         }
@@ -361,16 +362,16 @@ class BedJetController(
 
     private fun runOn(stack: BedJetStack, p: Plan.Run) =
         stack.scope.launch {
-            val error = guard(p.label) { perform(stack, p.command) }
-            if (p.report) report(p.label, error)
+            val outcome = guarded(p.label) { perform(stack, p.command) }
+            if (p.report) report(p.label, outcome)
         }
 
     private fun failed(p: Plan.Run, reason: String) {
         log(LogLevel.ERROR, "${p.label}: $reason")
-        if (p.report) report(p.label, reason)
+        if (p.report) report(p.label, RunOutcome.Failed(reason))
     }
 
-    private suspend fun perform(stack: BedJetStack, command: UserCommand) {
+    private suspend fun perform(stack: BedJetStack, command: UserCommand): RunOutcome {
         val device = stack.device
         when (command) {
             is UserCommand.SetMode -> device.setMode(command.mode)
@@ -378,34 +379,41 @@ class BedJetController(
             is UserCommand.SetFan -> device.setFan(command.fan.step)
             is UserCommand.StartProgram -> {
                 val started = device.startProgram(command.slot)
-                // guard turns failures into the logged and reported string.
-                if (started is StartOutcome.Failed)
-                    throw BedJetException(started.reason.code, started.reason.text)
+                if (started is StartOutcome.Failed) return RunOutcome.Failed(started.reason.text)
                 library.noteStarted(idOf(stack.source), command.slot)
             }
             is UserCommand.Press -> device.press(command.key)
             is UserCommand.SetRuntime -> device.setRuntime(command.autoOff.minutes)
         }
+        return RunOutcome.Ran
     }
 
-    /** Outcome of a command nobody watched run: [error] null means it ran. */
-    private fun report(label: String, error: String?) {
-        val text = if (error == null) "$label ✓" else "$label: $error"
+    /** Outcome of a command nobody watched run. */
+    private fun report(label: String, outcome: RunOutcome) {
+        val text =
+            when (outcome) {
+                RunOutcome.Ran -> "$label ✓"
+                is RunOutcome.Failed -> "$label: ${outcome.error}"
+            }
         Toast.makeText(context, "BedJet: $text", Toast.LENGTH_SHORT).show()
-        if (error != null) ShortcutAlert.post(context, text)
-        scope.launch { store.append(NightEvent.shortcut(System.currentTimeMillis(), label, error)) }
+        if (outcome is RunOutcome.Failed) ShortcutAlert.post(context, text)
+        scope.launch {
+            store.append(NightEvent.shortcut(System.currentTimeMillis(), label, outcome))
+        }
     }
 
     // Catches everything: a failed user action is logged, never a crash. Not a
     // CoroutineExceptionHandler, because "connect" runs inline in the switching job that the next
     // switch joins.
     @Suppress("TooGenericExceptionCaught")
-    /** Null on success, else the error as logged. */
-    private suspend fun guard(what: String, block: suspend () -> Unit): String? {
+    /** [block]'s outcome, a throw turned into [RunOutcome.Failed]; failures are logged. */
+    private suspend fun guarded(what: String, block: suspend () -> RunOutcome): RunOutcome {
         val error =
             try {
-                block()
-                return null
+                when (val outcome = block()) {
+                    RunOutcome.Ran -> return outcome
+                    is RunOutcome.Failed -> outcome.error
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: BedJetException) {
@@ -414,7 +422,14 @@ class BedJetController(
                 "${e::class.simpleName} ${e.message}"
             }
         log(LogLevel.ERROR, "$what: $error")
-        return error
+        return RunOutcome.Failed(error)
+    }
+
+    private suspend fun guard(what: String, block: suspend () -> Unit) {
+        guarded(what) {
+            block()
+            RunOutcome.Ran
+        }
     }
 
     // SharedPreferences, not DataStore: two strings, read once synchronously at startup to decide
