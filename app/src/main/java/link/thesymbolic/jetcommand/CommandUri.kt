@@ -1,5 +1,6 @@
 package link.thesymbolic.jetcommand
 
+import link.thesymbolic.jetcommand.protocol.Key
 import link.thesymbolic.jetcommand.protocol.SettableMode
 import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.UserCommand
@@ -20,7 +21,7 @@ object CommandUri {
                 is UserCommand.SetFan -> "fan/${command.step}"
                 // 1-based, as the app and the unit's display show it.
                 is UserCommand.StartProgram -> "program/${command.slot.number}"
-                is UserCommand.Press -> "press/${command.button}"
+                is UserCommand.Press -> "press/${command.key.button}"
                 is UserCommand.SetRuntime -> "runtime/${command.minutes}"
             }
 
@@ -35,7 +36,7 @@ object CommandUri {
             "temp" -> n?.let(UserCommand::SetTemperature)
             "fan" -> n?.let(UserCommand::SetFan)
             "program" -> n?.let { Slot.of(it - 1) }?.let(UserCommand::StartProgram)
-            "press" -> n?.let(UserCommand::Press)
+            "press" -> n?.let(Key::of)?.let(UserCommand::Press)
             "runtime" -> n?.let(UserCommand::SetRuntime)
             else -> null
         }

@@ -23,7 +23,7 @@ class PlanTest {
     private val away = ready.copy(connected = false, link = LinkState.Disconnected())
 
     private val fan = UserCommand.SetFan(9)
-    private val press = UserCommand.Press(Button.FAN_UP)
+    private val press = UserCommand.Press(Key.FAN_UP)
 
     private fun run(command: UserCommand, connect: Boolean, timeout: Long?, report: Boolean) =
         Plan.Run(command, describe(command), connect, timeout, report)
@@ -171,15 +171,6 @@ class PlanTest {
     }
 
     @Test
-    fun `a button the codec refuses to encode is rejected`() {
-        val reset = UserCommand.Press(0x4c)
-        assertEquals(
-            rejected(reset, "Unknown button.", false),
-            plan(reset, CommandOrigin.APP, ready),
-        )
-    }
-
-    @Test
     fun `an out-of-range value is rejected before the connection is looked at`() {
         val tooHot = UserCommand.SetTemperature(100)
         assertEquals(
@@ -234,9 +225,8 @@ class PlanTest {
                 UserCommand.SetTemperature(42) to "temp 21°C",
                 UserCommand.SetFan(9) to "fan 50%",
                 UserCommand.StartProgram(Slot.of(1)!!) to "start program 2",
-                UserCommand.Press(Button.FAN_UP) to "press fan up",
-                UserCommand.Press(Button.TEMP_DOWN_C) to "press temp down",
-                UserCommand.Press(0xee) to "press button 0xee",
+                UserCommand.Press(Key.FAN_UP) to "press fan up",
+                UserCommand.Press(Key.TEMP_DOWN_C) to "press temp down",
                 UserCommand.SetRuntime(65) to "auto off in 1:05",
             )
         for ((command, name) in expected) assertEquals(name, describe(command))

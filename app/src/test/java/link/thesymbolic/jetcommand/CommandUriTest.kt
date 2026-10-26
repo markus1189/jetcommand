@@ -5,6 +5,7 @@ import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import link.thesymbolic.jetcommand.protocol.Key
 import link.thesymbolic.jetcommand.protocol.SettableMode
 import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.UserCommand
@@ -15,14 +16,13 @@ class CommandUriTest {
     fun everyCommandRoundTrips() {
         val commands =
             SettableMode.entries.map(UserCommand::SetMode) +
+                Key.entries.map(UserCommand::Press) +
                 Slot.all.map(UserCommand::StartProgram) +
                 listOf(
                     UserCommand.SetTemperature(0),
                     UserCommand.SetTemperature(74),
                     UserCommand.SetFan(0),
                     UserCommand.SetFan(19),
-                    UserCommand.Press(1),
-                    UserCommand.Press(255),
                     UserCommand.SetRuntime(1),
                     UserCommand.SetRuntime(720),
                 )
@@ -50,6 +50,9 @@ class CommandUriTest {
                 "jetcommand:mode/WAIT",
                 "jetcommand:program/1/2",
                 "jetcommand:launch/1",
+                // Factory reset, and a button Press doesn't send.
+                "jetcommand:press/76",
+                "jetcommand:press/255",
             )
             .forEach { assertNull(CommandUri.parse(it), it) }
     }

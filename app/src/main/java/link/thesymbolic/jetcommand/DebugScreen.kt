@@ -44,8 +44,8 @@ import kotlinx.coroutines.delay
 import link.thesymbolic.jetcommand.ble.BedJetScanner
 import link.thesymbolic.jetcommand.ble.RequireBluetoothPermissions
 import link.thesymbolic.jetcommand.ble.ScannedDevice
-import link.thesymbolic.jetcommand.protocol.Button as Btn
 import link.thesymbolic.jetcommand.protocol.Characteristic
+import link.thesymbolic.jetcommand.protocol.Key
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.NightEvent
@@ -233,10 +233,10 @@ private fun ColumnScope.Commands(
         }
     }
     Buttons {
-        B("Fan −") { act("fan down") { it.device.press(Btn.FAN_DOWN) } }
-        B("Fan +") { act("fan up") { it.device.press(Btn.FAN_UP) } }
-        B("Temp −") { act("temp down") { it.device.press(Btn.TEMP_DOWN_C) } }
-        B("Temp +") { act("temp up") { it.device.press(Btn.TEMP_UP_C) } }
+        B("Fan −") { act("fan down") { it.device.press(Key.FAN_DOWN) } }
+        B("Fan +") { act("fan up") { it.device.press(Key.FAN_UP) } }
+        B("Temp −") { act("temp down") { it.device.press(Key.TEMP_DOWN_C) } }
+        B("Temp +") { act("temp up") { it.device.press(Key.TEMP_UP_C) } }
         B("Sync clock") { act("sync clock") { it.device.syncClock() } }
     }
 

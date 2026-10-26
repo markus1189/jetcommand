@@ -110,6 +110,19 @@ enum class SettableMode(val mode: Mode, val button: Int) {
     }
 }
 
+/** The buttons a [UserCommand.Press] may send. */
+enum class Key(val button: Int) {
+    OFF(Button.OFF),
+    FAN_UP(Button.FAN_UP),
+    FAN_DOWN(Button.FAN_DOWN),
+    TEMP_UP_C(Button.TEMP_UP_C),
+    TEMP_DOWN_C(Button.TEMP_DOWN_C);
+
+    companion object {
+        fun of(button: Int): Key? = entries.find { it.button == button }
+    }
+}
+
 object Notification {
     const val NONE = 0
     const val CLEAN_FILTER = 1
@@ -361,7 +374,7 @@ private fun bytesOf(vararg values: Int) = ByteArray(values.size) { values[it].to
 private fun Int.clamp(lo: Int, hi: Int) = coerceIn(lo, hi)
 
 object Command {
-    fun button(code: Int): ByteArray {
+    internal fun button(code: Int): ByteArray {
         require(code in Button.ALLOWED) { "Refusing to encode button 0x${code.toString(16)}" }
         return bytesOf(0x01, code)
     }
@@ -382,6 +395,8 @@ object Command {
     fun setLed(on: Boolean) = button(if (on) Button.LED_ON else Button.LED_OFF)
 
     fun setMuted(muted: Boolean) = button(if (muted) Button.MUTE else Button.UNMUTE)
+
+    fun press(key: Key) = button(key.button)
 
     fun ack() = button(Button.ACK)
 

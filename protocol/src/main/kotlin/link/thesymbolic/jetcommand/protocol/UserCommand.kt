@@ -14,7 +14,7 @@ sealed interface UserCommand {
     data class SetRuntime(val minutes: Int) : UserCommand
 
     /** Relative (Temp +, Fan +): only from surfaces that show the state it changes. */
-    data class Press(val button: Int) : UserCommand
+    data class Press(val key: Key) : UserCommand
 }
 
 enum class CommandOrigin {
@@ -120,7 +120,6 @@ private fun rangeProblem(command: UserCommand): String? =
             else
                 "Temperature must be ${formatTemp(TEMP_LIMITS.first, withUnit = false)}–" +
                     "${formatTemp(TEMP_LIMITS.last)}."
-        is UserCommand.Press -> if (command.button in Button.ALLOWED) null else "Unknown button."
         is UserCommand.SetRuntime ->
             if (command.minutes in RUNTIME_MINUTES) null
             else "Auto off must be 1 min to ${RUNTIME_MINUTES.last / 60} h."
@@ -135,7 +134,7 @@ fun describe(command: UserCommand): String =
         is UserCommand.SetTemperature -> "temp ${formatTemp(command.halfC)}"
         is UserCommand.SetFan -> "fan ${fanPercent(command.step)}%"
         is UserCommand.StartProgram -> "start program ${command.slot.number}"
-        is UserCommand.Press -> "press ${buttonName(command.button)}"
+        is UserCommand.Press -> "press ${buttonName(command.key.button)}"
         is UserCommand.SetRuntime ->
             "auto off in %d:%02d"
                 .format(java.util.Locale.ROOT, command.minutes / 60, command.minutes % 60)

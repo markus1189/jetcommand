@@ -20,8 +20,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
-import link.thesymbolic.jetcommand.protocol.Button as Btn
 import link.thesymbolic.jetcommand.protocol.CommandOrigin
+import link.thesymbolic.jetcommand.protocol.Key
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.ProcessEvent
@@ -153,7 +153,7 @@ class BedJetService : Service() {
                         1 + i,
                         Intent(this, BedJetService::class.java)
                             .setAction(CommandUri.ACTION)
-                            .setData(CommandUri.of(UserCommand.Press(a.button)).toUri()),
+                            .setData(CommandUri.of(UserCommand.Press(a.key)).toUri()),
                         PendingIntent.FLAG_IMMUTABLE,
                     )
                 b.addAction(
@@ -165,7 +165,7 @@ class BedJetService : Service() {
         return b.build()
     }
 
-    private class Action(val label: String, val button: Int, val icon: Int)
+    private class Action(val label: String, val key: Key, val icon: Int)
 
     companion object {
         private const val ID = 1
@@ -175,11 +175,11 @@ class BedJetService : Service() {
         // The expanded view shows up to five; the compact view the first three.
         private val ACTIONS =
             listOf(
-                Action("Temp −", Btn.TEMP_DOWN_C, R.drawable.ic_temp_down),
-                Action("Temp +", Btn.TEMP_UP_C, R.drawable.ic_temp_up),
-                Action("Fan +", Btn.FAN_UP, R.drawable.ic_fan_up),
-                Action("Fan −", Btn.FAN_DOWN, R.drawable.ic_fan_down),
-                Action("Off", Btn.OFF, R.drawable.ic_off),
+                Action("Temp −", Key.TEMP_DOWN_C, R.drawable.ic_temp_down),
+                Action("Temp +", Key.TEMP_UP_C, R.drawable.ic_temp_up),
+                Action("Fan +", Key.FAN_UP, R.drawable.ic_fan_up),
+                Action("Fan −", Key.FAN_DOWN, R.drawable.ic_fan_down),
+                Action("Off", Key.OFF, R.drawable.ic_off),
             )
         // Collapses bursts; short enough that a press from the shade shows its effect before the
         // user gives up on it.

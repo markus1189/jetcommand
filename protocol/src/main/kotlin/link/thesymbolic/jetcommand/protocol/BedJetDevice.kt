@@ -61,7 +61,7 @@ class BedJetDevice(
 
     suspend fun send(bytes: ByteArray) = link.send(bytes)
 
-    suspend fun press(code: Int) = send(Command.button(code))
+    suspend fun press(key: Key) = send(Command.press(key))
 
     suspend fun setMode(mode: SettableMode) = send(Command.setMode(mode))
 
@@ -84,7 +84,7 @@ class BedJetDevice(
 
     suspend fun saveMemory(n: Int) = send(Command.saveMemory(n))
 
-    suspend fun stopProgram() = send(Command.button(Button.OFF))
+    suspend fun stopProgram() = press(Key.OFF)
 
     suspend fun deleteProgram(slot: Slot) = send(Command.deleteProgram(slot))
 
