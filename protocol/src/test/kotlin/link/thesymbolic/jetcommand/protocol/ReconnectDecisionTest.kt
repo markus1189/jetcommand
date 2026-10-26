@@ -52,6 +52,13 @@ class ReconnectDecisionTest {
         )
     }
 
+    @Test
+    fun `gives up once down for the limit, whatever the attempt count`() {
+        val limited = default.copy(maxReconnectAttempts = null, giveUpAfterDownMs = 900_000)
+        assertEquals(retry(51, 60_000), reconnectDecision(50, limited, downForMs = 899_999))
+        assertEquals(ReconnectDecision.GiveUp, reconnectDecision(1, limited, downForMs = 900_000))
+    }
+
     // Bases up to 2^32 ms: beyond that `shl 30` overflows Long, as it always has.
     private val configs =
         Arb.bind(Arb.long(1L..(1L shl 32)), Arb.long(1L..(1L shl 40)), Arb.int(0..50).orNull()) {

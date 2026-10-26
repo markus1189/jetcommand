@@ -8,6 +8,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -111,6 +112,29 @@ class BedJetLinkTest {
         assertEquals(t0 + 21_000, currentTime - 1)
         assertEquals(0, r.link.reconnectAttempt)
     }
+
+    @Test
+    fun `reconnect gives up once down for the limit, and the clock restarts after a reconnect`() =
+        runTest {
+            val config =
+                BedJetLink.Config(
+                    maxReconnectAttempts = null,
+                    giveUpAfterDownMs = 15.minutes.inWholeMilliseconds,
+                    reconnectMaxMs = 10_000,
+                )
+            val r = connected(rig(config = config))
+            // A short outage that heals must not count towards the next one.
+            r.transport.inject(Fault.Fail(133), times = 3) { it == Op.Connect }
+            r.transport.loseLink()
+            advanceTimeBy(14.minutes)
+            assertEquals(LinkState.Ready, r.link.state.value)
+            r.transport.inject(Fault.Fail(133), times = 1000) { it == Op.Connect }
+            r.transport.loseLink()
+            advanceTimeBy(14.minutes)
+            assertTrue(r.link.state.value != LinkState.Disconnected(gaveUp = true))
+            advanceTimeBy(2.minutes)
+            assertEquals(LinkState.Disconnected(gaveUp = true), r.link.state.value)
+        }
 
     @Test
     fun `reconnect gives up after 10 attempts`() = runTest {

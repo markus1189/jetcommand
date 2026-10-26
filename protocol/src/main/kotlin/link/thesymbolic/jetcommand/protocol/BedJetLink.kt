@@ -67,6 +67,8 @@ class BedJetLink(
         val remainderIntervalMs: Long = 2000,
         /** Null: never give up while the connection is wanted. */
         val maxReconnectAttempts: Int? = 10,
+        /** Null: no limit on how long the link may stay down while reconnecting. */
+        val giveUpAfterDownMs: Long? = null,
         val reconnectBaseMs: Long = 3000,
         val reconnectMaxMs: Long = 60000,
         val autoReconnect: Boolean = true,
@@ -114,9 +116,13 @@ class BedJetLink(
     private val missing = mutableSetOf<Characteristic>()
     private var assembler = StatusAssembler()
 
+    // When the link last went from up (or wanted) to down; the give-up clock runs from here.
+    private var downSince: Long? = null
+
     private var session: Session = Session.Idle
         set(value) {
             field = value
+            if (value == Session.Ready || value == Session.Idle) downSince = null
             _state.value = value.linkState
         }
 
@@ -154,6 +160,7 @@ class BedJetLink(
         if (s !is Session.Waiting && (s as? Session.Down)?.gaveUp != true) return
         log(LogLevel.INFO, "Retrying now")
         s.job?.cancel()
+        downSince = null
         runReconnect(attempt = 1, wait = 0)
     }
 
@@ -368,9 +375,14 @@ class BedJetLink(
     }
 
     private fun scheduleReconnect(after: Int) {
-        when (val decision = reconnectDecision(after, config)) {
+        val since = downSince ?: now().also { downSince = it }
+        val downFor = now() - since
+        when (val decision = reconnectDecision(after, config, downFor)) {
             ReconnectDecision.GiveUp -> {
-                log(LogLevel.ERROR, "Gave up after $after reconnect attempts")
+                log(
+                    LogLevel.ERROR,
+                    "Gave up after $after reconnect attempts, down ${downFor / 1000} s",
+                )
                 session = Session.Down(gaveUp = true)
             }
             is ReconnectDecision.Retry -> {
