@@ -23,6 +23,8 @@ class CommandUriTest {
                     UserCommand.SetFan(19),
                     UserCommand.Press(1),
                     UserCommand.Press(255),
+                    UserCommand.SetRuntime(1),
+                    UserCommand.SetRuntime(720),
                 )
         commands.forEach { assertEquals(it, CommandUri.parse(CommandUri.of(it)), it.toString()) }
     }

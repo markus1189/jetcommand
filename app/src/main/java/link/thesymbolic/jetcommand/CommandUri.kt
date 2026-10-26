@@ -21,6 +21,7 @@ object CommandUri {
                 // 1-based, as the app and the unit's display show it.
                 is UserCommand.StartProgram -> "program/${command.slot.number}"
                 is UserCommand.Press -> "press/${command.button}"
+                is UserCommand.SetRuntime -> "runtime/${command.minutes}"
             }
 
     /** Null for anything malformed; the caller logs it, an external sender can't be trusted. */
@@ -35,6 +36,7 @@ object CommandUri {
             "fan" -> n?.let(UserCommand::SetFan)
             "program" -> n?.let { Slot.of(it - 1) }?.let(UserCommand::StartProgram)
             "press" -> n?.let(UserCommand::Press)
+            "runtime" -> n?.let(UserCommand::SetRuntime)
             else -> null
         }
     }

@@ -157,7 +157,8 @@ class NowStateTest {
         val inProgram = StatusUpdate(status(remainingSeconds = 600, programStep = 2), true)
         val off = StatusUpdate(status(mode = Mode.STANDBY, programStep = 2), true)
         listOf(
-                base.copy(update = heat) to "auto off 1:05",
+                // The countdown card shows a manual mode's time.
+                base.copy(update = heat) to "",
                 base.copy(update = inProgram) to "auto off 0:10 · program step 2",
                 base.copy(update = inProgram, slots = listOf(slot(0, two))) to "",
                 base.copy(update = off) to "program step 2",
@@ -300,6 +301,67 @@ class NowStateTest {
         checkAll(statusArb, Arb.int(-5..300).orNull(), Arb.int(-5..300).orNull()) { st, a, b ->
             tempField(st, a, b)
             fanField(st, a, b)
+        }
+    }
+
+    private val ten = LocalTime.of(22, 0)
+
+    private fun labels(v: CountdownView?) = v!!.nudges.map { it.label }
+
+    @Test
+    fun `countdown nudges step by 1, 5 and 15 minutes inside the limits`() {
+        val v = countdownView(status(Mode.HEAT, remainingSeconds = 167 * 60), null, ten)!!
+        assertEquals(listOf("−15", "−5", "−1", "+1", "+5", "+15"), labels(v))
+        assertEquals(listOf(152, 162, 166, 168, 172, 182), v.nudges.map { it.target })
+        assertEquals("2:47", v.left)
+        assertEquals("off at 00:47", v.offAt)
+        assertEquals("max 10:00", v.ceiling)
+    }
+
+    @Test
+    fun `a step past a limit goes to the limit, and none at the limit`() {
+        val turbo = status(Mode.TURBO, remainingSeconds = 7 * 60).copy(maxRuntimeMinutes = 10)
+        val v = countdownView(turbo, null, ten)!!
+        assertEquals(listOf("to 0:01", "−5", "−1", "+1", "to 0:10", "to 0:10"), labels(v))
+        val atMax = countdownView(turbo, 10, ten)!!
+        assertEquals(listOf(null, null, null), atMax.nudges.takeLast(3).map { it.target })
+        assertEquals(listOf("+1", "+5", "+15"), labels(atMax).takeLast(3))
+        val atMin = countdownView(turbo, 1, ten)!!
+        assertEquals(listOf(null, null, null), atMin.nudges.take(3).map { it.target })
+    }
+
+    @Test
+    fun `the shown time is the minute the nudges count from`() {
+        val turbo = status(Mode.TURBO, remainingSeconds = 9 * 60 + 50).copy(maxRuntimeMinutes = 10)
+        assertEquals("0:10", countdownView(turbo, null, ten)!!.left)
+    }
+
+    @Test
+    fun `taps build on the draft, not the status`() {
+        val v = countdownView(status(Mode.COOL, remainingSeconds = 3_600), 75, ten)!!
+        assertEquals("1:15", v.left)
+        assertEquals(76, v.nudges[3].target)
+    }
+
+    @Test
+    fun `no countdown card in standby or a program`() {
+        assertNull(countdownView(status(Mode.STANDBY), null, ten))
+        assertNull(countdownView(status(Mode.HEAT, programStep = 2), null, ten))
+        assertNull(countdownView(status(Mode.WAIT, programStep = 1), null, ten))
+    }
+
+    @Test
+    fun `targets always stay within 1 min and the ceiling`() = runTest {
+        checkAll(Arb.int(0..43_200), Arb.int(0..720), Arb.int(1..720).orNull()) { secs, max, draft
+            ->
+            val st = status(Mode.COOL, remainingSeconds = secs).copy(maxRuntimeMinutes = max)
+            val ceiling = if (max > 0) max else 720
+            countdownView(st, draft, ten)!!
+                .nudges
+                .mapNotNull { it.target }
+                .forEach {
+                    assertTrue(it in 1..ceiling, "$secs $max $draft -> $it")
+                }
         }
     }
 }

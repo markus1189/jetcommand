@@ -10,6 +10,9 @@ sealed interface UserCommand {
 
     data class StartProgram(val slot: Slot) : UserCommand
 
+    /** Auto off in [minutes]; the unit clamps to its own ceiling for the mode, temp and fan. */
+    data class SetRuntime(val minutes: Int) : UserCommand
+
     /** Relative (Temp +, Fan +): only from surfaces that show the state it changes. */
     data class Press(val button: Int) : UserCommand
 }
@@ -63,6 +66,9 @@ const val READY_TIMEOUT_MS = 45_000L
 private val FAN_STEPS = 0..19
 
 // Overall, since the current mode is unknown here; the unit clamps to the mode's own range.
+// The protocol's 12 h step limit; turbo's minute is the shortest the official app sets.
+val RUNTIME_MINUTES = 1..12 * 60
+
 private val TEMP_LIMITS = TEMP_RANGES.values.minOf { it.min }..TEMP_RANGES.values.maxOf { it.max }
 
 /**
@@ -115,6 +121,9 @@ private fun rangeProblem(command: UserCommand): String? =
                 "Temperature must be ${formatTemp(TEMP_LIMITS.first, withUnit = false)}–" +
                     "${formatTemp(TEMP_LIMITS.last)}."
         is UserCommand.Press -> if (command.button in Button.ALLOWED) null else "Unknown button."
+        is UserCommand.SetRuntime ->
+            if (command.minutes in RUNTIME_MINUTES) null
+            else "Auto off must be 1 min to ${RUNTIME_MINUTES.last / 60} h."
         else -> null
     }
 
@@ -127,6 +136,9 @@ fun describe(command: UserCommand): String =
         is UserCommand.SetFan -> "fan ${fanPercent(command.step)}%"
         is UserCommand.StartProgram -> "start program ${command.slot.number}"
         is UserCommand.Press -> "press ${buttonName(command.button)}"
+        is UserCommand.SetRuntime ->
+            "auto off in %d:%02d"
+                .format(java.util.Locale.ROOT, command.minutes / 60, command.minutes % 60)
     }
 
 // The night log's names, through its public frame describer; codes it doesn't know get their hex.

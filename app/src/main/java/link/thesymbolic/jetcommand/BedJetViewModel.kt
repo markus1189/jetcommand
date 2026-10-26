@@ -69,6 +69,8 @@ class BedJetViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setFan(step: Int) = execute(UserCommand.SetFan(step))
 
+    fun setRuntime(minutes: Int) = execute(UserCommand.SetRuntime(minutes))
+
     fun loadPrograms() = act("programs") { _programs.value = it.device.programNames() }
 
     /** Runs [read] on the unit and shows its text under [label] in [results]. */

@@ -45,10 +45,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
@@ -58,8 +61,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalTime
+import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -69,12 +74,15 @@ import link.thesymbolic.jetcommand.now.NowBody
 import link.thesymbolic.jetcommand.now.NowEvent
 import link.thesymbolic.jetcommand.now.NowInputs
 import link.thesymbolic.jetcommand.now.NowState
+import link.thesymbolic.jetcommand.now.Nudge
 import link.thesymbolic.jetcommand.now.ProgramButton
 import link.thesymbolic.jetcommand.now.RunningView
+import link.thesymbolic.jetcommand.now.countdownView
 import link.thesymbolic.jetcommand.now.fanField
 import link.thesymbolic.jetcommand.now.nowState
 import link.thesymbolic.jetcommand.now.programButtons
 import link.thesymbolic.jetcommand.now.runningView
+import link.thesymbolic.jetcommand.now.runtimeMinutes
 import link.thesymbolic.jetcommand.now.shortLabel
 import link.thesymbolic.jetcommand.now.steadyActual
 import link.thesymbolic.jetcommand.now.tempField
@@ -140,6 +148,7 @@ fun NowScreen(
                 is NowEvent.SetTemperature -> vm.setTemperature(e.halfC)
                 is NowEvent.SetFan -> vm.setFan(e.step)
                 is NowEvent.StartProgram -> vm.startProgram(e.slot)
+                is NowEvent.SetRuntime -> vm.setRuntime(e.minutes)
             }
         },
         modifier,
@@ -247,6 +256,7 @@ private fun ColumnScope.Live(body: NowBody.Live, onEvent: (NowEvent) -> Unit) {
         if (body.summary.isNotEmpty()) Spacer(Modifier.height(12.dp))
         RunningStrip(it)
     }
+    Countdown(st) { onEvent(NowEvent.SetRuntime(it)) }
     Spacer(Modifier.height(12.dp))
 
     ValueFields(st, onEvent)
@@ -398,6 +408,90 @@ private fun ColumnScope.ProgramButtons(programs: List<ProgramButton>, start: (Sl
                 }
             }
         }
+    }
+}
+
+/** Taps add up locally and go out as one command once they pause for [SEND_AFTER_MS]. */
+@Composable
+private fun Countdown(st: Status, send: (Int) -> Unit) {
+    var draft by remember { mutableStateOf<Int?>(null) }
+    val status by rememberUpdatedState(st)
+    LaunchedEffect(draft) {
+        val d = draft ?: return@LaunchedEffect
+        delay(SEND_AFTER_MS)
+        send(d)
+        withTimeoutOrNull(PENDING_MS) {
+            snapshotFlow { runtimeMinutes(status.remainingSeconds) }.first { abs(it - d) <= 1 }
+        }
+        draft = null
+    }
+    val view = countdownView(st, draft, LocalTime.now()) ?: return
+    val color = modeColor(st.mode)
+    Column(
+        Modifier.padding(bottom = 12.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            Text("Auto off in", fontSize = 14.sp, color = Muted, modifier = Modifier.weight(1f))
+            Text(
+                view.left,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (draft != null) color else MaterialTheme.colorScheme.onSurface,
+                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+            )
+        }
+        Row(Modifier.fillMaxWidth()) {
+            Text(view.offAt, fontSize = 13.sp, color = Muted, modifier = Modifier.weight(1f))
+            Text(view.ceiling, fontSize = 13.sp, color = Muted)
+        }
+        Box(
+            Modifier.fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Box(Modifier.fillMaxWidth(view.fraction).height(6.dp).background(color))
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            view.nudges.forEachIndexed { i, n ->
+                // The ups wear the mode's colour, so a sleepy thumb can tell the halves apart.
+                val tint =
+                    if (i >= view.nudges.size / 2) color else MaterialTheme.colorScheme.onSurface
+                NudgeButton(n, tint) { draft = it }
+            }
+        }
+    }
+}
+
+private const val SEND_AFTER_MS = 1_000L
+
+@Composable
+private fun RowScope.NudgeButton(n: Nudge, tint: Color, pick: (Int) -> Unit) {
+    val target = n.target
+    Box(
+        Modifier.weight(1f)
+            .height(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(
+                1.dp,
+                if (target != null) tint else MaterialTheme.colorScheme.outline,
+                RoundedCornerShape(12.dp),
+            )
+            .clickable(enabled = target != null) { target?.let(pick) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            n.label,
+            fontSize = if (n.label.length > 3) 12.sp else 15.sp,
+            color = if (target != null) tint else Muted.copy(alpha = 0.5f),
+            maxLines = 1,
+        )
     }
 }
 

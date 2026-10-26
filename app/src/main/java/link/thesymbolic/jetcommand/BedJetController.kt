@@ -365,6 +365,7 @@ class BedJetController(
                 library.noteStarted(idOf(stack.source), command.slot)
             }
             is UserCommand.Press -> device.press(command.button)
+            is UserCommand.SetRuntime -> device.setRuntime(command.minutes)
         }
     }
 

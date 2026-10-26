@@ -12,6 +12,7 @@ import link.thesymbolic.jetcommand.protocol.Button
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Program
+import link.thesymbolic.jetcommand.protocol.RUNTIME_MINUTES
 import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.SlotView
 import link.thesymbolic.jetcommand.protocol.StartedSlot
@@ -87,6 +88,8 @@ sealed interface NowEvent {
     data class SetFan(val step: Int) : NowEvent
 
     data class StartProgram(val slot: Slot) : NowEvent
+
+    data class SetRuntime(val minutes: Int) : NowEvent
 }
 
 fun nowState(inputs: NowInputs, now: LocalTime): NowState {
@@ -117,9 +120,9 @@ private fun live(st: Status, inputs: NowInputs, now: LocalTime): NowBody.Live {
     val summary =
         listOfNotNull(
                 // In a program the shutoff timer is the step's remaining time, which the strip
-                // shows.
+                // shows; outside one the countdown card does.
                 "auto off ${hoursMinutes(st.remainingSeconds)}"
-                    .takeIf { st.mode != Mode.STANDBY && running == null },
+                    .takeIf { st.mode != Mode.STANDBY && running == null && step > 0 },
                 "program step $step".takeIf { step > 0 && running == null },
             )
             .joinToString(" · ")
@@ -179,6 +182,54 @@ fun runningView(p: Program, step: Int, remainingSeconds: Int, now: LocalTime): R
         nowMinute,
     )
 }
+
+/** A countdown button; [target] is null when the press would change nothing. */
+data class Nudge(val label: String, val target: Int?)
+
+/** [fraction] is the time left as a share of the unit's ceiling. */
+data class CountdownView(
+    val left: String,
+    val offAt: String,
+    val ceiling: String,
+    val fraction: Float,
+    val nudges: List<Nudge>,
+)
+
+private val NUDGES = listOf(-15, -5, -1, 1, 5, 15)
+
+/**
+ * The auto-off card for a manual mode, null in standby and programs (whether moving a step's time
+ * works there is unverified). [draft] is the minutes tapped but not yet seen in a status. A step
+ * that overshoots a limit becomes "to" the limit, so a tap never silently does less than it says.
+ */
+fun countdownView(st: Status, draft: Int?, now: LocalTime): CountdownView? {
+    if (st.mode == Mode.STANDBY || st.mode == Mode.WAIT || (st.extra?.programStep ?: 0) > 0)
+        return null
+    val max = st.maxRuntimeMinutes.takeIf { it > 0 } ?: RUNTIME_MINUTES.last
+    val limits = RUNTIME_MINUTES.first..max
+    val current = draft ?: runtimeMinutes(st.remainingSeconds)
+    val nudges = NUDGES.map { d ->
+        val target = (current + d).coerceIn(limits)
+        val label =
+            if (target == current + d || target == current) (if (d > 0) "+$d" else "−${-d}")
+            else "to ${hoursMinutes(target * 60)}"
+        Nudge(label, target.takeIf { it != current })
+    }
+    val seconds = draft?.let { it * 60 } ?: st.remainingSeconds
+    val off = now.plusSeconds(seconds.toLong())
+    return CountdownView(
+        // The minutes the nudges count from, or 9:50 would read 0:09 with "+1" already at a
+        // 10 min ceiling.
+        left = hoursMinutes(current * 60),
+        offAt = "off at ${hhmm(off.hour, off.minute)}",
+        ceiling = "max ${hoursMinutes(max * 60)}",
+        fraction = (seconds / (max * 60f)).coerceIn(0f, 1f),
+        nudges = nudges,
+    )
+}
+
+/** The whole minutes to nudge from; a unit set to h:mm reports h:mm:00, so round to nearest. */
+fun runtimeMinutes(remainingSeconds: Int) = (remainingSeconds + 30) / 60
 
 /**
  * A slider's view: values are half-°C or fan steps, [index] is the value minus [offset]. Sent but

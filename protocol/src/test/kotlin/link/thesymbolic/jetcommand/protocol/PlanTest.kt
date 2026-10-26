@@ -131,6 +131,26 @@ class PlanTest {
     }
 
     @Test
+    fun `runtimes 1 min to 12 h pass, one minute beyond either end is rejected`() {
+        for (origin in CommandOrigin.entries) {
+            assertIs<Plan.Run>(plan(UserCommand.SetRuntime(1), origin, ready))
+            assertIs<Plan.Run>(plan(UserCommand.SetRuntime(720), origin, ready))
+            for (minutes in listOf(0, 721)) {
+                val command = UserCommand.SetRuntime(minutes)
+                assertEquals(
+                    rejected(
+                        command,
+                        "Auto off must be 1 min to 12 h.",
+                        origin == CommandOrigin.SHORTCUT,
+                    ),
+                    plan(command, origin, ready),
+                    "$origin $minutes",
+                )
+            }
+        }
+    }
+
+    @Test
     fun `temperatures 19 to 43 C pass, one half degree beyond either end is rejected`() {
         for (origin in CommandOrigin.entries) {
             assertIs<Plan.Run>(plan(UserCommand.SetTemperature(38), origin, ready))
@@ -217,6 +237,7 @@ class PlanTest {
                 UserCommand.Press(Button.FAN_UP) to "press fan up",
                 UserCommand.Press(Button.TEMP_DOWN_C) to "press temp down",
                 UserCommand.Press(0xee) to "press button 0xee",
+                UserCommand.SetRuntime(65) to "auto off in 1:05",
             )
         for ((command, name) in expected) assertEquals(name, describe(command))
     }
