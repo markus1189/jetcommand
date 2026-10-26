@@ -241,12 +241,51 @@ class FixtureTest {
                                 }
                             }
                         )
-                    val want = case.getValue("out")
+                    val want =
+                        firmwareVerdict(
+                            case.getValue("out").jsonArray,
+                            steps,
+                            case.getValue("now").num,
+                        )
                     if (got != want)
                         "validateProgram(now=${case["now"]}, $steps):\n  expected $want\n  got      $got"
                     else null
                 },
         )
+
+    /**
+     * The web app predates the firmware reading (`FUN_400ece98`): it refuses a clock-time step 0 or
+     * exactly 12 h after the previous end and a 12:00 duration step, which the unit runs. Those
+     * entries are dropped from its verdict; StepRulesTest pins them.
+     */
+    private fun firmwareVerdict(web: JsonArray, steps: List<Step>, now: Int): JsonArray {
+        val boundary = mutableSetOf<Int>()
+        var end = now % 1440
+        steps.forEachIndexed { i, step ->
+            if (stepProblem(step) != null) return@forEachIndexed
+            val minutes =
+                when (val t = step.timing) {
+                    is Timing.Until -> Math.floorMod(t.minuteOfDay - end, 1440)
+                    is Timing.For -> t.totalMinutes
+                }
+            val atBoundary =
+                if (step.timing is Timing.Until) minutes == 0 || minutes == 720
+                else minutes == 720 && longestStepMinutes(step.mode, step.temp, step.fan) == 720
+            if (atBoundary) boundary += i
+            end = (end + minutes) % 1440
+        }
+        return JsonArray(
+            web.filterNot {
+                    val e = it.jsonObject
+                    e.getValue("index").num in boundary && e.getValue("code").str == "stepTooLong"
+                }
+                .map {
+                    val e = it.jsonObject
+                    if (e.getValue("message").str != "A step must be shorter than 12 h.") e
+                    else JsonObject(e + ("message" to JsonPrimitive("A step runs at most 12 h.")))
+                }
+        )
+    }
 
     @Test
     fun formatTemp() =

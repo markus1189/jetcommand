@@ -239,7 +239,7 @@ object Limits {
     const val STEPS_PER_FRAGMENT = 8
     const val FRAGMENTS_PER_SLOT = 4
     const val NAME_LENGTH = 15
-    const val MAX_STEP_MINUTES = 11 * 60 + 59
+    const val MAX_STEP_MINUTES = 12 * 60
     const val TURBO_MAX_MINUTES = 10
 }
 
@@ -657,9 +657,10 @@ private fun modeProblem(step: Step): String? {
 }
 
 /**
- * Empty when valid. [nowMinutes] (since midnight) anchors the timeline like the official editor
- * does: clock-time steps must end < 12 h after the previous step's end, counted from now (wrapping
- * midnight).
+ * Empty when valid. [nowMinutes] (since midnight) anchors the timeline as the unit does at start: a
+ * clock-time step may end at most 12 h after the previous step's planned end (wrapping midnight),
+ * the firmware's only start check (`FUN_400ece98`). A duration step above [longestStepMinutes] is
+ * the app's own rule: the unit would run it and cut it short.
  */
 fun validateProgram(steps: List<Step>, nowMinutes: Int): List<ValidationError> {
     if (steps.isEmpty())
@@ -687,7 +688,7 @@ fun validateProgram(steps: List<Step>, nowMinutes: Int): List<ValidationError> {
                 is Timing.For -> timing.totalMinutes
                 is Timing.Until -> {
                     val delta = Math.floorMod(timing.minuteOfDay - end, 1440)
-                    if (delta == 0 || delta >= 720) {
+                    if (delta > Limits.MAX_STEP_MINUTES) {
                         errors +=
                             ValidationError(
                                 index,
@@ -707,7 +708,7 @@ fun validateProgram(steps: List<Step>, nowMinutes: Int): List<ValidationError> {
                     ErrorCode.STEP_TOO_LONG,
                     if (step.mode == Mode.HEAT && longest < Limits.MAX_STEP_MINUTES)
                         "At this temperature and fan, Heat runs at most ${longest / 60} h."
-                    else "A step must be shorter than 12 h.",
+                    else "A step runs at most 12 h.",
                 )
         }
         end = (end + minutes) % 1440
