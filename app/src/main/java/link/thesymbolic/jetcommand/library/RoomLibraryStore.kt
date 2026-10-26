@@ -135,10 +135,10 @@ class RoomLibraryStore(private val db: LibraryDatabase) : LibraryStore {
     private val dao = db.library()
 
     override fun entries(): Flow<List<LibraryEntry>> =
-        dao.entries().map { rows -> rows.map(EntryRow::toEntry) }
+        dao.entries().map { rows -> rows.mapNotNull(EntryRow::toEntry) }
 
     override fun allRevisions(): Flow<List<ProgramRevision>> =
-        dao.allRevisions().map { rows -> rows.map(ProgramRevisionRow::toRevision) }
+        dao.allRevisions().map { rows -> rows.mapNotNull(ProgramRevisionRow::toRevision) }
 
     override fun slots(device: String): Flow<List<SlotState>> =
         dao.slots(device).map { rows -> rows.mapNotNull(SlotStateRow::toState) }
@@ -146,7 +146,7 @@ class RoomLibraryStore(private val db: LibraryDatabase) : LibraryStore {
     override suspend fun entry(id: String): LibraryEntry? = dao.entry(id)?.toEntry()
 
     override suspend fun revisions(programId: String): List<ProgramRevision> =
-        dao.revisions(programId).map(ProgramRevisionRow::toRevision)
+        dao.revisions(programId).mapNotNull(ProgramRevisionRow::toRevision)
 
     override suspend fun slot(device: String, slot: Slot): SlotState? =
         dao.slot(device, slot.index)?.toState()
@@ -204,47 +204,55 @@ private fun ProgramRevision.toRow() =
 private fun originOf(name: String) =
     Origin.entries.firstOrNull { it.name == name } ?: Origin.OUTSIDE
 
+// Undecodable rows are left out rather than failing the whole flow.
 private fun ProgramRevisionRow.toRevision() =
-    ProgramRevision(
-        programId,
-        rev,
-        Program(name, decodeSteps(steps)),
-        createdAt,
-        originOf(origin),
-        note,
-    )
-
-private fun EntryRow.toEntry() =
-    LibraryEntry(
-        id,
+    decodeSteps(steps)?.let {
         ProgramRevision(
-            id,
+            programId,
             rev,
-            Program(name, decodeSteps(steps)),
+            Program(name, it),
             createdAt,
             originOf(origin),
             note,
-        ),
-        deletedAt,
-    )
+        )
+    }
+
+private fun EntryRow.toEntry() =
+    decodeSteps(steps)?.let {
+        LibraryEntry(
+            id,
+            ProgramRevision(
+                id,
+                rev,
+                Program(name, it),
+                createdAt,
+                originOf(origin),
+                note,
+            ),
+            deletedAt,
+        )
+    }
 
 private fun record(id: String?, rev: Int?, fingerprint: String?, at: Long? = null) =
     if (id != null && rev != null && fingerprint != null) PushRecord(id, rev, fingerprint, at ?: 0)
     else null
 
 // Rows are only written from a Slot; one outside it would be a row no slot view ever showed.
-private fun SlotStateRow.toState() =
-    Slot.of(slot)?.let { slot ->
-        SlotState(
-            device,
-            slot,
-            program =
-                if (name != null && steps != null) Program(name, decodeSteps(steps)) else null,
-            readAt = readAt,
-            pushed = record(pushedProgramId, pushedRev, pushedFingerprint, pushedAt),
-            pending = record(pendingProgramId, pendingRev, pendingFingerprint),
-        )
-    }
+// An undecodable slot reads as never read, so the next read replaces it.
+private fun SlotStateRow.toState(): SlotState? {
+    val slot = Slot.of(slot) ?: return null
+    val program =
+        if (name != null && steps != null) Program(name, decodeSteps(steps) ?: return null)
+        else null
+    return SlotState(
+        device,
+        slot,
+        program = program,
+        readAt = readAt,
+        pushed = record(pushedProgramId, pushedRev, pushedFingerprint, pushedAt),
+        pending = record(pendingProgramId, pendingRev, pendingFingerprint),
+    )
+}
 
 private fun SlotState.toRow() =
     SlotStateRow(

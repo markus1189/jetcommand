@@ -28,11 +28,10 @@ fun Program.fingerprint(): String {
 fun encodeSteps(steps: List<Step>): ByteArray =
     steps.fold(ByteArray(0)) { out, step -> out + encodeStep(step) }
 
-fun decodeSteps(bytes: ByteArray): List<Step> {
-    require(bytes.size % 5 == 0) { "Steps are 5 bytes each, got ${bytes.size} bytes" }
-    return (bytes.indices step 5).map { o ->
-        requireNotNull(decodeStep(bytes, o)) { "Unknown mode ${bytes.u(o)}" }
-    }
+/** Null unless [bytes] are whole steps of known modes; stored bytes may come from a newer build. */
+fun decodeSteps(bytes: ByteArray): List<Step>? {
+    if (bytes.size % 5 != 0) return null
+    return (bytes.indices step 5).map { o -> decodeStep(bytes, o) ?: return null }
 }
 
 enum class Origin {

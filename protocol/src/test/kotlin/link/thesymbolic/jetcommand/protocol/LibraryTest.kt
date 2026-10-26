@@ -85,6 +85,13 @@ class LibraryTest {
     }
 
     @Test
+    fun `decodeSteps is null for partial steps or an unknown mode`() {
+        val bytes = encodeSteps(listOf(cool(5)))
+        assertNull(decodeSteps(bytes.copyOf(4)))
+        assertNull(decodeSteps(bytes.copyOf().also { it[0] = 9 }))
+    }
+
+    @Test
     fun `fingerprint covers sanitized name and every step`() {
         assertEquals(64, a.fingerprint().length)
         assertEquals(a.fingerprint(), a.copy(name = "Alphaé").fingerprint())
