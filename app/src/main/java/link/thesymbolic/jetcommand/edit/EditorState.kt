@@ -124,11 +124,7 @@ fun EditorState.shiftStart(minutes: Int) = copy(start = Math.floorMod(start + mi
 
 private fun timeIncrement(step: Step) = if (step.mode == Mode.TURBO) 1 else 5
 
-/**
- * [durationRange] allows 12 h 00 for unheated modes, but the write path (`validateProgram`) refuses
- * anything above [Limits.MAX_STEP_MINUTES]; offering it would make a program that can't be loaded.
- */
-fun maxMinutes(step: Step) = minOf(durationRange(step).last, Limits.MAX_STEP_MINUTES)
+fun maxMinutes(step: Step) = durationRange(step).last
 
 fun shorter(step: Step): StepEdit? =
     when (val t = step.timing) {

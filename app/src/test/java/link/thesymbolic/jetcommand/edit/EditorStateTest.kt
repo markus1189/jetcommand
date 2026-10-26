@@ -111,7 +111,7 @@ class EditorStateTest {
         assertEquals(StepEdit.SetDuration(235), shorter(summer[3]))
         assertEquals(StepEdit.SetDuration(3), shorter(summer[0]))
         assertNull(shorter(step(Mode.COOL, 0, 40, 3)))
-        assertEquals(StepEdit.SetDuration(719), longer(step(Mode.COOL, 0, 40, 715)))
+        assertEquals(StepEdit.SetDuration(720), longer(step(Mode.COOL, 0, 40, 715)))
         assertNull(longer(step(Mode.TURBO, 19, 86, 10)))
         assertEquals(StepEdit.SetUntil(325), shorter(summer[4]))
         assertNull(fanBy(summer[1], 1))
