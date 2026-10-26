@@ -62,6 +62,16 @@ class StepRulesTest {
     }
 
     @Test
+    fun `validation agrees on the clock-time gap and allows a 12 h step`() {
+        fun codes(vararg steps: Step) = validateProgram(steps.toList(), 600).map { it.code }
+        assertEquals(emptyList(), codes(waitUntil(10, 0)))
+        assertEquals(emptyList(), codes(waitUntil(22, 0)))
+        assertEquals(listOf(ErrorCode.STEP_TOO_LONG), codes(waitUntil(22, 1)))
+        assertEquals(emptyList(), codes(cool(44, 720)))
+        assertEquals(listOf(ErrorCode.STEP_TOO_LONG), codes(cool(44, 721)))
+    }
+
+    @Test
     fun `a cut step moves later steps but not their plan or a clock-time length`() {
         val plan = planProgram(listOf(heat(80, 19, 120), cool(44, 30), waitUntil(6, 30)), 1320)
         assertEquals(PlannedStep(1320, 1320, 120, 60, refused = false), plan[0])
