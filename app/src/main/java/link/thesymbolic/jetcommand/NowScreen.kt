@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -290,7 +291,7 @@ private class Pending {
     var sent by mutableStateOf<Int?>(null)
 }
 
-/** Plain field, not snapshot state: it is derived from [Status] during composition. */
+/** Plain field, not snapshot state: written after each composition, read by the next. */
 private class HeldActual(var value: Int? = null)
 
 private const val PENDING_MS = 5_000L
@@ -341,7 +342,9 @@ private fun ColumnScope.ValueFields(st: Status, onEvent: (NowEvent) -> Unit) {
     val temp = rememberPending()
     val fan = rememberPending()
     val held = remember { HeldActual() }
-    val actual = steadyActual(held.value, st.actualTemp).also { held.value = it }
+    val actual = steadyActual(held.value, st.actualTemp)
+    // Not during composition: a discarded one must not move what the next starts from.
+    SideEffect { held.value = actual }
     Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Field("Temp", tempField(st, temp.preview, temp.sent, actual), st.mode, temp) {
             onEvent(NowEvent.SetTemperature(it))
