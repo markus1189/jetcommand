@@ -18,7 +18,7 @@ class StatusAssemblerTest {
     private val interval = 2000L
 
     private fun packet(notification: Int = 0) =
-        BedJetSim().also { it.notification = notification }.packet()
+        BedJetSim().also { it.notification = Notification.of(notification) }.packet()
 
     /** The first 20 bytes as notified; byte 0 is 1 on the BedJet's partial notifications. */
     private fun head(notification: Int = 0, first: Int = 1) =
@@ -31,7 +31,7 @@ class StatusAssemblerTest {
         val step = StatusAssembler(head = head()).notified(packet(7), now = 0, interval)
         assertEquals(StatusAssembler(extra = step.update!!.status.extra), step.next)
         assertTrue(step.update.extraFresh)
-        assertEquals(7, step.update.status.extra!!.notification)
+        assertEquals(Notification.Unknown(7), step.update.status.extra!!.notification)
         assertFalse(step.readRemainder)
     }
 
@@ -66,7 +66,7 @@ class StatusAssemblerTest {
         for (step in
             listOf(waiting.notified(rest(5), now = 1, interval), waiting.remainderRead(rest(5)))) {
             assertTrue(step.update!!.extraFresh)
-            assertEquals(5, step.update.status.extra!!.notification)
+            assertEquals(Notification.ProgramTooLong, step.update.status.extra!!.notification)
             assertEquals(30, step.update.status.length)
             assertFalse(step.next.remainderPending)
             assertEquals(step.update.status.extra, step.next.extra)

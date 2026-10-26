@@ -40,7 +40,7 @@ class BedJetSim(
     var led = true
     var muted = false
     var step = 0
-    var notification = 0
+    var notification: Notification = Notification.None
 
     private class Run(val slot: Slot, var index: Int, var left: Int)
 
@@ -147,7 +147,7 @@ class BedJetSim(
             set(18, shutdown)
             set(27, 0x20 or 0x04 or (if (led) 0x10 else 0) or (if (muted) 0x01 else 0))
             set(28, step)
-            set(29, notification)
+            set(29, notification.code)
         }
 
     private fun press(code: Int) {
@@ -175,7 +175,7 @@ class BedJetSim(
             Button.LED_OFF -> led = code == Button.LED_ON
             Button.MUTE,
             Button.UNMUTE -> muted = code == Button.MUTE
-            Button.ACK -> notification = Notification.NONE
+            Button.ACK -> notification = Notification.None
             else -> {
                 Button.slotOfStartProgram(code)?.let(::start)
                 Button.slotOfDeleteProgram(code)?.let { slots[it.index] = null }
@@ -210,11 +210,11 @@ class BedJetSim(
         val now =
             clock
                 ?: run {
-                    notification = Notification.PROGRAM_NEEDS_CLOCK
+                    notification = Notification.ProgramNeedsClock
                     return
                 }
         if (validateProgram(program.steps, now / 60).any { it.code == ErrorCode.STEP_TOO_LONG }) {
-            notification = Notification.PROGRAM_TOO_LONG
+            notification = Notification.ProgramTooLong
             return
         }
         run = Run(slot, index = -1, left = 0)

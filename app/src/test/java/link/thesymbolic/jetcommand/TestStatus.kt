@@ -1,6 +1,7 @@
 package link.thesymbolic.jetcommand
 
 import link.thesymbolic.jetcommand.protocol.Mode
+import link.thesymbolic.jetcommand.protocol.Notification
 import link.thesymbolic.jetcommand.protocol.Status
 import link.thesymbolic.jetcommand.protocol.StatusExtra
 
@@ -14,7 +15,7 @@ fun status(
     maxTemp: Int = 0,
     ambientTemp: Int = 44,
     programStep: Int? = null,
-    notification: Int = 0,
+    notification: Notification = Notification.None,
 ) =
     Status(
         partial = false,

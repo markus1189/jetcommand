@@ -118,7 +118,7 @@ class NightRecorderTest {
             val recorder = NightRecorder(link, store, backgroundScope, clock = { currentTime })
             link.connect()
             advanceTimeBy(10_000)
-            sim.notification = Notification.CLEAN_FILTER
+            sim.notification = Notification.CleanFilter
             sim.shutdown = 3
             advanceTimeBy(10_000)
             recorder.userDisconnecting()

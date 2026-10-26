@@ -123,25 +123,45 @@ enum class Key(val button: Int) {
     }
 }
 
-object Notification {
-    const val NONE = 0
-    const val CLEAN_FILTER = 1
-    const val UPDATE_AVAILABLE = 2
-    const val UPDATE_FAILED = 3
-    const val PROGRAM_NEEDS_CLOCK = 4
-    const val PROGRAM_TOO_LONG = 5
+/** Status byte 29: what the unit wants the user to see, [None] when nothing is pending. */
+sealed class Notification(val code: Int, val text: String) {
+    data object None : Notification(0, "")
+
+    data object CleanFilter : Notification(1, "Time to clean the filter.")
+
+    data object UpdateAvailable : Notification(2, "A firmware update is available.")
+
+    data object UpdateFailed : Notification(3, "The firmware update failed.")
 
     // 4 and 5 are the official app's wording (MainFragment.java:370-386).
-    val TEXT =
-        mapOf(
-            CLEAN_FILTER to "Time to clean the filter.",
-            UPDATE_AVAILABLE to "A firmware update is available.",
-            UPDATE_FAILED to "The firmware update failed.",
-            PROGRAM_NEEDS_CLOCK to
-                "The specified sequence cannot be run because the clock is not set.",
-            PROGRAM_TOO_LONG to
-                "The specified sequence cannot be run because it contains steps that would be too long running from the current time.",
+    data object ProgramNeedsClock :
+        Notification(4, "The specified sequence cannot be run because the clock is not set.")
+
+    data object ProgramTooLong :
+        Notification(
+            5,
+            "The specified sequence cannot be run because it contains steps that would be too " +
+                "long running from the current time.",
         )
+
+    /** A code this build doesn't know; the unit still expects it acknowledged. */
+    data class Unknown(val raw: Int) : Notification(raw, "BedJet notification $raw")
+
+    companion object {
+        // Lazy: the objects aren't initialised yet while the companion is.
+        private val known by lazy {
+            listOf(
+                None,
+                CleanFilter,
+                UpdateAvailable,
+                UpdateFailed,
+                ProgramNeedsClock,
+                ProgramTooLong,
+            )
+        }
+
+        fun of(code: Int): Notification = known.find { it.code == code } ?: Unknown(code)
+    }
 }
 
 object Query {
@@ -287,8 +307,8 @@ enum class ErrorCode(val text: String) {
     TIMEOUT("Your BedJet didn't respond. Move closer and try again."),
     BAD_RESPONSE("Your BedJet sent something unexpected. Try again."),
     VERIFY_FAILED("The program didn't save correctly. Try again."),
-    CLOCK_NOT_SET(Notification.TEXT.getValue(Notification.PROGRAM_NEEDS_CLOCK)),
-    STEP_TOO_LONG(Notification.TEXT.getValue(Notification.PROGRAM_TOO_LONG)),
+    CLOCK_NOT_SET(Notification.ProgramNeedsClock.text),
+    STEP_TOO_LONG(Notification.ProgramTooLong.text),
     INVALID_PROGRAM("This program can't be stored on the BedJet."),
     SLOT_CHANGED("This program slot changed since it was last read. Check it and try again."),
 }
@@ -362,7 +382,7 @@ data class StatusExtra(
     val unitsSetUp: Boolean,
     val beepsMuted: Boolean,
     val programStep: Int,
-    val notification: Int,
+    val notification: Notification,
 )
 
 data class Status(
@@ -529,7 +549,7 @@ object Reply {
                     unitsSetUp = flags and 0x04 != 0,
                     beepsMuted = flags and 0x01 != 0,
                     programStep = b.u(28),
-                    notification = b.u(29),
+                    notification = Notification.of(b.u(29)),
                 )
             } else null
         return Status(

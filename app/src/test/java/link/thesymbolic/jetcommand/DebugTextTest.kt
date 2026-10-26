@@ -51,14 +51,14 @@ class DebugTextTest {
                 fanStep = 9,
                 ambientTemp = 44,
                 programStep = 2,
-                notification = Notification.CLEAN_FILTER,
+                notification = Notification.CleanFilter,
             )
         assertEquals(
             listOf(
                 "Mode Cool   actual 20.5°C   target 20°C   fan 50%",
                 "Remaining 2:05:07   ambient 22°C",
                 "Program step 2   extra 1.5 s old\nNotification 1: " +
-                    Notification.TEXT[Notification.CLEAN_FILTER],
+                    Notification.CleanFilter.text,
             ),
             statusLines(st, 1_500),
         )

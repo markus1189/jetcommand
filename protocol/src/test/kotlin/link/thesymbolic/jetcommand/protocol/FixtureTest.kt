@@ -97,7 +97,7 @@ class FixtureTest {
                             put("unitsSetUp", e.unitsSetUp)
                             put("beepsMuted", e.beepsMuted)
                             put("programStep", e.programStep)
-                            put("notification", e.notification)
+                            put("notification", e.notification.code)
                         }
                     } ?: JsonNull,
                 )

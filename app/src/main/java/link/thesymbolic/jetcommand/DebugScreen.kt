@@ -318,8 +318,9 @@ internal fun statusLines(st: Status?, extraAgeMs: Long?): List<String> {
             ?: "never read"
     val notification =
         x?.notification
-            ?.takeIf { it != 0 }
-            ?.let { "\nNotification $it: ${Notification.TEXT[it] ?: "?"}" } ?: ""
+            ?.takeIf { it != Notification.None }
+            ?.let { "\nNotification ${it.code}: ${it.text}" }
+            .orEmpty()
     return listOf(
         "Mode ${st.mode.label}   actual ${formatTemp(st.actualTemp)}   target ${formatTemp(st.targetTemp)}   fan ${st.fanPercent}%",
         "Remaining ${hoursMinutes(r)}:${pad2(r % 60)}   ambient ${formatTemp(st.ambientTemp)}",

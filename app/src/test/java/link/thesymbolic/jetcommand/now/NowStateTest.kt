@@ -20,6 +20,7 @@ import kotlinx.coroutines.test.runTest
 import link.thesymbolic.jetcommand.hoursMinutes
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.Mode
+import link.thesymbolic.jetcommand.protocol.Notification
 import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.SettableMode
 import link.thesymbolic.jetcommand.protocol.Slot
@@ -415,7 +416,7 @@ private val statusArb = arbitrary {
         minTemp = Arb.int(0..120).bind(),
         maxTemp = Arb.int(0..120).bind(),
         programStep = Arb.int(-1..8).orNull().bind(),
-        notification = Arb.int(0..5).bind(),
+        notification = Notification.of(Arb.int(0..5).bind()),
     )
 }
 

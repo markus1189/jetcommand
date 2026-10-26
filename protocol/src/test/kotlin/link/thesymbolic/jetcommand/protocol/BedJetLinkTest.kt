@@ -321,14 +321,14 @@ class BedJetLinkTest {
     @Test
     fun `partial status reads the remainder and merges it, at most every 2 s`() = runTest {
         val r = connected(rig())
-        r.sim.notification = Notification.CLEAN_FILTER
+        r.sim.notification = Notification.CleanFilter
         r.transport.notifyStatus()
         runCurrent()
         assertEquals(1, r.reads(Characteristic.STATUS))
         assertEquals(2, r.updates.size)
         assertNull(r.updates[0].status.extra)
         assertFalse(r.updates[0].extraFresh)
-        assertEquals(Notification.CLEAN_FILTER, r.updates[1].status.extra!!.notification)
+        assertEquals(Notification.CleanFilter, r.updates[1].status.extra!!.notification)
         assertTrue(r.updates[1].extraFresh)
         assertEquals(30, r.updates[1].status.length)
 
@@ -337,7 +337,7 @@ class BedJetLinkTest {
         runCurrent()
         assertEquals(1, r.reads(Characteristic.STATUS), "remainder is read at most every 2 s")
         assertEquals(
-            Notification.CLEAN_FILTER,
+            Notification.CleanFilter,
             r.updates[2].status.extra!!.notification,
             "last known extra is carried over",
         )
@@ -480,17 +480,17 @@ class BedJetLinkTest {
             r.device.startProgram(slot(0)),
         )
         assertEquals(
-            Notification.TEXT[Notification.PROGRAM_TOO_LONG],
+            Notification.ProgramTooLong.text,
             StartFailure.STEP_TOO_LONG.text,
         )
-        assertEquals(listOf(Notification.PROGRAM_TOO_LONG), shown)
+        assertEquals(listOf(Notification.ProgramTooLong.code), shown)
         assertTrue(
             "01 80" in r.transport.writes && "01 52" in r.transport.writes,
             r.transport.writes.toString(),
         )
-        assertEquals(0, r.sim.notification)
+        assertEquals(Notification.None, r.sim.notification)
         advanceTimeBy(3_000)
-        assertEquals(0, r.device.status!!.status.extra!!.notification)
+        assertEquals(Notification.None, r.device.status!!.status.extra!!.notification)
         assertEquals(0, r.device.status!!.status.extra!!.programStep)
     }
 
@@ -505,14 +505,14 @@ class BedJetLinkTest {
     @Test
     fun `notifications are acknowledged automatically and shown once per code`() = runTest {
         val r = connected(rig())
-        val shown = mutableListOf<DeviceNotification>()
+        val shown = mutableListOf<Notification>()
         backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
             r.device.notifications.collect { shown += it }
         }
-        r.sim.notification = Notification.CLEAN_FILTER
+        r.sim.notification = Notification.CleanFilter
         advanceTimeBy(1_500)
-        assertEquals(0, r.sim.notification)
-        assertEquals(listOf(DeviceNotification(1, Notification.TEXT.getValue(1))), shown)
+        assertEquals(Notification.None, r.sim.notification)
+        assertEquals(listOf<Notification>(Notification.CleanFilter), shown)
         assertEquals(1, r.transport.writes.count { it == "01 52" })
     }
 

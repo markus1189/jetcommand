@@ -31,8 +31,6 @@ enum class StartFailure(val code: ErrorCode, val text: String = code.text) {
     UNCONFIRMED(ErrorCode.TIMEOUT, "Your BedJet didn't confirm that the program started."),
 }
 
-data class DeviceNotification(val code: Int, val text: String)
-
 /**
  * [clock] is the phone's local time, synced to the unit before a program starts; [now] (ms)
  * debounces auto-acks. Same threading rule as [BedJetLink].
@@ -50,8 +48,8 @@ class BedJetDevice(
     var status: StatusUpdate? = null
         private set
 
-    private val _notifications = MutableSharedFlow<DeviceNotification>(extraBufferCapacity = 16)
-    val notifications: SharedFlow<DeviceNotification> = _notifications
+    private val _notifications = MutableSharedFlow<Notification>(extraBufferCapacity = 16)
+    val notifications: SharedFlow<Notification> = _notifications
 
     // Re-emitted after this device has seen them, so a waiter that resumes finds the ack already
     // started.
@@ -61,8 +59,8 @@ class BedJetDevice(
             onBufferOverflow = BufferOverflow.DROP_OLDEST,
         )
 
-    private var shownNotification = 0
-    private val ackedAt = mutableMapOf<Int, Long>()
+    private var shownNotification: Notification = Notification.None
+    private val ackedAt = mutableMapOf<Notification, Long>()
     private var ackJob: Job? = null
 
     init {
@@ -170,7 +168,7 @@ class BedJetDevice(
         timeoutMs: Long = 4000,
     ): StartOutcome {
         val pending = status?.status?.extra?.notification
-        if (pending == Notification.PROGRAM_NEEDS_CLOCK || pending == Notification.PROGRAM_TOO_LONG)
+        if (pending == Notification.ProgramNeedsClock || pending == Notification.ProgramTooLong)
             ack()
         syncClock(time)
         val (status, extra) =
@@ -179,8 +177,8 @@ class BedJetDevice(
                     async(start = CoroutineStart.UNDISPATCHED) {
                         waitForExtra(timeoutMs) {
                             it.programStep > 0 ||
-                                it.notification == Notification.PROGRAM_NEEDS_CLOCK ||
-                                it.notification == Notification.PROGRAM_TOO_LONG
+                                it.notification == Notification.ProgramNeedsClock ||
+                                it.notification == Notification.ProgramTooLong
                         }
                     }
                 send(Command.startProgram(slot))
@@ -189,7 +187,7 @@ class BedJetDevice(
         if (extra.programStep > 0) return StartOutcome.Started(status)
         if (autoAck) ackJob?.join() else ack()
         return StartOutcome.Failed(
-            if (extra.notification == Notification.PROGRAM_NEEDS_CLOCK) StartFailure.CLOCK_NOT_SET
+            if (extra.notification == Notification.ProgramNeedsClock) StartFailure.CLOCK_NOT_SET
             else StartFailure.STEP_TOO_LONG
         )
     }
@@ -220,15 +218,13 @@ class BedJetDevice(
         val extra = update.status.extra
         if (extra == null || !update.extraFresh) return
         val code = extra.notification
-        if (code == 0) {
-            shownNotification = 0
+        if (code == Notification.None) {
+            shownNotification = code
             return
         }
         if (code != shownNotification) {
             shownNotification = code
-            _notifications.tryEmit(
-                DeviceNotification(code, Notification.TEXT[code] ?: "BedJet notification $code")
-            )
+            _notifications.tryEmit(code)
         }
         if (!autoAck || link.state.value != LinkState.Ready) return
         val t = now()

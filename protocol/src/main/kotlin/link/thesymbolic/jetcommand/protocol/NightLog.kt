@@ -284,7 +284,7 @@ private fun RecorderState.onUpdate(
         fan = st.fanStep,
         shutdown = st.shutdownReason,
         step = x?.programStep ?: step,
-        notification = x?.notification ?: notification,
+        notification = x?.notification?.code ?: notification,
     ) to out.list
 }
 
@@ -305,12 +305,9 @@ private fun Outputs.extra(was: RecorderState, x: StatusExtra) {
             if (x.programStep == 0) "none" else "step ${x.programStep}",
             x.programStep,
         )
-    if (x.notification != was.notification && (x.notification != 0 || was.notification != null))
-        event(
-            NightEvent.Kind.NOTIFICATION,
-            Notification.TEXT[x.notification] ?: "code ${x.notification}",
-            x.notification,
-        )
+    val n = x.notification
+    if (n.code != was.notification && (n != Notification.None || was.notification != null))
+        event(NightEvent.Kind.NOTIFICATION, n.text, n.code)
 }
 
 private val BUTTON_NAMES =
