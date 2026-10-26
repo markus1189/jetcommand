@@ -172,12 +172,14 @@ class BedJetService : Service() {
         // Was "connection" at IMPORTANCE_LOW: silent notifications are hidden on the lock screen by
         // default.
         private const val CHANNEL = "controls"
-        // Three is the most a notification shows; the user picked these, Fan − stays in the app.
+        // The expanded view shows up to five; the compact view the first three.
         private val ACTIONS =
             listOf(
                 Action("Temp −", Btn.TEMP_DOWN_C, R.drawable.ic_temp_down),
                 Action("Temp +", Btn.TEMP_UP_C, R.drawable.ic_temp_up),
                 Action("Fan +", Btn.FAN_UP, R.drawable.ic_fan_up),
+                Action("Fan −", Btn.FAN_DOWN, R.drawable.ic_fan_down),
+                Action("Off", Btn.OFF, R.drawable.ic_off),
             )
         // Collapses bursts; short enough that a press from the shade shows its effect before the
         // user gives up on it.
