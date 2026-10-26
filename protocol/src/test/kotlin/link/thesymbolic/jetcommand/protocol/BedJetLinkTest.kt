@@ -5,6 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.hours
@@ -434,7 +435,7 @@ class BedJetLinkTest {
             slot(0),
         )
         assertNull(r.sim.clock)
-        val status = r.device.startProgram(slot(0))
+        val status = assertIs<StartOutcome.Started>(r.device.startProgram(slot(0))).status
         assertEquals(
             22 * 60 + 15,
             r.sim.clock!! / 60,
@@ -474,9 +475,14 @@ class BedJetLinkTest {
         backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
             r.device.notifications.collect { shown += it.code }
         }
-        val e = assertFailsWith<BedJetException> { r.device.startProgram(slot(0)) }
-        assertEquals(ErrorCode.STEP_TOO_LONG, e.code)
-        assertEquals(Notification.TEXT[Notification.PROGRAM_TOO_LONG], e.message)
+        assertEquals(
+            StartOutcome.Failed(StartFailure.STEP_TOO_LONG),
+            r.device.startProgram(slot(0)),
+        )
+        assertEquals(
+            Notification.TEXT[Notification.PROGRAM_TOO_LONG],
+            StartFailure.STEP_TOO_LONG.text,
+        )
         assertEquals(listOf(Notification.PROGRAM_TOO_LONG), shown)
         assertTrue(
             "01 80" in r.transport.writes && "01 52" in r.transport.writes,
@@ -493,7 +499,7 @@ class BedJetLinkTest {
         val r = connected(rig())
         r.device.store(Program("Night", listOf(step(Mode.COOL, 5, 44, 2, 0))), slot(0))
         r.transport.dropNotifications = 100
-        code(ErrorCode.TIMEOUT) { r.device.startProgram(slot(0)) }
+        assertEquals(StartOutcome.Failed(StartFailure.UNCONFIRMED), r.device.startProgram(slot(0)))
     }
 
     @Test

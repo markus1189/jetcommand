@@ -125,6 +125,10 @@ enum class Refusal {
     SLOT_CHANGED,
     /** The slot left the state the action was offered for, e.g. resolved meanwhile. */
     STALE,
+    /** Written, but the unit didn't start it: [StartFailure]. */
+    CLOCK_NOT_SET,
+    STEP_TOO_LONG,
+    START_UNCONFIRMED,
 }
 
 /** A library rule's answer; transport failures still throw from [BedJetDevice]. */
@@ -365,7 +369,15 @@ class ProgramLibrary(
             val pushed = push(device, bedJet, slot, programId)
             if (pushed is LibraryOutcome.Refused) return pushed
         }
-        bedJet.startProgram(slot)
+        val started = bedJet.startProgram(slot)
+        if (started is StartOutcome.Failed)
+            return LibraryOutcome.Refused(
+                when (started.reason) {
+                    StartFailure.CLOCK_NOT_SET -> Refusal.CLOCK_NOT_SET
+                    StartFailure.STEP_TOO_LONG -> Refusal.STEP_TOO_LONG
+                    StartFailure.UNCONFIRMED -> Refusal.START_UNCONFIRMED
+                }
+            )
         noteStarted(device, slot)
         return done
     }

@@ -16,6 +16,21 @@ import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
+/** How [BedJetDevice.startProgram] ended. */
+sealed interface StartOutcome {
+    /** [status] is the first one that showed the program running. */
+    data class Started(val status: Status) : StartOutcome
+
+    data class Failed(val reason: StartFailure) : StartOutcome
+}
+
+/** Why a program didn't start; [code] and [text] for surfaces that report errors. */
+enum class StartFailure(val code: ErrorCode, val text: String = code.text) {
+    CLOCK_NOT_SET(ErrorCode.CLOCK_NOT_SET),
+    STEP_TOO_LONG(ErrorCode.STEP_TOO_LONG),
+    UNCONFIRMED(ErrorCode.TIMEOUT, "Your BedJet didn't confirm that the program started."),
+}
+
 data class DeviceNotification(val code: Int, val text: String)
 
 /**
@@ -148,15 +163,12 @@ class BedJetDevice(
         return Program(name, back)
     }
 
-    /**
-     * Syncs the clock and starts [slot]; the status that confirmed it, or the unit's refusal as a
-     * typed error.
-     */
+    /** Syncs the clock and starts [slot]; transport failures still throw. */
     suspend fun startProgram(
         slot: Slot,
         time: LocalTime = clock(),
         timeoutMs: Long = 4000,
-    ): Status {
+    ): StartOutcome {
         val pending = status?.status?.extra?.notification
         if (pending == Notification.PROGRAM_NEEDS_CLOCK || pending == Notification.PROGRAM_TOO_LONG)
             ack()
@@ -173,16 +185,12 @@ class BedJetDevice(
                     }
                 send(Command.startProgram(slot))
                 outcome.await()
-            }
-                ?: throw BedJetException(
-                    ErrorCode.TIMEOUT,
-                    "Your BedJet didn't confirm that the program started.",
-                )
-        if (extra.programStep > 0) return status
+            } ?: return StartOutcome.Failed(StartFailure.UNCONFIRMED)
+        if (extra.programStep > 0) return StartOutcome.Started(status)
         if (autoAck) ackJob?.join() else ack()
-        throw BedJetException(
-            if (extra.notification == Notification.PROGRAM_NEEDS_CLOCK) ErrorCode.CLOCK_NOT_SET
-            else ErrorCode.STEP_TOO_LONG
+        return StartOutcome.Failed(
+            if (extra.notification == Notification.PROGRAM_NEEDS_CLOCK) StartFailure.CLOCK_NOT_SET
+            else StartFailure.STEP_TOO_LONG
         )
     }
 

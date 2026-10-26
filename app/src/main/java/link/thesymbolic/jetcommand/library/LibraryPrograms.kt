@@ -23,6 +23,7 @@ import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 import link.thesymbolic.jetcommand.protocol.Refusal
 import link.thesymbolic.jetcommand.protocol.Resolution
 import link.thesymbolic.jetcommand.protocol.Slot
+import link.thesymbolic.jetcommand.protocol.StartFailure
 import link.thesymbolic.jetcommand.protocol.attempt
 
 /** What the user reads when [ProgramLibrary] refuses [what] ("keep slot 2"). */
@@ -34,6 +35,9 @@ fun refusalText(reason: Refusal, what: String): String =
         Refusal.DELETED -> "This program was deleted; restore it first."
         Refusal.SLOT_CHANGED -> ErrorCode.SLOT_CHANGED.text
         Refusal.STALE -> "Couldn't $what."
+        Refusal.CLOCK_NOT_SET -> StartFailure.CLOCK_NOT_SET.text
+        Refusal.STEP_TOO_LONG -> StartFailure.STEP_TOO_LONG.text
+        Refusal.START_UNCONFIRMED -> StartFailure.UNCONFIRMED.text
     }
 
 /**

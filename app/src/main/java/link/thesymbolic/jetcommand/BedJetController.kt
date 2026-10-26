@@ -56,6 +56,7 @@ import link.thesymbolic.jetcommand.protocol.ProcessEvent
 import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 import link.thesymbolic.jetcommand.protocol.SimTransport
+import link.thesymbolic.jetcommand.protocol.StartOutcome
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
 import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.TappedTransport
@@ -376,7 +377,10 @@ class BedJetController(
             is UserCommand.SetTemperature -> device.setTemperature(command.target.halfC)
             is UserCommand.SetFan -> device.setFan(command.fan.step)
             is UserCommand.StartProgram -> {
-                device.startProgram(command.slot)
+                val started = device.startProgram(command.slot)
+                // guard turns failures into the logged and reported string.
+                if (started is StartOutcome.Failed)
+                    throw BedJetException(started.reason.code, started.reason.text)
                 library.noteStarted(idOf(stack.source), command.slot)
             }
             is UserCommand.Press -> device.press(command.key)
