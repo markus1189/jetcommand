@@ -40,7 +40,7 @@ appears.
 | 5 | Full-stack debug screen, Demo BedJet | done |
 | 6 | Real-device test (checklist below) | done (API 31/32 path untested) |
 | 7 | Foreground service owning the link + night log (Room) | done; night 2 (2026-10-23/24, battery Unrestricted) on the user's phone: no kill, a sample every minute 22:01–07:23, two drops reconnected in 4 s; since 2026-10-26 the link lets go after 15 min down (the BedJet's BLE stays on in standby, so only leaving ends it) |
-| 8 | Real UI: status/controls, program editor + library, night log + review | iteration 1 (night loop: Now screen, lock-screen notification controls, bottom nav, dark theme) on the user's phone 2026-10-22; night 1: service SIGKILLed at 22:55 as FGS (likely Samsung battery optimisation), night 2 survived; then a design round; nights tab on the emulator 2026-10-23; program library (slot sync, picker, conflicts, step strip) on the emulator 2026-10-23; editor open |
+| 8 | Real UI: status/controls, program editor + library, night log + review | iteration 1 (night loop: Now screen, lock-screen notification controls, bottom nav, dark theme) on the user's phone 2026-10-22; night 1: service SIGKILLed at 22:55 as FGS (likely Samsung battery optimisation), night 2 survived; then a design round; nights tab on the emulator 2026-10-23; program library (slot sync, picker, conflicts, step strip) on the emulator 2026-10-23; editor (step list, edit in place) on the emulator 2026-10-26 |
 | 9 | Notification actions (done) → external triggers: launcher shortcuts Off / Program 1–3 for Routines (on the emulator 2026-10-25; never the demo; outcome in the night log, failures as a notification; Routines untested) → exact-alarm program chaining → morning review (WorkManager) → CompanionDeviceManager auto-connect → QS tile/widget → Health Connect | |
 | 10 | ~~Import of the PWA's backup text format~~ | dropped 2026-10-23 |
 
@@ -70,7 +70,7 @@ Protocol: `BEDJET_PROTOCOL.md:99-198`. Design canvas: https://claude.ai/artifact
 - Giving up after 15 min down is logged in the night log like a manual disconnect; untested on the phone.
 - Without BLUETOOTH_CONNECT the demo runs without the service (Android 14+ refuses a connectedDevice FGS).
 - Night log keeps every event forever; no pruning yet.
-- Programs have no start time yet (revision column planned, not in `ProgramRevision`): detail screens place clock-time steps from now.
+- Programs have no start time yet (revision column planned, not in `ProgramRevision`): detail screens place clock-time steps from now, the editor from a session-only 22:30.
 - Conflict screen and Interrupted retry are covered by `LibraryTest` only; the demo can't change a slot behind the app's back.
 - The library's first read on a real unit is untested: expect its slots as "Not in your library" until kept.
 - Background service costs ≈ 2 mAh/h (30 min measured on the phone, before change-only notification posts); the user charges the phone overnight, so night battery is not tracked.

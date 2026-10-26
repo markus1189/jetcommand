@@ -97,6 +97,7 @@ fun ProgramDetailScreen(
     slots: List<SlotView>,
     live: Boolean,
     back: () -> Unit,
+    edit: () -> Unit,
     delete: () -> Unit,
 ) {
     val revisions by
@@ -111,6 +112,7 @@ fun ProgramDetailScreen(
         update = { source.push(it, entry.id) },
         run = { picker = PickFor.RUN },
         load = { picker = PickFor.LOAD },
+        edit = edit,
         delete = delete,
     )
     picker?.let { mode ->
@@ -133,6 +135,7 @@ fun ProgramDetail(
     run: () -> Unit,
     load: () -> Unit,
     modifier: Modifier = Modifier,
+    edit: () -> Unit = {},
     delete: () -> Unit = {},
     start: LocalTime = LocalTime.now(),
 ) {
@@ -166,7 +169,7 @@ fun ProgramDetail(
             if (s.entry.id != entry.id) return@forEach
             OlderSlotBanner(v, s, entry, live, update)
         }
-        ActionRow(prettyName(p.name), live, run, load, delete)
+        ActionRow(prettyName(p.name), run.takeIf { live }, load.takeIf { live }, edit, delete)
         StepsSection(spans, start)
         if (revisions.isNotEmpty()) HistorySection(revisions, entry, slots)
     }
@@ -258,12 +261,13 @@ private fun OlderSlotBanner(
     }
 }
 
+/** [run] and [load] are null while the unit is out of reach. */
 @Composable
 private fun ActionRow(
     name: String,
-    live: Boolean,
-    run: () -> Unit,
-    load: () -> Unit,
+    run: (() -> Unit)?,
+    load: (() -> Unit)?,
+    edit: () -> Unit,
     delete: () -> Unit,
 ) {
     Row(
@@ -271,12 +275,11 @@ private fun ActionRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         val h = Modifier.weight(1f).heightIn(min = 48.dp)
-        Button(run, h, enabled = live) {
+        Button(run ?: {}, h, enabled = run != null) {
             Text("Run", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         }
-        OutlinedButton(load, h, enabled = live) { Text("Load…", fontSize = 15.sp) }
-        // The program editor comes later (ROADMAP); shown so the layout is the final one.
-        OutlinedButton({}, h, enabled = false) { Text("Edit", fontSize = 15.sp) }
+        OutlinedButton(load ?: {}, h, enabled = load != null) { Text("Load…", fontSize = 15.sp) }
+        OutlinedButton(edit, h) { Text("Edit", fontSize = 15.sp) }
         Box(
             Modifier.size(48.dp)
                 .clip(CircleShape)

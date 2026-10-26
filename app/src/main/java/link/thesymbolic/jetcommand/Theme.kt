@@ -44,6 +44,8 @@ val CalloutText = Color(0xFFD9CBA8)
 val Warm = Color(0xFFF0A070)
 val WarmBg = Color(0xFF2A1D14)
 val WarmLine = Color(0xFF5A3420)
+/** The one red outside the modes: something the unit will refuse. */
+val Refused = Color(0xFFF28B82)
 val RoomLine = Color(0xFFC8CDD3)
 val TargetLine = Color(0xFF8FB4D9)
 val AirLine = Color(0xFF4C9AFF)

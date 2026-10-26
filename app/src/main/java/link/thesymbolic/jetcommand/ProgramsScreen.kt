@@ -47,6 +47,7 @@ import java.time.LocalTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import link.thesymbolic.jetcommand.edit.EditorScreen
 import link.thesymbolic.jetcommand.protocol.DeviceId
 import link.thesymbolic.jetcommand.protocol.LibraryEntry
 import link.thesymbolic.jetcommand.protocol.ProgramId
@@ -58,6 +59,8 @@ private sealed interface Route {
     data object List : Route
 
     data class Detail(val id: ProgramId) : Route
+
+    data class Edit(val id: ProgramId) : Route
 
     data class Conflict(val slot: Slot) : Route
 }
@@ -100,12 +103,18 @@ fun ProgramsScreen(source: ProgramsSource, modifier: Modifier = Modifier) {
                             slots,
                             live,
                             back = { route = Route.List },
+                            edit = { route = Route.Edit(e.id) },
                             delete = {
                                 route = Route.List
                                 delete(e)
                             },
                         )
                     } ?: LaunchedEffect(r) { route = Route.List }
+            is Route.Edit ->
+                entries
+                    .firstOrNull { it.id == r.id }
+                    ?.let { e -> EditorScreen(source, e, back = { route = Route.Detail(e.id) }) }
+                    ?: LaunchedEffect(r) { route = Route.List }
             is Route.Conflict ->
                 slots.getOrNull(r.slot.index)?.let { v ->
                     (v.status as? SlotStatus.ChangedOutside)?.let { s ->
