@@ -56,6 +56,7 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 ## Working here
 
 - Commits: `area: subject` in lowercase (`protocol:`, `app:`, `ble:`, `docs:`).
+- Every commit builds: a `:protocol` change that breaks `app/` callers (a new `UserCommand` case) lands with them.
 - Parallel agents each get a worktree beside the repo (`git worktree add ../jetcommand-wt-<task> -b agent/<task>`); give agents disjoint files, and never two agents on the same screen.
 - `git stash` is shared by all worktrees, so agents in one checkpoint with WIP commits, never a stash.
 - Before spawning parallel agents, commit the interface between their parts on main; both worktrees branch from that commit.
