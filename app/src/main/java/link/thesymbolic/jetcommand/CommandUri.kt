@@ -1,6 +1,6 @@
 package link.thesymbolic.jetcommand
 
-import link.thesymbolic.jetcommand.protocol.Mode
+import link.thesymbolic.jetcommand.protocol.SettableMode
 import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.UserCommand
 
@@ -31,7 +31,7 @@ object CommandUri {
         val (kind, arg) = parts
         val n = arg.toIntOrNull()
         return when (kind) {
-            "mode" -> Mode.entries.find { it.name == arg }?.let(UserCommand::SetMode)
+            "mode" -> SettableMode.entries.find { it.name == arg }?.let(UserCommand::SetMode)
             "temp" -> n?.let(UserCommand::SetTemperature)
             "fan" -> n?.let(UserCommand::SetFan)
             "program" -> n?.let { Slot.of(it - 1) }?.let(UserCommand::StartProgram)

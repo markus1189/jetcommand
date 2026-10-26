@@ -2,7 +2,7 @@ package link.thesymbolic.jetcommand.protocol
 
 /** What a user asks of the unit, from any surface; [plan] decides whether and how it runs. */
 sealed interface UserCommand {
-    data class SetMode(val mode: Mode) : UserCommand
+    data class SetMode(val mode: SettableMode) : UserCommand
 
     data class SetTemperature(val halfC: Int) : UserCommand
 
@@ -131,7 +131,7 @@ private fun rangeProblem(command: UserCommand): String? =
 fun describe(command: UserCommand): String =
     when (command) {
         is UserCommand.SetMode ->
-            if (command.mode == Mode.STANDBY) "off" else "mode ${command.mode.label}"
+            if (command.mode == SettableMode.STANDBY) "off" else "mode ${command.mode.mode.label}"
         is UserCommand.SetTemperature -> "temp ${formatTemp(command.halfC)}"
         is UserCommand.SetFan -> "fan ${fanPercent(command.step)}%"
         is UserCommand.StartProgram -> "start program ${command.slot.number}"

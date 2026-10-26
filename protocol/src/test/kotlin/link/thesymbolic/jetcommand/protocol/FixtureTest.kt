@@ -164,7 +164,12 @@ class FixtureTest {
     private fun encode(fn: String, args: JsonArray) =
         when (fn) {
             in oneArgEncoders -> hexList(listOf(oneArgEncoders.getValue(fn)(args[0].num)))
-            "setMode" -> hexList(listOf(Command.setMode(checkNotNull(Mode.of(args[0].num)))))
+            "setMode" ->
+                hexList(
+                    listOf(
+                        Command.setMode(requireNotNull(Mode.of(args[0].num)?.let(SettableMode::of)))
+                    )
+                )
             "setClock" -> hexList(listOf(Command.setClock(args[0].num, args[1].num)))
             "query" -> hexList(listOf(Command.query(args[0].num, args[1].num)))
             "nameFrame" -> hexList(listOf(Command.nameFrame(args[0].num, args[1].str)))

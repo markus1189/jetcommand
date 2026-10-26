@@ -192,7 +192,7 @@ class PlanTest {
     fun `every plan is labelled with describe and only shortcuts report`() = runTest {
         val commands =
             listOf(
-                UserCommand.SetMode(Mode.HEAT),
+                UserCommand.SetMode(SettableMode.HEAT),
                 UserCommand.SetTemperature(42),
                 fan,
                 UserCommand.StartProgram(Slot.all.last()),
@@ -227,9 +227,9 @@ class PlanTest {
     fun `describe names each command`() {
         val expected =
             listOf(
-                UserCommand.SetMode(Mode.STANDBY) to "off",
-                UserCommand.SetMode(Mode.HEAT) to "mode Heat",
-                UserCommand.SetMode(Mode.EXT_HEAT) to "mode Ext. heat",
+                UserCommand.SetMode(SettableMode.STANDBY) to "off",
+                UserCommand.SetMode(SettableMode.HEAT) to "mode Heat",
+                UserCommand.SetMode(SettableMode.EXT_HEAT) to "mode Ext. heat",
                 UserCommand.SetTemperature(43) to "temp 21.5°C",
                 UserCommand.SetTemperature(42) to "temp 21°C",
                 UserCommand.SetFan(9) to "fan 50%",

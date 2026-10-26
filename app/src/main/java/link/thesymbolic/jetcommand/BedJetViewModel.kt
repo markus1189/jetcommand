@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import link.thesymbolic.jetcommand.protocol.CommandOrigin
 import link.thesymbolic.jetcommand.protocol.LogLevel
-import link.thesymbolic.jetcommand.protocol.Mode
+import link.thesymbolic.jetcommand.protocol.SettableMode
 import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.UserCommand
 
@@ -63,7 +63,7 @@ class BedJetViewModel(app: Application) : AndroidViewModel(app) {
 
     fun autoConnectOnce() = controller.autoConnectOnce()
 
-    fun setMode(mode: Mode) = execute(UserCommand.SetMode(mode))
+    fun setMode(mode: SettableMode) = execute(UserCommand.SetMode(mode))
 
     fun setTemperature(halfC: Int) = execute(UserCommand.SetTemperature(halfC))
 

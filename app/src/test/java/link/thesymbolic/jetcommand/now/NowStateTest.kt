@@ -21,6 +21,7 @@ import link.thesymbolic.jetcommand.hoursMinutes
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Program
+import link.thesymbolic.jetcommand.protocol.SettableMode
 import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.SlotState
 import link.thesymbolic.jetcommand.protocol.SlotStatus
@@ -275,7 +276,7 @@ class NowStateTest {
     fun `small helpers`() {
         assertEquals("Ext", shortLabel(Mode.EXT_HEAT))
         assertEquals("Cool", shortLabel(Mode.COOL))
-        assertEquals(Mode.HEAT, undoTarget(Mode.HEAT))
+        assertEquals(SettableMode.HEAT, undoTarget(Mode.HEAT))
         assertNull(undoTarget(Mode.WAIT))
         listOf(0 to "0:00", 59 to "0:00", 3_599 to "0:59", 3_600 to "1:00", 36_000 to "10:00")
             .forEach { (s, text) -> assertEquals(text, hoursMinutes(s)) }

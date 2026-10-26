@@ -94,17 +94,20 @@ object Button {
             (MEMORY_1..MEMORY_3) +
             (SAVE_MEMORY_1..SAVE_MEMORY_3) +
             Slot.all.flatMap { listOf(startProgram(it), deleteProgram(it)) }
+}
 
-    fun forMode(mode: Mode): Int? =
-        when (mode) {
-            Mode.STANDBY -> OFF
-            Mode.HEAT -> HEAT
-            Mode.TURBO -> TURBO
-            Mode.EXT_HEAT -> EXT_HEAT
-            Mode.COOL -> COOL
-            Mode.DRY -> DRY
-            Mode.WAIT -> null
-        }
+/** The modes a button sets; WAIT exists only as a program step. Names match [Mode]'s. */
+enum class SettableMode(val mode: Mode, val button: Int) {
+    STANDBY(Mode.STANDBY, Button.OFF),
+    HEAT(Mode.HEAT, Button.HEAT),
+    TURBO(Mode.TURBO, Button.TURBO),
+    EXT_HEAT(Mode.EXT_HEAT, Button.EXT_HEAT),
+    COOL(Mode.COOL, Button.COOL),
+    DRY(Mode.DRY, Button.DRY);
+
+    companion object {
+        fun of(mode: Mode): SettableMode? = entries.find { it.mode == mode }
+    }
 }
 
 object Notification {
@@ -363,8 +366,7 @@ object Command {
         return bytesOf(0x01, code)
     }
 
-    fun setMode(mode: Mode) =
-        button(requireNotNull(Button.forMode(mode)) { "Mode $mode can't be set directly" })
+    fun setMode(mode: SettableMode) = button(mode.button)
 
     fun setRuntime(minutes: Int): ByteArray {
         val m = minutes.clamp(0, 255 * 60 + 59)

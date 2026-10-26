@@ -8,11 +8,11 @@ import link.thesymbolic.jetcommand.hhmm
 import link.thesymbolic.jetcommand.hoursMinutes
 import link.thesymbolic.jetcommand.linkText
 import link.thesymbolic.jetcommand.prettyName
-import link.thesymbolic.jetcommand.protocol.Button
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.RUNTIME_MINUTES
+import link.thesymbolic.jetcommand.protocol.SettableMode
 import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.SlotView
 import link.thesymbolic.jetcommand.protocol.StartedSlot
@@ -82,7 +82,7 @@ sealed interface NowEvent {
     /** Off, with an undo offered. */
     data object TurnOff : NowEvent
 
-    data class SetMode(val mode: Mode) : NowEvent
+    data class SetMode(val mode: SettableMode) : NowEvent
 
     data class SetTemperature(val halfC: Int) : NowEvent
 
@@ -299,9 +299,16 @@ fun fanField(st: Status, preview: Int?, sent: Int?): FieldView {
 
 private const val FAN_STEPS = 20
 
-val MODE_BUTTONS = listOf(Mode.COOL, Mode.DRY, Mode.EXT_HEAT, Mode.HEAT, Mode.TURBO)
+val MODE_BUTTONS =
+    listOf(
+        SettableMode.COOL,
+        SettableMode.DRY,
+        SettableMode.EXT_HEAT,
+        SettableMode.HEAT,
+        SettableMode.TURBO,
+    )
 
 fun shortLabel(mode: Mode) = if (mode == Mode.EXT_HEAT) "Ext" else mode.label
 
 /** The mode an undo of Off returns to; WAIT can't be set by a button, programs aren't restored. */
-fun undoTarget(previous: Mode): Mode? = previous.takeIf { Button.forMode(it) != null }
+fun undoTarget(previous: Mode): SettableMode? = SettableMode.of(previous)

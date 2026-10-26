@@ -89,6 +89,7 @@ import link.thesymbolic.jetcommand.now.tempField
 import link.thesymbolic.jetcommand.now.undoTarget
 import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.Program
+import link.thesymbolic.jetcommand.protocol.SettableMode
 import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.Status
 import link.thesymbolic.jetcommand.protocol.Step
@@ -174,11 +175,11 @@ private fun rememberStatusAge(update: Any?): Long {
 
 private fun turnOffWithUndo(
     previous: Mode,
-    setMode: (Mode) -> Unit,
+    setMode: (SettableMode) -> Unit,
     snackbar: SnackbarHostState,
     scope: CoroutineScope,
 ) {
-    setMode(Mode.STANDBY)
+    setMode(SettableMode.STANDBY)
     scope.launch {
         // The snackbar's Short is ~4 s and Long ~10 s; time it out ourselves for ~5 s.
         val result =
@@ -306,11 +307,11 @@ private fun rememberPending(): Pending {
 }
 
 @Composable
-private fun ModeRow(mode: Mode, setMode: (Mode) -> Unit) {
+private fun ModeRow(mode: Mode, setMode: (SettableMode) -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         MODE_BUTTONS.forEach { m ->
-            val c = modeColor(m)
-            val on = m == mode
+            val c = modeColor(m.mode)
+            val on = m.mode == mode
             Box(
                 Modifier.weight(1f)
                     .height(48.dp)
@@ -325,7 +326,7 @@ private fun ModeRow(mode: Mode, setMode: (Mode) -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    shortLabel(m),
+                    shortLabel(m.mode),
                     color = if (on) OnModeFill else c,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,

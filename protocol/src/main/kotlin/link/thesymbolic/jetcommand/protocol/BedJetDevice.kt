@@ -63,7 +63,7 @@ class BedJetDevice(
 
     suspend fun press(code: Int) = send(Command.button(code))
 
-    suspend fun setMode(mode: Mode) = send(Command.setMode(mode))
+    suspend fun setMode(mode: SettableMode) = send(Command.setMode(mode))
 
     suspend fun setTemperature(halfC: Int) = send(Command.setTemperature(halfC))
 

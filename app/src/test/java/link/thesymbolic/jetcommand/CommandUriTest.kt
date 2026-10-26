@@ -5,7 +5,7 @@ import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import link.thesymbolic.jetcommand.protocol.Mode
+import link.thesymbolic.jetcommand.protocol.SettableMode
 import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.UserCommand
 import org.w3c.dom.Element
@@ -14,7 +14,7 @@ class CommandUriTest {
     @Test
     fun everyCommandRoundTrips() {
         val commands =
-            Mode.entries.map(UserCommand::SetMode) +
+            SettableMode.entries.map(UserCommand::SetMode) +
                 Slot.all.map(UserCommand::StartProgram) +
                 listOf(
                     UserCommand.SetTemperature(0),
@@ -46,6 +46,8 @@ class CommandUriTest {
                 "jetcommand:program/4",
                 "jetcommand:mode/standby",
                 "jetcommand:mode/WARP",
+                // A program step only; no button sets it.
+                "jetcommand:mode/WAIT",
                 "jetcommand:program/1/2",
                 "jetcommand:launch/1",
             )
@@ -71,7 +73,7 @@ class CommandUriTest {
                 }
         assertEquals(
             mapOf(
-                "off" to UserCommand.SetMode(Mode.STANDBY),
+                "off" to UserCommand.SetMode(SettableMode.STANDBY),
                 "program1" to UserCommand.StartProgram(Slot.of(0)!!),
                 "program2" to UserCommand.StartProgram(Slot.of(1)!!),
                 "program3" to UserCommand.StartProgram(Slot.of(2)!!),

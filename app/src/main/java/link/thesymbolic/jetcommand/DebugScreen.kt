@@ -48,9 +48,9 @@ import link.thesymbolic.jetcommand.protocol.Button as Btn
 import link.thesymbolic.jetcommand.protocol.Characteristic
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
-import link.thesymbolic.jetcommand.protocol.Mode
 import link.thesymbolic.jetcommand.protocol.NightEvent
 import link.thesymbolic.jetcommand.protocol.Notification
+import link.thesymbolic.jetcommand.protocol.SettableMode
 import link.thesymbolic.jetcommand.protocol.SimTransport
 import link.thesymbolic.jetcommand.protocol.Slot
 import link.thesymbolic.jetcommand.protocol.Status
@@ -228,9 +228,8 @@ private fun ColumnScope.Commands(
 ) {
     Text("Mode", fontWeight = FontWeight.Bold)
     Buttons {
-        listOf(Mode.STANDBY, Mode.HEAT, Mode.COOL, Mode.DRY, Mode.TURBO, Mode.EXT_HEAT).forEach { m
-            ->
-            B(m.label) { act("mode ${m.label}") { it.device.setMode(m) } }
+        SettableMode.entries.forEach { m ->
+            B(m.mode.label) { act("mode ${m.mode.label}") { it.device.setMode(m) } }
         }
     }
     Buttons {
