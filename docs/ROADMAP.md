@@ -75,7 +75,10 @@ Protocol: `BEDJET_PROTOCOL.md:99-198`. Design canvas: https://claude.ai/artifact
 - The library's first read on a real unit is untested: expect its slots as "Not in your library" until kept.
 - Background service costs ≈ 2 mAh/h (30 min measured on the phone, before change-only notification posts); the user charges the phone overnight, so night battery is not tracked.
 - Status changes that happen while the link is down are stamped when the phone sees them after the reconnect.
-- `BedJetLink.replySource` is a plain var and the link doesn't expose the MTU; the debug screen works around both.
+- The link doesn't expose the MTU; the debug screen works around it.
+- A GATT op that times out now drops the link (the next op could get its late answer); on the phone the unit's 5 s stalls, if any, become reconnects. Untested on the phone.
+- Room databases have no migration test (needs `room-testing` plus an instrumented or Robolectric run, which `check` doesn't have).
+- `BedJetController`'s policy (switching, WhenReady, give-up) runs only on the emulator; extracting a JVM-testable core is deferred until the controller grows.
 - Validation/verify errors carry only a message, not the JS read-back details.
 - Optional spike: a second emulator as a BLE peripheral hosting `BedJetSim` via `BluetoothGattServer`, to test `GattTransport` without hardware (assumes emulators share netsim; unchecked).
 
