@@ -22,7 +22,7 @@ class PlanTest {
         )
     private val away = ready.copy(connected = false, link = LinkState.Disconnected())
 
-    private val fan = UserCommand.SetFan(9)
+    private val fan = UserCommand.SetFan(FanStep.of(9)!!)
     private val press = UserCommand.Press(Key.FAN_UP)
 
     private fun run(command: UserCommand, connect: Boolean, timeout: Long?, report: Boolean) =
@@ -30,6 +30,12 @@ class PlanTest {
 
     private fun rejected(command: UserCommand, reason: String, report: Boolean) =
         Plan.Rejected(describe(command), reason, report)
+
+    private fun rejectedRange(request: CommandRequest, reason: String, report: Boolean): Plan {
+        assertIs<CommandRequest.OutOfRange>(request)
+        assertEquals(reason, request.reason)
+        return Plan.Rejected(request.label, reason, report)
+    }
 
     @Test
     fun `app and notification fire at once while connected, failures go to the log`() {
@@ -117,13 +123,17 @@ class PlanTest {
     @Test
     fun `fan steps 0 to 19 pass, one beyond either end is rejected`() {
         for (origin in CommandOrigin.entries) {
-            assertIs<Plan.Run>(plan(UserCommand.SetFan(0), origin, ready))
-            assertIs<Plan.Run>(plan(UserCommand.SetFan(19), origin, ready))
+            assertIs<Plan.Run>(plan(UserCommand.SetFan(FanStep.of(0)!!), origin, ready))
+            assertIs<Plan.Run>(plan(UserCommand.SetFan(FanStep.of(19)!!), origin, ready))
             for (step in listOf(-1, 20)) {
-                val command = UserCommand.SetFan(step)
+                val request = CommandRequest.fan(step)
                 assertEquals(
-                    rejected(command, "Fan must be 5–100 %.", origin == CommandOrigin.SHORTCUT),
-                    plan(command, origin, ready),
+                    rejectedRange(
+                        request,
+                        "Fan must be 5–100 %.",
+                        origin == CommandOrigin.SHORTCUT,
+                    ),
+                    plan(request, origin, ready),
                     "$origin $step",
                 )
             }
@@ -133,17 +143,17 @@ class PlanTest {
     @Test
     fun `runtimes 1 min to 12 h pass, one minute beyond either end is rejected`() {
         for (origin in CommandOrigin.entries) {
-            assertIs<Plan.Run>(plan(UserCommand.SetRuntime(1), origin, ready))
-            assertIs<Plan.Run>(plan(UserCommand.SetRuntime(720), origin, ready))
+            assertIs<Plan.Run>(plan(UserCommand.SetRuntime(AutoOff.of(1)!!), origin, ready))
+            assertIs<Plan.Run>(plan(UserCommand.SetRuntime(AutoOff.of(720)!!), origin, ready))
             for (minutes in listOf(0, 721)) {
-                val command = UserCommand.SetRuntime(minutes)
+                val request = CommandRequest.runtime(minutes)
                 assertEquals(
-                    rejected(
-                        command,
+                    rejectedRange(
+                        request,
                         "Auto off must be 1 min to 12 h.",
                         origin == CommandOrigin.SHORTCUT,
                     ),
-                    plan(command, origin, ready),
+                    plan(request, origin, ready),
                     "$origin $minutes",
                 )
             }
@@ -153,17 +163,17 @@ class PlanTest {
     @Test
     fun `temperatures 19 to 43 C pass, one half degree beyond either end is rejected`() {
         for (origin in CommandOrigin.entries) {
-            assertIs<Plan.Run>(plan(UserCommand.SetTemperature(38), origin, ready))
-            assertIs<Plan.Run>(plan(UserCommand.SetTemperature(86), origin, ready))
+            assertIs<Plan.Run>(plan(UserCommand.SetTemperature(TargetTemp.of(38)!!), origin, ready))
+            assertIs<Plan.Run>(plan(UserCommand.SetTemperature(TargetTemp.of(86)!!), origin, ready))
             for (halfC in listOf(37, 87)) {
-                val command = UserCommand.SetTemperature(halfC)
+                val request = CommandRequest.temperature(halfC)
                 assertEquals(
-                    rejected(
-                        command,
+                    rejectedRange(
+                        request,
                         "Temperature must be 19–43°C.",
                         origin == CommandOrigin.SHORTCUT,
                     ),
-                    plan(command, origin, ready),
+                    plan(request, origin, ready),
                     "$origin $halfC",
                 )
             }
@@ -172,9 +182,9 @@ class PlanTest {
 
     @Test
     fun `an out-of-range value is rejected before the connection is looked at`() {
-        val tooHot = UserCommand.SetTemperature(100)
+        val tooHot = CommandRequest.temperature(100)
         assertEquals(
-            rejected(tooHot, "Temperature must be 19–43°C.", false),
+            rejectedRange(tooHot, "Temperature must be 19–43°C.", false),
             plan(tooHot, CommandOrigin.APP, away),
         )
     }
@@ -184,7 +194,7 @@ class PlanTest {
         val commands =
             listOf(
                 UserCommand.SetMode(SettableMode.HEAT),
-                UserCommand.SetTemperature(42),
+                UserCommand.SetTemperature(TargetTemp.of(42)!!),
                 fan,
                 UserCommand.StartProgram(Slot.all.last()),
                 press,
@@ -221,13 +231,13 @@ class PlanTest {
                 UserCommand.SetMode(SettableMode.STANDBY) to "off",
                 UserCommand.SetMode(SettableMode.HEAT) to "mode Heat",
                 UserCommand.SetMode(SettableMode.EXT_HEAT) to "mode Ext. heat",
-                UserCommand.SetTemperature(43) to "temp 21.5°C",
-                UserCommand.SetTemperature(42) to "temp 21°C",
-                UserCommand.SetFan(9) to "fan 50%",
+                UserCommand.SetTemperature(TargetTemp.of(43)!!) to "temp 21.5°C",
+                UserCommand.SetTemperature(TargetTemp.of(42)!!) to "temp 21°C",
+                UserCommand.SetFan(FanStep.of(9)!!) to "fan 50%",
                 UserCommand.StartProgram(Slot.of(1)!!) to "start program 2",
                 UserCommand.Press(Key.FAN_UP) to "press fan up",
                 UserCommand.Press(Key.TEMP_DOWN_C) to "press temp down",
-                UserCommand.SetRuntime(65) to "auto off in 1:05",
+                UserCommand.SetRuntime(AutoOff.of(65)!!) to "auto off in 1:05",
             )
         for ((command, name) in expected) assertEquals(name, describe(command))
     }

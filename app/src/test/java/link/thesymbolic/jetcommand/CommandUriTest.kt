@@ -4,10 +4,15 @@ import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNull
+import link.thesymbolic.jetcommand.protocol.AutoOff
+import link.thesymbolic.jetcommand.protocol.CommandRequest
+import link.thesymbolic.jetcommand.protocol.FanStep
 import link.thesymbolic.jetcommand.protocol.Key
 import link.thesymbolic.jetcommand.protocol.SettableMode
 import link.thesymbolic.jetcommand.protocol.Slot
+import link.thesymbolic.jetcommand.protocol.TargetTemp
 import link.thesymbolic.jetcommand.protocol.UserCommand
 import org.w3c.dom.Element
 
@@ -19,14 +24,23 @@ class CommandUriTest {
                 Key.entries.map(UserCommand::Press) +
                 Slot.all.map(UserCommand::StartProgram) +
                 listOf(
-                    UserCommand.SetTemperature(0),
-                    UserCommand.SetTemperature(74),
-                    UserCommand.SetFan(0),
-                    UserCommand.SetFan(19),
-                    UserCommand.SetRuntime(1),
-                    UserCommand.SetRuntime(720),
+                    UserCommand.SetTemperature(TargetTemp.of(TargetTemp.RANGE.first)!!),
+                    UserCommand.SetTemperature(TargetTemp.of(TargetTemp.RANGE.last)!!),
+                    UserCommand.SetFan(FanStep.of(0)!!),
+                    UserCommand.SetFan(FanStep.of(19)!!),
+                    UserCommand.SetRuntime(AutoOff.of(1)!!),
+                    UserCommand.SetRuntime(AutoOff.of(720)!!),
                 )
-        commands.forEach { assertEquals(it, CommandUri.parse(CommandUri.of(it)), it.toString()) }
+        commands.forEach {
+            assertEquals(CommandRequest.Valid(it), CommandUri.parse(CommandUri.of(it)), "$it")
+        }
+    }
+
+    @Test
+    fun outOfRangeNumbersParseSoPlanCanNameTheRange() {
+        listOf("jetcommand:temp/0", "jetcommand:fan/20", "jetcommand:runtime/0").forEach {
+            assertIs<CommandRequest.OutOfRange>(CommandUri.parse(it), it)
+        }
     }
 
     @Test
@@ -76,11 +90,12 @@ class CommandUriTest {
                 }
         assertEquals(
             mapOf(
-                "off" to UserCommand.SetMode(SettableMode.STANDBY),
-                "program1" to UserCommand.StartProgram(Slot.of(0)!!),
-                "program2" to UserCommand.StartProgram(Slot.of(1)!!),
-                "program3" to UserCommand.StartProgram(Slot.of(2)!!),
-            ),
+                    "off" to UserCommand.SetMode(SettableMode.STANDBY),
+                    "program1" to UserCommand.StartProgram(Slot.of(0)!!),
+                    "program2" to UserCommand.StartProgram(Slot.of(1)!!),
+                    "program3" to UserCommand.StartProgram(Slot.of(2)!!),
+                )
+                .mapValues { CommandRequest.Valid(it.value) },
             intents,
         )
     }

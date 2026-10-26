@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import link.thesymbolic.jetcommand.protocol.CommandOrigin
+import link.thesymbolic.jetcommand.protocol.CommandRequest
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.SettableMode
 import link.thesymbolic.jetcommand.protocol.Slot
@@ -65,11 +66,11 @@ class BedJetViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setMode(mode: SettableMode) = execute(UserCommand.SetMode(mode))
 
-    fun setTemperature(halfC: Int) = execute(UserCommand.SetTemperature(halfC))
+    fun setTemperature(halfC: Int) = request(CommandRequest.temperature(halfC))
 
-    fun setFan(step: Int) = execute(UserCommand.SetFan(step))
+    fun setFan(step: Int) = request(CommandRequest.fan(step))
 
-    fun setRuntime(minutes: Int) = execute(UserCommand.SetRuntime(minutes))
+    fun setRuntime(minutes: Int) = request(CommandRequest.runtime(minutes))
 
     fun loadPrograms() = act("programs") { _programs.value = it.device.programNames() }
 
@@ -82,7 +83,9 @@ class BedJetViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startProgram(slot: Slot) = execute(UserCommand.StartProgram(slot))
 
-    private fun execute(command: UserCommand) = controller.execute(command, CommandOrigin.APP)
+    private fun execute(command: UserCommand) = request(CommandRequest.Valid(command))
+
+    private fun request(request: CommandRequest) = controller.execute(request, CommandOrigin.APP)
 
     fun hasConnectPermission() = controller.hasConnectPermission()
 

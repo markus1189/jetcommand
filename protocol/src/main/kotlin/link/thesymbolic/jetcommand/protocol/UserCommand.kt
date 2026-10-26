@@ -4,17 +4,82 @@ package link.thesymbolic.jetcommand.protocol
 sealed interface UserCommand {
     data class SetMode(val mode: SettableMode) : UserCommand
 
-    data class SetTemperature(val halfC: Int) : UserCommand
+    data class SetTemperature(val target: TargetTemp) : UserCommand
 
-    data class SetFan(val step: Int) : UserCommand
+    data class SetFan(val fan: FanStep) : UserCommand
 
     data class StartProgram(val slot: Slot) : UserCommand
 
-    /** Auto off in [minutes]; the unit clamps to its own ceiling for the mode, temp and fan. */
-    data class SetRuntime(val minutes: Int) : UserCommand
+    /** The unit clamps [autoOff] to its own ceiling for the mode, temp and fan. */
+    data class SetRuntime(val autoOff: AutoOff) : UserCommand
 
     /** Relative (Temp +, Fan +): only from surfaces that show the state it changes. */
     data class Press(val key: Key) : UserCommand
+}
+
+/** One of the unit's 20 fan steps, 5–100 %. */
+@JvmInline
+value class FanStep private constructor(val step: Int) {
+    companion object {
+        val RANGE = 0..19
+
+        fun of(step: Int) = if (step in RANGE) FanStep(step) else null
+    }
+}
+
+/**
+ * A target in half °C within any mode's range, since the current mode is unknown where commands are
+ * made; the unit clamps to the mode's own range.
+ */
+@JvmInline
+value class TargetTemp private constructor(val halfC: Int) {
+    companion object {
+        val RANGE = TEMP_RANGES.values.minOf { it.min }..TEMP_RANGES.values.maxOf { it.max }
+
+        fun of(halfC: Int) = if (halfC in RANGE) TargetTemp(halfC) else null
+    }
+}
+
+/** Auto off in [minutes] from now. */
+@JvmInline
+value class AutoOff private constructor(val minutes: Int) {
+    companion object {
+        fun of(minutes: Int) = if (minutes in RUNTIME_MINUTES) AutoOff(minutes) else null
+    }
+}
+
+/** A command from a source that carries raw numbers (intent data, sliders). */
+sealed interface CommandRequest {
+    data class Valid(val command: UserCommand) : CommandRequest
+
+    /** A number outside its type; [plan] rejects it with [reason], phrased for the user. */
+    data class OutOfRange(val label: String, val reason: String) : CommandRequest
+
+    companion object {
+        fun fan(step: Int): CommandRequest =
+            FanStep.of(step)?.let { Valid(UserCommand.SetFan(it)) }
+                ?: OutOfRange(
+                    fanLabel(step),
+                    "Fan must be ${fanPercent(FanStep.RANGE.first)}–" +
+                        "${fanPercent(FanStep.RANGE.last)} %.",
+                )
+
+        fun temperature(halfC: Int): CommandRequest =
+            TargetTemp.of(halfC)?.let { Valid(UserCommand.SetTemperature(it)) }
+                ?: OutOfRange(
+                    tempLabel(halfC),
+                    "Temperature must be " +
+                        "${formatTemp(TargetTemp.RANGE.first, withUnit = false)}–" +
+                        "${formatTemp(TargetTemp.RANGE.last)}.",
+                )
+
+        fun runtime(minutes: Int): CommandRequest =
+            AutoOff.of(minutes)?.let { Valid(UserCommand.SetRuntime(it)) }
+                ?: OutOfRange(
+                    runtimeLabel(minutes),
+                    "Auto off must be 1 min to ${RUNTIME_MINUTES.last / 60} h.",
+                )
+    }
 }
 
 enum class CommandOrigin {
@@ -62,14 +127,8 @@ sealed interface Plan {
  */
 const val READY_TIMEOUT_MS = 45_000L
 
-// The unit's 20 fan steps, 5–100 %; Codec.kt clamps every fan value to this.
-private val FAN_STEPS = 0..19
-
-// Overall, since the current mode is unknown here; the unit clamps to the mode's own range.
 // The protocol's 12 h step limit; turbo's minute is the shortest the official app sets.
 val RUNTIME_MINUTES = 1..12 * 60
-
-private val TEMP_LIMITS = TEMP_RANGES.values.minOf { it.min }..TEMP_RANGES.values.maxOf { it.max }
 
 /**
  * Pure: the whole policy for [command] from [origin]; the controller only interprets the result.
@@ -90,9 +149,6 @@ fun plan(command: UserCommand, origin: CommandOrigin, snapshot: CommandSnapshot)
             report = unseen,
         )
 
-    rangeProblem(command)?.let {
-        return reject(it)
-    }
     return when {
         usable(snapshot, unseen) ->
             if (unseen && command is UserCommand.Press) reject(PRESS) else run(false)
@@ -104,41 +160,38 @@ fun plan(command: UserCommand, origin: CommandOrigin, snapshot: CommandSnapshot)
     }
 }
 
+/** [plan] for a request: out-of-range numbers are rejected before the connection is looked at. */
+fun plan(request: CommandRequest, origin: CommandOrigin, snapshot: CommandSnapshot): Plan =
+    when (request) {
+        is CommandRequest.Valid -> plan(request.command, origin, snapshot)
+        is CommandRequest.OutOfRange ->
+            Plan.Rejected(request.label, request.reason, report = origin == CommandOrigin.SHORTCUT)
+    }
+
 // Unseen commands mean the real unit, so the demo doesn't count as connected for them.
 private fun usable(snapshot: CommandSnapshot, unseen: Boolean) =
     snapshot.connected && !(unseen && snapshot.demo)
 
 private const val PRESS = "Shortcuts can't step up or down; set a temperature or fan level."
 
-private fun rangeProblem(command: UserCommand): String? =
-    when (command) {
-        is UserCommand.SetFan ->
-            if (command.step in FAN_STEPS) null
-            else "Fan must be ${fanPercent(FAN_STEPS.first)}–${fanPercent(FAN_STEPS.last)} %."
-        is UserCommand.SetTemperature ->
-            if (command.halfC in TEMP_LIMITS) null
-            else
-                "Temperature must be ${formatTemp(TEMP_LIMITS.first, withUnit = false)}–" +
-                    "${formatTemp(TEMP_LIMITS.last)}."
-        is UserCommand.SetRuntime ->
-            if (command.minutes in RUNTIME_MINUTES) null
-            else "Auto off must be 1 min to ${RUNTIME_MINUTES.last / 60} h."
-        else -> null
-    }
-
 /** The log and feedback name of [command], e.g. "start program 2". */
 fun describe(command: UserCommand): String =
     when (command) {
         is UserCommand.SetMode ->
             if (command.mode == SettableMode.STANDBY) "off" else "mode ${command.mode.mode.label}"
-        is UserCommand.SetTemperature -> "temp ${formatTemp(command.halfC)}"
-        is UserCommand.SetFan -> "fan ${fanPercent(command.step)}%"
+        is UserCommand.SetTemperature -> tempLabel(command.target.halfC)
+        is UserCommand.SetFan -> fanLabel(command.fan.step)
         is UserCommand.StartProgram -> "start program ${command.slot.number}"
         is UserCommand.Press -> "press ${buttonName(command.key.button)}"
-        is UserCommand.SetRuntime ->
-            "auto off in %d:%02d"
-                .format(java.util.Locale.ROOT, command.minutes / 60, command.minutes % 60)
+        is UserCommand.SetRuntime -> runtimeLabel(command.autoOff.minutes)
     }
+
+private fun tempLabel(halfC: Int) = "temp ${formatTemp(halfC)}"
+
+private fun fanLabel(step: Int) = "fan ${fanPercent(step)}%"
+
+private fun runtimeLabel(minutes: Int) =
+    "auto off in %d:%02d".format(java.util.Locale.ROOT, minutes / 60, minutes % 60)
 
 // The night log's names, through its public frame describer; codes it doesn't know get their hex.
 private fun buttonName(code: Int): String =

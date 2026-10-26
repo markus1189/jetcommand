@@ -43,6 +43,7 @@ import link.thesymbolic.jetcommand.protocol.BedJetLink
 import link.thesymbolic.jetcommand.protocol.BedJetSim
 import link.thesymbolic.jetcommand.protocol.BedJetTransport
 import link.thesymbolic.jetcommand.protocol.CommandOrigin
+import link.thesymbolic.jetcommand.protocol.CommandRequest
 import link.thesymbolic.jetcommand.protocol.CommandSnapshot
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
@@ -310,7 +311,7 @@ class BedJetController(
      * The one way commands reach the unit: [plan] decides, this interprets. From [origin]s other
      * than APP it may connect to the remembered device first, so call it while in the foreground.
      */
-    fun execute(command: UserCommand, origin: CommandOrigin) {
+    fun execute(request: CommandRequest, origin: CommandOrigin) {
         val snapshot =
             CommandSnapshot(
                 connected = _stack.value != null,
@@ -320,7 +321,7 @@ class BedJetController(
                 remembered = _remembered.value != null,
                 hasConnectPermission = hasConnectPermission(),
             )
-        when (val p = plan(command, origin, snapshot)) {
+        when (val p = plan(request, origin, snapshot)) {
             is Plan.Rejected -> {
                 log(LogLevel.WARN, "${p.label}: ${p.reason}")
                 if (p.report) report(p.label, p.reason)
@@ -372,14 +373,14 @@ class BedJetController(
         val device = stack.device
         when (command) {
             is UserCommand.SetMode -> device.setMode(command.mode)
-            is UserCommand.SetTemperature -> device.setTemperature(command.halfC)
-            is UserCommand.SetFan -> device.setFan(command.step)
+            is UserCommand.SetTemperature -> device.setTemperature(command.target.halfC)
+            is UserCommand.SetFan -> device.setFan(command.fan.step)
             is UserCommand.StartProgram -> {
                 device.startProgram(command.slot)
                 library.noteStarted(idOf(stack.source), command.slot)
             }
             is UserCommand.Press -> device.press(command.key)
-            is UserCommand.SetRuntime -> device.setRuntime(command.minutes)
+            is UserCommand.SetRuntime -> device.setRuntime(command.autoOff.minutes)
         }
     }
 
