@@ -84,8 +84,9 @@ class JetCommandApp : Application() {
                 else store.events(exits.first().at, exits.last().at + 1)
             unrecorded(exits, recorded).forEach { store.append(it) }
             store.append(NightEvent.process(startedAt, ProcessEvent.Started))
+            // Only once they are stored: a process dying before would skip them for good.
+            exits.lastOrNull()?.let { prefs.edit { putLong(KEY_EXIT_SEEN, it.at) } }
         }
-        exits.lastOrNull()?.let { prefs.edit { putLong(KEY_EXIT_SEEN, it.at) } }
     }
 
     override fun onTrimMemory(level: Int) {
