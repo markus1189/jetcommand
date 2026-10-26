@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import link.thesymbolic.jetcommand.protocol.DeviceId
 import link.thesymbolic.jetcommand.protocol.LibraryEntry
+import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.ProgramId
 import link.thesymbolic.jetcommand.protocol.ProgramRevision
 import link.thesymbolic.jetcommand.protocol.Resolution
@@ -41,4 +42,7 @@ interface ProgramsSource {
     fun restore(programId: ProgramId)
 
     fun delete(programId: ProgramId)
+
+    /** Saves an edited [program] as [programId]'s new current revision. */
+    suspend fun saveEdit(programId: ProgramId, program: Program): ProgramRevision
 }

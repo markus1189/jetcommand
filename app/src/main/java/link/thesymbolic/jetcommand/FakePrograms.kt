@@ -251,4 +251,10 @@ class FakePrograms : ProgramsSource {
     override fun restore(programId: ProgramId) = note("restore $programId")
 
     override fun delete(programId: ProgramId) = note("delete $programId")
+
+    override suspend fun saveEdit(programId: ProgramId, program: Program): ProgramRevision {
+        note("save $programId")
+        val rev = revs[programId.value].orEmpty().maxOfOrNull { it.rev } ?: 0
+        return ProgramRevision(programId, rev + 1, program, System.currentTimeMillis(), Origin.EDIT)
+    }
 }

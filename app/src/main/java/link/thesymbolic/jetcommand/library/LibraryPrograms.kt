@@ -20,6 +20,7 @@ import link.thesymbolic.jetcommand.protocol.ErrorCode
 import link.thesymbolic.jetcommand.protocol.LibraryEntry
 import link.thesymbolic.jetcommand.protocol.LibraryOutcome
 import link.thesymbolic.jetcommand.protocol.LogLevel
+import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.ProgramId
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 import link.thesymbolic.jetcommand.protocol.Refusal
@@ -147,4 +148,7 @@ class LibraryPrograms(
 
     override fun delete(programId: ProgramId) =
         local("delete") { LibraryOutcome.Done(delete(programId)) }
+
+    override suspend fun saveEdit(programId: ProgramId, program: Program) =
+        library.saveEdit(programId, program)
 }

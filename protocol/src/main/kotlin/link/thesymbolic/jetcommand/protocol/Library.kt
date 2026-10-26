@@ -440,6 +440,10 @@ class ProgramLibrary(
     suspend fun create(program: Program, origin: Origin = Origin.BLANK): LibraryEntry =
         store.createProgram(program, origin, now())
 
+    /** [program] as [programId]'s new current revision; the slots keep theirs until pushed. */
+    suspend fun saveEdit(programId: ProgramId, program: Program): ProgramRevision =
+        store.addRevision(programId, program, Origin.EDIT, now(), makeCurrent = true)
+
     suspend fun delete(programId: ProgramId) = store.setDeleted(programId, now())
 
     suspend fun restore(programId: ProgramId) = store.setDeleted(programId, null)
