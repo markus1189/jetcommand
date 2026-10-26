@@ -7,9 +7,10 @@ data class Program(val name: String, val steps: List<Step>)
 data class Memory(val name: String, val mode: Mode, val fan: Int, val temp: Int)
 
 /**
- * A BedJet that speaks the same bytes, for demo mode and tests: port of the web app's `BedJetSim`.
- * Only the device; connecting and notifying are the transport's job. Time moves only through [tick]
- * and [skipAhead], so callers own the clock.
+ * A BedJet that speaks the same bytes, for demo mode and tests: port of the web app's `BedJetSim`,
+ * except that starting and running a program follow the unit's firmware. Only the device;
+ * connecting and notifying are the transport's job. Time moves only through [tick] and [skipAhead],
+ * so callers own the clock.
  */
 class BedJetSim(
     var deviceName: String = "BEDJET-DEMO",
@@ -42,7 +43,11 @@ class BedJetSim(
     var step = 0
     var notification: Notification = Notification.None
 
-    private class Run(val slot: Slot, var index: Int, var left: Int)
+    /**
+     * [minutes] holds what each step runs, fixed at start and cut to [maxRuntimeMinutes] like a
+     * manual setting [inferred: the heater board's firmware is encrypted].
+     */
+    private class Run(val slot: Slot, val minutes: List<Int>, var index: Int, var left: Int)
 
     private val pending = mutableMapOf<Slot, MutableList<Step>>()
     private var run: Run? = null
@@ -206,18 +211,20 @@ class BedJetSim(
 
     private fun start(slot: Slot) {
         val program = slots[slot.index] ?: return
-        // Like the real unit: refuse up front rather than stop partway through the night.
-        val now =
-            clock
-                ?: run {
-                    notification = Notification.ProgramNeedsClock
-                    return
-                }
-        if (validateProgram(program.steps, now / 60).any { it.code == ErrorCode.STEP_TOO_LONG }) {
+        // The firmware's only start check (`FUN_400ece98`) is over clock-time steps; it then turns
+        // them into durations from the planned timeline, so a step cut short later doesn't move
+        // them.
+        val now = clock
+        if (now == null && program.steps.any { it.timing is Timing.Until }) {
+            notification = Notification.ProgramNeedsClock
+            return
+        }
+        val plan = planProgram(program.steps, (now ?: 0) / 60)
+        if (plan.any { it.refused }) {
             notification = Notification.ProgramTooLong
             return
         }
-        run = Run(slot, index = -1, left = 0)
+        run = Run(slot, plan.map { it.runs }, index = -1, left = 0)
         nextStep()
     }
 
@@ -232,18 +239,13 @@ class BedJetSim(
         }
         current.index += 1
         val next = program.steps[current.index]
-        val minutes =
-            when (val t = next.timing) {
-                is Timing.Until ->
-                    Math.floorMod(t.minuteOfDay - (clock ?: 0) / 60, 1440).takeIf { it != 0 }
-                        ?: 1440
-                is Timing.For -> t.totalMinutes
-            }
+        val minutes = current.minutes.getOrElse(current.index) { 0 }
         current.left = minutes * 60
         enter(next.mode, minutes)
         fan = next.fan
         target = next.temp
         step = current.index + 1
+        if (minutes == 0) nextStep()
     }
 
     private fun enterManual(mode: Mode) {

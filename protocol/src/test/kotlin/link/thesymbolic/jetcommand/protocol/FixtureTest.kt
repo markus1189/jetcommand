@@ -310,6 +310,7 @@ class FixtureTest {
                         (i, entry) ->
                         val case = entry.jsonObject
                         val op = case.getValue("op").jsonObject
+                        if (startsUnlikeWebApp(sim, op)) return@mapNotNull null
                         val actual = runOp(sim, op)
                         val packet = sim.packet().toHex()
                         when {
@@ -322,6 +323,28 @@ class FixtureTest {
                     }
                 },
         )
+
+    /**
+     * The web sim predates the firmware reading (`FUN_400ece98`, `FUN_400e65bc`): it needs the
+     * clock for any program, refuses long duration steps, and times clock-time steps from the live
+     * clock. A scenario is replayed only up to the first start where that could matter;
+     * BedJetSimTest pins the firmware behaviour.
+     */
+    private fun startsUnlikeWebApp(sim: BedJetSim, op: JsonObject): Boolean =
+        op["send"]?.jsonArray.orEmpty().any { frame ->
+            val b = hexToBytes(frame.str)
+            val slot =
+                if (b.size >= 2 && b[0].toInt() == 1)
+                    Button.slotOfStartProgram(b[1].toInt() and 0xff)
+                else null
+            val steps = slot?.let { sim.slots[it.index]?.steps } ?: return@any false
+            val clock = sim.clock ?: return@any steps.none { it.timing is Timing.Until }
+            val plan = planProgram(steps, clock / 60)
+            val clockSteps = steps.indices.filter { steps[it].timing is Timing.Until }
+            plan.any { it.refused || it.cut } ||
+                clockSteps.any { plan[it].wanted == 0 || plan[it].wanted == 720 } ||
+                (clockSteps.isNotEmpty() && steps.any { stepProblem(it) != null })
+        }
 
     /** The op's outcome, or null for ops that only move the sim along. */
     private fun runOp(sim: BedJetSim, op: JsonObject): JsonObject? =

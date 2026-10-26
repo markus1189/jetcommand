@@ -526,7 +526,11 @@ class BedJetLinkTest {
                         BedJetSim(
                             slots =
                                 listOf(
-                                    Program("too hot", listOf(step(Mode.HEAT, 19, 80, 3, 0))),
+                                    // The rig's clock is 22:00: 12 h 01 after the start.
+                                    Program(
+                                        "too late",
+                                        listOf(Step(Mode.WAIT, 19, 80, Timing.Until(10, 1))),
+                                    ),
                                     null,
                                     null,
                                 )
