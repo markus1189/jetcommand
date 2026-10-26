@@ -515,6 +515,13 @@ fun heatHours(mode: Mode, temp: Int, fanStep: Int): Int {
     return (if (offset and 1 != 0) b else b shr 4) and 15
 }
 
+/**
+ * The auto-off ceiling as the official app computes it (`Utils.getMaxRunTime`, its turbo picker);
+ * it never reads the status's max runtime bytes.
+ */
+fun maxRuntimeMinutes(mode: Mode, temp: Int, fanStep: Int) =
+    if (mode == Mode.TURBO) 10 else heatHours(mode, temp, fanStep) * 60
+
 fun longestStepMinutes(mode: Mode, temp: Int, fanStep: Int) =
     minOf(heatHours(mode, temp, fanStep) * 60, Limits.MAX_STEP_MINUTES)
 

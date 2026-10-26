@@ -21,6 +21,7 @@ import link.thesymbolic.jetcommand.protocol.StatusUpdate
 import link.thesymbolic.jetcommand.protocol.Timing
 import link.thesymbolic.jetcommand.protocol.fanPercent
 import link.thesymbolic.jetcommand.protocol.formatTemp
+import link.thesymbolic.jetcommand.protocol.maxRuntimeMinutes
 import link.thesymbolic.jetcommand.protocol.tempRange
 import link.thesymbolic.jetcommand.timeline
 
@@ -205,7 +206,7 @@ private val NUDGES = listOf(-15, -5, -1, 1, 5, 15)
 fun countdownView(st: Status, draft: Int?, now: LocalTime): CountdownView? {
     if (st.mode == Mode.STANDBY || st.mode == Mode.WAIT || (st.extra?.programStep ?: 0) > 0)
         return null
-    val max = st.maxRuntimeMinutes.takeIf { it > 0 } ?: RUNTIME_MINUTES.last
+    val max = maxRuntimeMinutes(st.mode, st.targetTemp, st.fanStep)
     val limits = RUNTIME_MINUTES.first..max
     val current = draft ?: runtimeMinutes(st.remainingSeconds)
     val nudges = NUDGES.map { d ->

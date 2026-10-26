@@ -29,6 +29,7 @@ import link.thesymbolic.jetcommand.protocol.StartedSlot
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
 import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.Timing
+import link.thesymbolic.jetcommand.protocol.maxRuntimeMinutes
 import link.thesymbolic.jetcommand.status
 
 private const val DEV = "AA:BB"
@@ -315,12 +316,12 @@ class NowStateTest {
         assertEquals(listOf(152, 162, 166, 168, 172, 182), v.nudges.map { it.target })
         assertEquals("2:47", v.left)
         assertEquals("off at 00:47", v.offAt)
-        assertEquals("max 10:00", v.ceiling)
+        assertEquals("max 12:00", v.ceiling)
     }
 
     @Test
     fun `a step past a limit goes to the limit, and none at the limit`() {
-        val turbo = status(Mode.TURBO, remainingSeconds = 7 * 60).copy(maxRuntimeMinutes = 10)
+        val turbo = status(Mode.TURBO, remainingSeconds = 7 * 60)
         val v = countdownView(turbo, null, ten)!!
         assertEquals(listOf("to 0:01", "−5", "−1", "+1", "to 0:10", "to 0:10"), labels(v))
         val atMax = countdownView(turbo, 10, ten)!!
@@ -332,7 +333,7 @@ class NowStateTest {
 
     @Test
     fun `the shown time is the minute the nudges count from`() {
-        val turbo = status(Mode.TURBO, remainingSeconds = 9 * 60 + 50).copy(maxRuntimeMinutes = 10)
+        val turbo = status(Mode.TURBO, remainingSeconds = 9 * 60 + 50)
         assertEquals("0:10", countdownView(turbo, null, ten)!!.left)
     }
 
@@ -351,16 +352,29 @@ class NowStateTest {
     }
 
     @Test
+    fun `the ceiling is the official app's, whatever the status says`() {
+        val hot = status(Mode.HEAT, targetTemp = 80, fanStep = 19).copy(maxRuntimeMinutes = 600)
+        assertEquals("max 1:00", countdownView(hot, null, ten)!!.ceiling)
+        assertEquals("max 12:00", countdownView(status(Mode.COOL), null, ten)!!.ceiling)
+    }
+
+    @Test
     fun `targets always stay within 1 min and the ceiling`() = runTest {
-        checkAll(Arb.int(0..43_200), Arb.int(0..720), Arb.int(1..720).orNull()) { secs, max, draft
-            ->
-            val st = status(Mode.COOL, remainingSeconds = secs).copy(maxRuntimeMinutes = max)
-            val ceiling = if (max > 0) max else 720
+        val modes = listOf(Mode.HEAT, Mode.TURBO, Mode.EXT_HEAT, Mode.COOL, Mode.DRY)
+        checkAll(
+            Arb.element(modes),
+            Arb.int(0..120),
+            Arb.int(0..19),
+            Arb.int(0..43_200),
+            Arb.int(1..720).orNull(),
+        ) { mode, temp, fan, secs, draft ->
+            val st = status(mode, remainingSeconds = secs, targetTemp = temp, fanStep = fan)
+            val ceiling = maxRuntimeMinutes(mode, temp, fan)
             countdownView(st, draft, ten)!!
                 .nudges
                 .mapNotNull { it.target }
                 .forEach {
-                    assertTrue(it in 1..ceiling, "$secs $max $draft -> $it")
+                    assertTrue(it in 1..ceiling, "$mode $temp $fan $secs $draft -> $it")
                 }
         }
     }
