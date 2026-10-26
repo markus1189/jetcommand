@@ -183,7 +183,8 @@ class BedJetController(
     fun disconnect() = switchTo(null)
 
     /**
-     * Once per process, from the UI: reconnects to the remembered device if nothing is connected.
+     * Once per process and once after each give-up, from the UI: reconnects to the remembered
+     * device if nothing is connected.
      */
     fun autoConnectOnce() {
         if (autoConnectTried) return
@@ -231,13 +232,13 @@ class BedJetController(
             }
         lateinit var recorder: NightRecorder
         val transport = TappedTransport(raw) { recorder.command(it) }
-        // The user wants the link until they say otherwise: keep trying all night. Night 1's
-        // status-8 drops happened
-        // in range, yet the default 60 s cap plus 20 s connect timeouts left a 358 s gap; 10 s
-        // keeps it under ~30 s.
+        // Night 1's status-8 drops happened in range, yet the default 60 s cap plus 20 s connect
+        // timeouts left a 358 s gap; 10 s keeps it under ~30 s. The BedJet's BLE stays on in
+        // standby, so only leaving the room ends a link: after 15 min down, let go for the day.
         val config =
             BedJetLink.Config(
                 maxReconnectAttempts = null,
+                giveUpAfterDownMs = 15 * 60_000L,
                 retryFailedConnect = true,
                 reconnectMaxMs = 10_000,
             )
@@ -252,6 +253,7 @@ class BedJetController(
         val stack =
             BedJetStack(source, transport, raw as? SimTransport, link, device, recorder, scope)
         refreshOnReady(stack)
+        disconnectOnGiveUp(stack)
         return stack
     }
 
@@ -274,6 +276,18 @@ class BedJetController(
                             }
                         }
                 }
+        }
+    }
+
+    /** Drops the stack, and with it [BedJetService], once the link stops reconnecting. */
+    private fun disconnectOnGiveUp(stack: BedJetStack) {
+        stack.scope.launch {
+            stack.link.state.first { it == LinkState.Disconnected(gaveUp = true) }
+            if (_stack.value === stack) {
+                log(LogLevel.INFO, "Link gave up: disconnecting until the app is opened again")
+                autoConnectTried = false
+                disconnect()
+            }
         }
     }
 

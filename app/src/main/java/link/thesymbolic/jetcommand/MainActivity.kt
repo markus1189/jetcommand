@@ -41,9 +41,14 @@ class MainActivity : ComponentActivity() {
     private val programs: ProgramsSource
         get() = programsVm.source
 
+    // onStart, not onCreate: after a give-up the activity may still exist when the user returns.
+    override fun onStart() {
+        super.onStart()
+        vm.autoConnectOnce()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        vm.autoConnectOnce()
         setContent {
             JetCommandTheme {
                 var place by rememberSaveable { mutableStateOf(Place.NOW) }
