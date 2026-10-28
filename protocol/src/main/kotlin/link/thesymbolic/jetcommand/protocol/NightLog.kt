@@ -194,7 +194,11 @@ internal data class RecorderState(
     val fan: Int? = null,
     val step: Int? = null,
     val notification: Int? = null,
-    val shutdown: Int = 0,
+    /**
+     * Null after each (re)connect: the unit keeps its last reason, and a repeat stop must still
+     * show.
+     */
+    val shutdown: Int? = null,
 )
 
 internal sealed interface RecorderInput {
@@ -247,7 +251,7 @@ private fun RecorderState.onLink(i: RecorderInput.Link): Pair<RecorderState, Lis
                 i.reconnectAttempt,
             )
         else out.event(NightEvent.Kind.CONNECTED, i.deviceName ?: "BedJet")
-        s = s.copy(everReady = true, lostAt = null, userDisconnect = false)
+        s = s.copy(everReady = true, lostAt = null, userDisconnect = false, shutdown = null)
     } else if (link == LinkState.Ready && i.state != LinkState.Ready) {
         if (userDisconnect) {
             out.event(NightEvent.Kind.DISCONNECTED, "by the app")

@@ -132,6 +132,32 @@ class NightRecorderTest {
         }
 
     @Test
+    fun `a reconnect records the shutdown reason again even when unchanged`() = runTest {
+        val sim = BedJetSim()
+        val st = SimTransport(sim, backgroundScope)
+        val link =
+            BedJetLink(
+                st,
+                backgroundScope,
+                BedJetLink.Config(maxReconnectAttempts = null),
+                now = { currentTime },
+            )
+        BedJetDevice(link, backgroundScope, autoAck = false, now = { currentTime })
+        val store = InMemoryNightLogStore()
+        NightRecorder(link, store, backgroundScope, clock = { currentTime })
+        sim.shutdown = 3
+        link.connect()
+        advanceTimeBy(10_000)
+        st.loseLink()
+        advanceTimeBy(60_000)
+        assertEquals(LinkState.Ready, link.state.value)
+        runCurrent()
+        val kinds = store.all.map { it.kind }
+        assertEquals(2, kinds.count { it == Kind.SHUTDOWN })
+        assertTrue(kinds.indexOf(Kind.RECONNECTED) < kinds.lastIndexOf(Kind.SHUTDOWN))
+    }
+
+    @Test
     fun `transition - a reconnect reports the gap, after a user disconnect a connect is fresh`() {
         var state = RecorderState(LinkState.Disconnected())
         fun feed(input: RecorderInput): List<Pair<Kind, String>> {
