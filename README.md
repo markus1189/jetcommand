@@ -29,6 +29,10 @@ Without Nix you need JDK 21 and the Android SDK versions listed in `flake.nix`.
 
 The Bluetooth protocol lives in its own module, `protocol/`, as plain Kotlin with no Android dependency, so its tests run on the JVM. `docs/ROADMAP.md` has the design decisions and known gaps.
 
+## Built with AI
+
+Most of the code and docs were written by Claude (Anthropic) through Claude Code, with me setting the direction, making the design calls and testing on a real BedJet.
+
 ## Disclaimer
 
 Not affiliated with or endorsed by BedJet LLC. BedJet is their trademark. This is an unofficial app: it writes to your unit, and you use it at your own risk.
