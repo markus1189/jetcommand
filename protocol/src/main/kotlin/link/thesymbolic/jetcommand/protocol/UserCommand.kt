@@ -152,11 +152,12 @@ sealed interface RunOutcome {
  * [RunOutcome.Failed] means the program didn't start.
  */
 fun runOutcomeOf(started: StartOutcome): RunOutcome =
-    when {
-        started is StartOutcome.Started -> RunOutcome.Ran
-        (started as StartOutcome.Failed).reason == StartFailure.UNCONFIRMED ->
-            RunOutcome.Unconfirmed("sent, not confirmed")
-        else -> RunOutcome.Failed(started.reason.text)
+    when (started) {
+        is StartOutcome.Started -> RunOutcome.Ran
+        is StartOutcome.Failed ->
+            if (started.reason == StartFailure.UNCONFIRMED)
+                RunOutcome.Unconfirmed("sent, not confirmed")
+            else RunOutcome.Failed(started.reason.text)
     }
 
 /**
