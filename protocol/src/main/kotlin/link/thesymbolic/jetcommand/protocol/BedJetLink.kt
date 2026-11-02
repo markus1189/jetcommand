@@ -245,10 +245,13 @@ class BedJetLink(
 
     /** Runs [event] through [linkStep]: [LinkEffect.Before] effects, commit, then the rest. */
     private fun dispatch(event: LinkEvent) {
-        val t = linkStep(session, event, now(), config)
+        confined()
+        val s = session
+        val t = linkStep(s, event, now(), config)
         t.effects.filterIsInstance<LinkEffect.Before>().forEach(::run)
-        // A no-op leaves the session alone, as the guards did, so no confinement check either.
-        if (t.next != session) session = t.next
+        // Committing over a nested dispatch would rewind it, nextRun included.
+        check(session === s) { "Session changed while dispatching $event" }
+        session = t.next
         t.effects.filter { it !is LinkEffect.Before }.forEach(::run)
     }
 
