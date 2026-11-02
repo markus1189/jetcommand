@@ -459,55 +459,69 @@ class ProgramLibrary(
     private suspend fun reconcile(device: DeviceId, slot: Slot, program: Program?) {
         val old = store.slot(device, slot) ?: blankSlot(device, slot)
         val t = now()
-        var state = old.copy(program = program, readAt = t)
-        val fp = program?.fingerprint()
-        val pending = state.pending
-        if (pending != null) {
-            if (fp != pending.fingerprint) return store.putSlot(state) // stays Interrupted
-            state = state.copy(pushed = pending.copy(at = t), pending = null)
+        val (state, revision) = reconcileSlot(old, program, snapshot(), t)
+        revision?.let {
+            store.addRevision(it.programId, it.program, Origin.OUTSIDE, it.at, makeCurrent = false)
         }
-        if (program == null || fp == null) return store.putSlot(state)
-        val catalog = snapshot()
-        val pushed = state.pushed
-        state =
-            when {
-                pushed == null ->
-                    catalog.currentMatch(fp)?.let {
-                        state.copy(pushed = PushRecord(it.id, it.current.rev, fp, t))
-                    } ?: state
-                pushed.fingerprint == fp -> state
-                else -> relink(catalog, state, pushed, program, fp, t)
-            }
         store.putSlot(state)
     }
+}
 
-    /** The slot changed since [pushed]: find which program it now holds. */
-    private suspend fun relink(
-        catalog: Catalog,
-        state: SlotState,
-        pushed: PushRecord,
-        program: Program,
-        fp: Fingerprint,
-        t: Long,
-    ): SlotState {
-        val linked = catalog.entry(pushed.programId)
-        val own = linked?.let { catalog.revisions(it.id, fp).firstOrNull() }
-        val other = catalog.currentMatch(fp, except = pushed.programId)
-        return when {
-            // A deleted program doesn't adopt new content: Restore would bring back
-            // something not on the unit.
-            linked == null || (linked.deletedAt != null && own == null) ->
+/** A slot's new state after a read, and an outside revision to save first, if any. */
+data class Reconciled(val state: SlotState, val outsideRevision: OutsideRevision? = null)
+
+/** [program] seen in a slot linked to [programId]; saved as a non-current revision. */
+data class OutsideRevision(val programId: ProgramId, val program: Program, val at: Long)
+
+/** Links the [program] just read from [old]'s slot at [t] to the library entry it holds. */
+fun reconcileSlot(old: SlotState, program: Program?, catalog: Catalog, t: Long): Reconciled {
+    var state = old.copy(program = program, readAt = t)
+    val fp = program?.fingerprint()
+    val pending = state.pending
+    if (pending != null) {
+        if (fp != pending.fingerprint) return Reconciled(state) // stays Interrupted
+        state = state.copy(pushed = pending.copy(at = t), pending = null)
+    }
+    if (program == null || fp == null) return Reconciled(state)
+    val pushed = state.pushed
+    return when {
+        pushed == null ->
+            Reconciled(
+                catalog.currentMatch(fp)?.let {
+                    state.copy(pushed = PushRecord(it.id, it.current.rev, fp, t))
+                } ?: state
+            )
+        pushed.fingerprint == fp -> Reconciled(state)
+        else -> relink(catalog, state, pushed, fp, t)
+    }
+}
+
+/** The slot changed since [pushed] and now holds [fp]: find which program that is. */
+private fun relink(
+    catalog: Catalog,
+    state: SlotState,
+    pushed: PushRecord,
+    fp: Fingerprint,
+    t: Long,
+): Reconciled {
+    val program = checkNotNull(state.program)
+    val linked = catalog.entry(pushed.programId)
+    val own = linked?.let { catalog.revisions(it.id, fp).firstOrNull() }
+    val other = catalog.currentMatch(fp, except = pushed.programId)
+    return when {
+        // A deleted program doesn't adopt new content: Restore would bring back
+        // something not on the unit.
+        linked == null || (linked.deletedAt != null && own == null) ->
+            Reconciled(
                 other?.let { state.copy(pushed = PushRecord(it.id, it.current.rev, fp, t)) }
                     ?: state.copy(pushed = null)
-            own != null && (own.rev == linked.current.rev || own.origin != Origin.OUTSIDE) ->
-                state.copy(pushed = PushRecord(linked.id, own.rev, fp, t))
-            other != null -> state.copy(pushed = PushRecord(other.id, other.current.rev, fp, t))
-            own != null -> state // already saved as an outside revision
-            else -> {
-                store.addRevision(linked.id, program, Origin.OUTSIDE, t, makeCurrent = false)
-                state
-            }
-        }
+            )
+        own != null && (own.rev == linked.current.rev || own.origin != Origin.OUTSIDE) ->
+            Reconciled(state.copy(pushed = PushRecord(linked.id, own.rev, fp, t)))
+        other != null ->
+            Reconciled(state.copy(pushed = PushRecord(other.id, other.current.rev, fp, t)))
+        own != null -> Reconciled(state) // already saved as an outside revision
+        else -> Reconciled(state, OutsideRevision(linked.id, program, t))
     }
 }
 
