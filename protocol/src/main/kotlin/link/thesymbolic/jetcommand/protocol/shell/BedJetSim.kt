@@ -17,6 +17,7 @@ import link.thesymbolic.jetcommand.protocol.core.Step
 import link.thesymbolic.jetcommand.protocol.core.TEMP_RANGES
 import link.thesymbolic.jetcommand.protocol.core.Timing
 import link.thesymbolic.jetcommand.protocol.core.longestStepMinutes
+import link.thesymbolic.jetcommand.protocol.core.maxRuntimeMinutes
 import link.thesymbolic.jetcommand.protocol.core.plan
 import link.thesymbolic.jetcommand.protocol.core.planProgram
 import link.thesymbolic.jetcommand.protocol.core.u
@@ -74,8 +75,10 @@ class BedJetSim(
             0x01 -> press(b.u(1))
             0x02 ->
                 if (b.size >= 3) {
-                    remainingSeconds = minOf(b.u(1) * 60 + b.u(2), maxRuntime) * 60
-                    // In a program it moves the step's end; the next step keeps its own length.
+                    // In a program it moves the step's end either way, up to the unit's ceiling;
+                    // the next step keeps its own length.
+                    val cap = if (run != null) maxRuntimeMinutes(mode, target, fan) else maxRuntime
+                    remainingSeconds = minOf(b.u(1) * 60 + b.u(2), cap) * 60
                     run?.left = remainingSeconds
                 }
             0x03 -> {

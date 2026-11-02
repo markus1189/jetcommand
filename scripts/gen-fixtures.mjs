@@ -209,7 +209,7 @@ scenarios.push({
         { skip: 10 },
     ]),
 });
-// The auto-off timer in a program moves the step's end, and the next step still runs its own length.
+// The auto-off timer in a program moves the step's end either way, and the next step still runs its own length.
 scenarios.push({
     name: 'auto off in a program sets the step left',
     trace: await scenario(() => [
@@ -227,6 +227,7 @@ scenarios.push({
         { send: [C.setRuntime(0)] },
         { tick: 1 },
         { send: [C.setRuntime(90)] },
+        { send: [C.setRuntime(800)] },
     ]),
 });
 scenarios.push({
