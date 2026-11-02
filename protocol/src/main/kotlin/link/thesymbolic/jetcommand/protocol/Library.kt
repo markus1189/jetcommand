@@ -459,7 +459,9 @@ class ProgramLibrary(
     private suspend fun reconcile(device: DeviceId, slot: Slot, program: Program?) {
         val old = store.slot(device, slot) ?: blankSlot(device, slot)
         val t = now()
-        val (state, revision) = reconcileSlot(old, program, snapshot(), t)
+        val read = readBack(old, program, t)
+        val (state, revision) =
+            if (needsLink(read)) linkSlot(read, snapshot(), t) else Reconciled(read)
         revision?.let {
             store.addRevision(it.programId, it.program, Origin.OUTSIDE, it.at, makeCurrent = false)
         }
@@ -474,15 +476,25 @@ data class Reconciled(val state: SlotState, val outsideRevision: OutsideRevision
 data class OutsideRevision(val programId: ProgramId, val program: Program, val at: Long)
 
 /** Links the [program] just read from [old]'s slot at [t] to the library entry it holds. */
-fun reconcileSlot(old: SlotState, program: Program?, catalog: Catalog, t: Long): Reconciled {
-    var state = old.copy(program = program, readAt = t)
-    val fp = program?.fingerprint()
-    val pending = state.pending
-    if (pending != null) {
-        if (fp != pending.fingerprint) return Reconciled(state) // stays Interrupted
-        state = state.copy(pushed = pending.copy(at = t), pending = null)
+fun reconcileSlot(old: SlotState, program: Program?, catalog: Catalog, t: Long): Reconciled =
+    readBack(old, program, t).let {
+        if (needsLink(it)) linkSlot(it, catalog, t) else Reconciled(it)
     }
-    if (program == null || fp == null) return Reconciled(state)
+
+/** [old] holding [program] as read at [t], a pending write settled if the read-back matches it. */
+fun readBack(old: SlotState, program: Program?, t: Long): SlotState {
+    val state = old.copy(program = program, readAt = t)
+    val pending = state.pending ?: return state
+    return if (program?.fingerprint() != pending.fingerprint) state // stays Interrupted
+    else state.copy(pushed = pending.copy(at = t), pending = null)
+}
+
+/** Only these read-backs consult the catalog, so the others skip loading it. */
+fun needsLink(state: SlotState): Boolean = state.pending == null && state.program != null
+
+/** Links [state], a [readBack] that [needsLink], to the library entry it holds. */
+fun linkSlot(state: SlotState, catalog: Catalog, t: Long): Reconciled {
+    val fp = checkNotNull(state.program).fingerprint()
     val pushed = state.pushed
     return when {
         pushed == null ->

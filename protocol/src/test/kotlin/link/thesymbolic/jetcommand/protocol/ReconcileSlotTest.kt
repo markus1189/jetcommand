@@ -136,4 +136,37 @@ class ReconcileSlotTest {
             Reconciled(read(p[4], pushed), OutsideRevision(ProgramId("alpha"), p[4], t)),
         )
     }
+
+    @Test
+    fun `own revision wins over another program's current match`() {
+        val twin = LibraryEntry(ProgramId("twin"), rev("twin", 1, p[2]))
+        check(
+            old(pushed = rec("alpha", 1, p[0])),
+            p[2],
+            Reconciled(read(p[2], rec("alpha", 3, p[2], at = t))),
+            Catalog(listOf(twin, alpha), alphaRevs + twin.current),
+        )
+    }
+
+    @Test
+    fun `own current revision links even when it came from outside`() {
+        val revs = alphaRevs.dropLast(1) + rev("alpha", 3, p[2], Origin.OUTSIDE)
+        check(
+            old(pushed = rec("alpha", 1, p[0])),
+            p[2],
+            Reconciled(read(p[2], rec("alpha", 3, p[2], at = t))),
+            Catalog(listOf(LibraryEntry(ProgramId("alpha"), revs.last())), revs),
+        )
+    }
+
+    @Test
+    fun `deleted linked program keeps a slot holding one of its revisions`() {
+        val revs = listOf(rev("gone", 1, p[0]), rev("gone", 2, p[4]))
+        check(
+            old(pushed = rec("gone", 2, p[4])),
+            p[0],
+            Reconciled(read(p[0], rec("gone", 1, p[0], at = t))),
+            Catalog(listOf(LibraryEntry(ProgramId("gone"), revs.last(), deletedAt = 5)), revs),
+        )
+    }
 }
