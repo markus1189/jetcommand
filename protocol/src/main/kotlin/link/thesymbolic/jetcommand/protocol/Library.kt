@@ -317,7 +317,7 @@ class ProgramLibrary(
     suspend fun revisions(programId: ProgramId): List<ProgramRevision> = store.revisions(programId)
 
     /** Reads names and steps of all slots and reconciles them; call on every Ready. */
-    suspend fun refresh(device: DeviceId, bedJet: BedJetDevice) {
+    suspend fun refresh(device: DeviceId, bedJet: SlotReader) {
         // Each query takes the link's queue on its own, so a user command waits behind one query,
         // not the refresh.
         val programs = bedJet.storedPrograms()
@@ -450,7 +450,7 @@ class ProgramLibrary(
 
     private suspend fun snapshot(): Catalog = catalog().first()
 
-    private suspend fun readSlot(bedJet: BedJetDevice, slot: Slot): Program? {
+    private suspend fun readSlot(bedJet: SlotReader, slot: Slot): Program? {
         val name = bedJet.programNames().getOrNull(slot.index)
         val steps = bedJet.programSteps(slot)
         return if (name == null || steps.isEmpty()) null else Program(name, steps)
