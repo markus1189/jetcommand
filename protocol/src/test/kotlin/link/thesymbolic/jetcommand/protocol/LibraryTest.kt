@@ -19,8 +19,35 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import link.thesymbolic.jetcommand.protocol.SimTransport.Fault
-import link.thesymbolic.jetcommand.protocol.SimTransport.Op
+import link.thesymbolic.jetcommand.protocol.core.BedJetException
+import link.thesymbolic.jetcommand.protocol.core.Command
+import link.thesymbolic.jetcommand.protocol.core.DeviceId
+import link.thesymbolic.jetcommand.protocol.core.LibraryEntry
+import link.thesymbolic.jetcommand.protocol.core.LibraryOutcome
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.Origin
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.ProgramId
+import link.thesymbolic.jetcommand.protocol.core.PushRecord
+import link.thesymbolic.jetcommand.protocol.core.Refusal
+import link.thesymbolic.jetcommand.protocol.core.Resolution
+import link.thesymbolic.jetcommand.protocol.core.SlotStatus
+import link.thesymbolic.jetcommand.protocol.core.StartedSlot
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.decodeSteps
+import link.thesymbolic.jetcommand.protocol.core.encodeSteps
+import link.thesymbolic.jetcommand.protocol.core.fingerprint
+import link.thesymbolic.jetcommand.protocol.core.rankSlots
+import link.thesymbolic.jetcommand.protocol.core.toHex
+import link.thesymbolic.jetcommand.protocol.shell.BedJetDevice
+import link.thesymbolic.jetcommand.protocol.shell.BedJetLink
+import link.thesymbolic.jetcommand.protocol.shell.BedJetSim
+import link.thesymbolic.jetcommand.protocol.shell.InMemoryLibraryStore
+import link.thesymbolic.jetcommand.protocol.shell.ProgramLibrary
+import link.thesymbolic.jetcommand.protocol.shell.SimTransport
+import link.thesymbolic.jetcommand.protocol.shell.SimTransport.Fault
+import link.thesymbolic.jetcommand.protocol.shell.SimTransport.Op
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryTest {

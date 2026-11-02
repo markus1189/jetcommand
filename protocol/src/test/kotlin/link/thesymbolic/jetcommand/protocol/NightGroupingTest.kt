@@ -18,9 +18,15 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
-import link.thesymbolic.jetcommand.protocol.NightEvent.Kind
-import link.thesymbolic.jetcommand.protocol.NightSummary.Cause
-import link.thesymbolic.jetcommand.protocol.NightSummary.Gap
+import link.thesymbolic.jetcommand.protocol.core.NightEvent
+import link.thesymbolic.jetcommand.protocol.core.NightEvent.Kind
+import link.thesymbolic.jetcommand.protocol.core.NightSummary.Cause
+import link.thesymbolic.jetcommand.protocol.core.NightSummary.Gap
+import link.thesymbolic.jetcommand.protocol.core.ProcessEvent
+import link.thesymbolic.jetcommand.protocol.core.groupNights
+import link.thesymbolic.jetcommand.protocol.core.nightOf
+import link.thesymbolic.jetcommand.protocol.core.nightWindow
+import link.thesymbolic.jetcommand.protocol.core.summarize
 
 class NightGroupingTest {
     private val zone = ZoneId.of("Europe/Berlin")

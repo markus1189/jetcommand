@@ -13,10 +13,10 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.NightEvent
-import link.thesymbolic.jetcommand.protocol.NightLogStore
-import link.thesymbolic.jetcommand.protocol.NightSample
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.NightEvent
+import link.thesymbolic.jetcommand.protocol.core.NightSample
+import link.thesymbolic.jetcommand.protocol.ports.NightLogStore
 
 // kind as its enum name: an ordinal would silently change meaning when a kind is added in the
 // middle.

@@ -10,9 +10,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
+import link.thesymbolic.jetcommand.protocol.core.LinkConfig
+import link.thesymbolic.jetcommand.protocol.core.ReconnectDecision
+import link.thesymbolic.jetcommand.protocol.core.reconnectDecision
+import link.thesymbolic.jetcommand.protocol.shell.attempt
 
 class ReconnectDecisionTest {
-    private val default = BedJetLink.Config()
+    private val default = LinkConfig()
 
     private fun retry(attempt: Int, waitMs: Long) = ReconnectDecision.Retry(attempt, waitMs)
 

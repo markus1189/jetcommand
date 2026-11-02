@@ -4,6 +4,16 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import link.thesymbolic.jetcommand.protocol.core.DeviceId
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.SlotStatus
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.ports.SlotReader
+import link.thesymbolic.jetcommand.protocol.shell.InMemoryLibraryStore
+import link.thesymbolic.jetcommand.protocol.shell.ProgramLibrary
 
 /** [ProgramLibrary.refresh] needs only a [SlotReader], so no link or sim. */
 class RefreshTest {

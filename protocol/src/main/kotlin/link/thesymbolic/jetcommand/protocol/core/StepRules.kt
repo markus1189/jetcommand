@@ -1,4 +1,4 @@
-package link.thesymbolic.jetcommand.protocol
+package link.thesymbolic.jetcommand.protocol.core
 
 /*
  * The program editor's rules. What the unit enforces comes from its ESP32 firmware (build 146,

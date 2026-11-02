@@ -1,7 +1,8 @@
-package link.thesymbolic.jetcommand.protocol
+package link.thesymbolic.jetcommand.protocol.ports
 
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import link.thesymbolic.jetcommand.protocol.core.Uuids
 
 enum class Characteristic(val uuid: String) {
     STATUS(Uuids.STATUS),
@@ -40,19 +41,6 @@ class TransportException(
         OPERATION_FAILED,
         TIMEOUT,
         DISCONNECTED,
-    }
-}
-
-/**
- * Runs [cleanup] when [block] fails in any way, cancellation included, then lets the failure
- * propagate. Inline, so [cleanup] may suspend inside a suspending caller.
- */
-inline fun <T> cleanupOnFailure(cleanup: () -> Unit, block: () -> T): T {
-    var ok = false
-    try {
-        return block().also { ok = true }
-    } finally {
-        if (!ok) cleanup()
     }
 }
 

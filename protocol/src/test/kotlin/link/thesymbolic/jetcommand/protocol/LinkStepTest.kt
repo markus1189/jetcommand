@@ -2,20 +2,28 @@ package link.thesymbolic.jetcommand.protocol
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import link.thesymbolic.jetcommand.protocol.LinkEffect.CancelReconnect
-import link.thesymbolic.jetcommand.protocol.LinkEffect.FollowUp
-import link.thesymbolic.jetcommand.protocol.LinkEffect.Log
-import link.thesymbolic.jetcommand.protocol.LinkEffect.StartReconnect
-import link.thesymbolic.jetcommand.protocol.LinkSession.Phase
+import link.thesymbolic.jetcommand.protocol.core.LinkConfig
+import link.thesymbolic.jetcommand.protocol.core.LinkEffect
+import link.thesymbolic.jetcommand.protocol.core.LinkEffect.CancelReconnect
+import link.thesymbolic.jetcommand.protocol.core.LinkEffect.FollowUp
+import link.thesymbolic.jetcommand.protocol.core.LinkEffect.Log
+import link.thesymbolic.jetcommand.protocol.core.LinkEffect.StartReconnect
+import link.thesymbolic.jetcommand.protocol.core.LinkEvent
+import link.thesymbolic.jetcommand.protocol.core.LinkSession
+import link.thesymbolic.jetcommand.protocol.core.LinkSession.Phase
+import link.thesymbolic.jetcommand.protocol.core.LinkTransition
+import link.thesymbolic.jetcommand.protocol.core.LogLevel
+import link.thesymbolic.jetcommand.protocol.core.linkStep
+import link.thesymbolic.jetcommand.protocol.shell.attempt
 
 class LinkStepTest {
-    private val config = BedJetLink.Config()
+    private val config = LinkConfig()
 
     private fun step(
         s: LinkSession,
         e: LinkEvent,
         now: Long = 0,
-        c: BedJetLink.Config = config,
+        c: LinkConfig = config,
     ) = linkStep(s, e, now, c)
 
     private fun at(phase: Phase, downSince: Long? = null) =

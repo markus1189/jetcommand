@@ -13,6 +13,12 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
+import link.thesymbolic.jetcommand.protocol.core.Assembled
+import link.thesymbolic.jetcommand.protocol.core.Notification
+import link.thesymbolic.jetcommand.protocol.core.Reply
+import link.thesymbolic.jetcommand.protocol.core.StatusAssembler
+import link.thesymbolic.jetcommand.protocol.core.toHex
+import link.thesymbolic.jetcommand.protocol.shell.BedJetSim
 
 class StatusAssemblerTest {
     private val interval = 2000L

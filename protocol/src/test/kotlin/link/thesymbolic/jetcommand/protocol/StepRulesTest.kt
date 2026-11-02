@@ -4,6 +4,21 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import link.thesymbolic.jetcommand.protocol.core.ClockWindow
+import link.thesymbolic.jetcommand.protocol.core.EditNote
+import link.thesymbolic.jetcommand.protocol.core.Edited
+import link.thesymbolic.jetcommand.protocol.core.ErrorCode
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.PlannedStep
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.StepEdit
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.applyEdit
+import link.thesymbolic.jetcommand.protocol.core.durationRange
+import link.thesymbolic.jetcommand.protocol.core.plan
+import link.thesymbolic.jetcommand.protocol.core.planProgram
+import link.thesymbolic.jetcommand.protocol.core.startWindows
+import link.thesymbolic.jetcommand.protocol.core.validateProgram
 
 class StepRulesTest {
     private fun lasting(mode: Mode, temp: Int, fan: Int, minutes: Int) =

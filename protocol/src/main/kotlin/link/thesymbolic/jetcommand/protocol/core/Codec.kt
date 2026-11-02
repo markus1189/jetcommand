@@ -1,6 +1,6 @@
 // Port of the web app's `bedjet-codec` script; fixtures.json replays its recorded behaviour against
 // this.
-package link.thesymbolic.jetcommand.protocol
+package link.thesymbolic.jetcommand.protocol.core
 
 import kotlin.math.roundToLong
 

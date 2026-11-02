@@ -6,6 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
+import link.thesymbolic.jetcommand.protocol.shell.attempt
 
 class AttemptTest {
     @Test

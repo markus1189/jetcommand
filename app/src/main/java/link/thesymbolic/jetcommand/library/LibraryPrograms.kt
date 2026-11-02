@@ -14,20 +14,20 @@ import kotlinx.coroutines.launch
 import link.thesymbolic.jetcommand.BedJetController
 import link.thesymbolic.jetcommand.BedJetStack
 import link.thesymbolic.jetcommand.ProgramsSource
-import link.thesymbolic.jetcommand.protocol.BedJetException
-import link.thesymbolic.jetcommand.protocol.DeviceId
-import link.thesymbolic.jetcommand.protocol.ErrorCode
-import link.thesymbolic.jetcommand.protocol.LibraryEntry
-import link.thesymbolic.jetcommand.protocol.LibraryOutcome
-import link.thesymbolic.jetcommand.protocol.LogLevel
-import link.thesymbolic.jetcommand.protocol.Program
-import link.thesymbolic.jetcommand.protocol.ProgramId
-import link.thesymbolic.jetcommand.protocol.ProgramLibrary
-import link.thesymbolic.jetcommand.protocol.Refusal
-import link.thesymbolic.jetcommand.protocol.Resolution
-import link.thesymbolic.jetcommand.protocol.Slot
-import link.thesymbolic.jetcommand.protocol.StartFailure
-import link.thesymbolic.jetcommand.protocol.attempt
+import link.thesymbolic.jetcommand.protocol.core.BedJetException
+import link.thesymbolic.jetcommand.protocol.core.DeviceId
+import link.thesymbolic.jetcommand.protocol.core.ErrorCode
+import link.thesymbolic.jetcommand.protocol.core.LibraryEntry
+import link.thesymbolic.jetcommand.protocol.core.LibraryOutcome
+import link.thesymbolic.jetcommand.protocol.core.LogLevel
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.ProgramId
+import link.thesymbolic.jetcommand.protocol.core.Refusal
+import link.thesymbolic.jetcommand.protocol.core.Resolution
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.StartFailure
+import link.thesymbolic.jetcommand.protocol.shell.ProgramLibrary
+import link.thesymbolic.jetcommand.protocol.shell.attempt
 
 /** What the user reads when [ProgramLibrary] refuses [what] ("keep slot 2"). */
 fun refusalText(reason: Refusal, what: String): String =

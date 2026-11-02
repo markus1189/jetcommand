@@ -7,22 +7,22 @@ import link.thesymbolic.jetcommand.durationMin
 import link.thesymbolic.jetcommand.hhmm
 import link.thesymbolic.jetcommand.plural
 import link.thesymbolic.jetcommand.prettyName
-import link.thesymbolic.jetcommand.protocol.ClockWindow
-import link.thesymbolic.jetcommand.protocol.EditNote
-import link.thesymbolic.jetcommand.protocol.Limits
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.PlannedStep
-import link.thesymbolic.jetcommand.protocol.ProgramRevision
-import link.thesymbolic.jetcommand.protocol.Step
-import link.thesymbolic.jetcommand.protocol.StepEdit
-import link.thesymbolic.jetcommand.protocol.TEMP_RANGES
-import link.thesymbolic.jetcommand.protocol.Timing
-import link.thesymbolic.jetcommand.protocol.applyEdit
-import link.thesymbolic.jetcommand.protocol.durationRange
-import link.thesymbolic.jetcommand.protocol.fanPercent
-import link.thesymbolic.jetcommand.protocol.formatTemp
-import link.thesymbolic.jetcommand.protocol.planProgram
-import link.thesymbolic.jetcommand.protocol.untilAllowed
+import link.thesymbolic.jetcommand.protocol.core.ClockWindow
+import link.thesymbolic.jetcommand.protocol.core.EditNote
+import link.thesymbolic.jetcommand.protocol.core.Limits
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.PlannedStep
+import link.thesymbolic.jetcommand.protocol.core.ProgramRevision
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.StepEdit
+import link.thesymbolic.jetcommand.protocol.core.TEMP_RANGES
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.applyEdit
+import link.thesymbolic.jetcommand.protocol.core.durationRange
+import link.thesymbolic.jetcommand.protocol.core.fanPercent
+import link.thesymbolic.jetcommand.protocol.core.formatTemp
+import link.thesymbolic.jetcommand.protocol.core.planProgram
+import link.thesymbolic.jetcommand.protocol.core.untilAllowed
 
 private const val DAY = 24 * 60
 

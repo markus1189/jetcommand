@@ -1,9 +1,9 @@
 package link.thesymbolic.jetcommand
 
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.Notification
-import link.thesymbolic.jetcommand.protocol.Status
-import link.thesymbolic.jetcommand.protocol.StatusExtra
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.Notification
+import link.thesymbolic.jetcommand.protocol.core.Status
+import link.thesymbolic.jetcommand.protocol.core.StatusExtra
 
 fun status(
     mode: Mode = Mode.HEAT,

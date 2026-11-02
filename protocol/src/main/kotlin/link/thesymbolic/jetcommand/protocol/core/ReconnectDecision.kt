@@ -1,4 +1,4 @@
-package link.thesymbolic.jetcommand.protocol
+package link.thesymbolic.jetcommand.protocol.core
 
 sealed interface ReconnectDecision {
     /** Try reconnect number [attempt] after [waitMs]. */
@@ -9,13 +9,13 @@ sealed interface ReconnectDecision {
 
 /**
  * What follows reconnect attempt [previous] (0: the link was up, or the caller's own connect
- * failed): exponential backoff from [BedJetLink.Config.reconnectBaseMs], capped at
- * [BedJetLink.Config.reconnectMaxMs], until [BedJetLink.Config.maxReconnectAttempts] or until the
- * link has been down [downForMs] of [BedJetLink.Config.giveUpAfterDownMs].
+ * failed): exponential backoff from [LinkConfig.reconnectBaseMs], capped at
+ * [LinkConfig.reconnectMaxMs], until [LinkConfig.maxReconnectAttempts] or until the link has been
+ * down [downForMs] of [LinkConfig.giveUpAfterDownMs].
  */
 fun reconnectDecision(
     previous: Int,
-    config: BedJetLink.Config,
+    config: LinkConfig,
     downForMs: Long = 0,
 ): ReconnectDecision {
     val max = config.maxReconnectAttempts

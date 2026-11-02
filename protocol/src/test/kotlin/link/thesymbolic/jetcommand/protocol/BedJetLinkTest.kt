@@ -20,8 +20,30 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import link.thesymbolic.jetcommand.protocol.SimTransport.Fault
-import link.thesymbolic.jetcommand.protocol.SimTransport.Op
+import link.thesymbolic.jetcommand.protocol.core.BedJetException
+import link.thesymbolic.jetcommand.protocol.core.Command
+import link.thesymbolic.jetcommand.protocol.core.ErrorCode
+import link.thesymbolic.jetcommand.protocol.core.Key
+import link.thesymbolic.jetcommand.protocol.core.LinkConfig
+import link.thesymbolic.jetcommand.protocol.core.LinkState
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.Notification
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.Query
+import link.thesymbolic.jetcommand.protocol.core.StartFailure
+import link.thesymbolic.jetcommand.protocol.core.StartOutcome
+import link.thesymbolic.jetcommand.protocol.core.StatusUpdate
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.toHex
+import link.thesymbolic.jetcommand.protocol.core.u
+import link.thesymbolic.jetcommand.protocol.ports.Characteristic
+import link.thesymbolic.jetcommand.protocol.shell.BedJetDevice
+import link.thesymbolic.jetcommand.protocol.shell.BedJetLink
+import link.thesymbolic.jetcommand.protocol.shell.BedJetSim
+import link.thesymbolic.jetcommand.protocol.shell.SimTransport
+import link.thesymbolic.jetcommand.protocol.shell.SimTransport.Fault
+import link.thesymbolic.jetcommand.protocol.shell.SimTransport.Op
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class BedJetLinkTest {
@@ -42,7 +64,7 @@ class BedJetLinkTest {
         hasReplyAlt: Boolean = true,
         autoAck: Boolean = true,
         time: LocalTime = LocalTime.of(22, 0),
-        config: BedJetLink.Config = BedJetLink.Config(),
+        config: LinkConfig = LinkConfig(),
     ): Rig {
         val transport = SimTransport(sim, backgroundScope, mtu, hasReplyAlt)
         val link = BedJetLink(transport, backgroundScope, config, now = { currentTime })
@@ -118,7 +140,7 @@ class BedJetLinkTest {
     fun `reconnect gives up once down for the limit, and the clock restarts after a reconnect`() =
         runTest {
             val config =
-                BedJetLink.Config(
+                LinkConfig(
                     maxReconnectAttempts = null,
                     giveUpAfterDownMs = 15.minutes.inWholeMilliseconds,
                     reconnectMaxMs = 10_000,
@@ -149,7 +171,7 @@ class BedJetLinkTest {
 
     @Test
     fun `reconnect forever keeps trying all night at most every 60 s`() = runTest {
-        val r = connected(rig(config = BedJetLink.Config(maxReconnectAttempts = null)))
+        val r = connected(rig(config = LinkConfig(maxReconnectAttempts = null)))
         r.transport.inject(Fault.Fail(133), times = Int.MAX_VALUE) { it == Op.Connect }
         r.transport.loseLink()
         advanceTimeBy(10.hours)
@@ -161,8 +183,7 @@ class BedJetLinkTest {
 
     @Test
     fun `a failed first connect retries when configured`() = runTest {
-        val r =
-            rig(config = BedJetLink.Config(maxReconnectAttempts = null, retryFailedConnect = true))
+        val r = rig(config = LinkConfig(maxReconnectAttempts = null, retryFailedConnect = true))
         r.transport.inject(Fault.Fail(133), times = 3) { it == Op.Connect }
         code(ErrorCode.NOT_CONNECTED) { r.link.connect() }
         assertEquals(LinkState.Connecting(1), r.link.state.value)
@@ -172,7 +193,7 @@ class BedJetLinkTest {
 
     @Test
     fun `retryNow cuts the backoff short and restarts it`() = runTest {
-        val r = connected(rig(config = BedJetLink.Config(maxReconnectAttempts = null)))
+        val r = connected(rig(config = LinkConfig(maxReconnectAttempts = null)))
         var bluetoothOn = false
         // As on the phone with Bluetooth off: every connect fails at once.
         r.transport.inject(Fault.Fail(0), times = Int.MAX_VALUE) {

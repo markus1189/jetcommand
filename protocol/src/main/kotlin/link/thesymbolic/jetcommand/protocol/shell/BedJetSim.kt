@@ -1,10 +1,25 @@
-package link.thesymbolic.jetcommand.protocol
+package link.thesymbolic.jetcommand.protocol.shell
 
 import kotlin.math.sign
-
-data class Program(val name: String, val steps: List<Step>)
-
-data class Memory(val name: String, val mode: Mode, val fan: Int, val temp: Int)
+import link.thesymbolic.jetcommand.protocol.core.BedJetException
+import link.thesymbolic.jetcommand.protocol.core.Button
+import link.thesymbolic.jetcommand.protocol.core.Command
+import link.thesymbolic.jetcommand.protocol.core.ErrorCode
+import link.thesymbolic.jetcommand.protocol.core.Memory
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.NameTarget
+import link.thesymbolic.jetcommand.protocol.core.Notification
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.Query
+import link.thesymbolic.jetcommand.protocol.core.Reply
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.TEMP_RANGES
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.longestStepMinutes
+import link.thesymbolic.jetcommand.protocol.core.plan
+import link.thesymbolic.jetcommand.protocol.core.planProgram
+import link.thesymbolic.jetcommand.protocol.core.u
 
 /**
  * A BedJet that speaks the same bytes, for demo mode and tests: port of the web app's `BedJetSim`,

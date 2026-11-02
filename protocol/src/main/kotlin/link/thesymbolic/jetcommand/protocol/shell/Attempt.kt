@@ -1,4 +1,4 @@
-package link.thesymbolic.jetcommand.protocol
+package link.thesymbolic.jetcommand.protocol.shell
 
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -18,3 +18,16 @@ suspend inline fun <T> attempt(
         onError(e)
         Result.failure(e)
     }
+
+/**
+ * Runs [cleanup] when [block] fails in any way, cancellation included, then lets the failure
+ * propagate. Inline, so [cleanup] may suspend inside a suspending caller.
+ */
+inline fun <T> cleanupOnFailure(cleanup: () -> Unit, block: () -> T): T {
+    var ok = false
+    try {
+        return block().also { ok = true }
+    } finally {
+        if (!ok) cleanup()
+    }
+}

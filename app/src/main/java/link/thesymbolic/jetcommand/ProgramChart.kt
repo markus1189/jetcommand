@@ -31,8 +31,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalTime
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.fanPercent
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.fanPercent
 
 /** The step under [minute]; past the end, the last one. */
 fun spanAt(spans: List<Span>, minute: Double): Span? =

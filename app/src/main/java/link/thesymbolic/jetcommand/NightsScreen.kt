@@ -37,8 +37,8 @@ import link.thesymbolic.jetcommand.night.NightText
 import link.thesymbolic.jetcommand.night.Watch
 import link.thesymbolic.jetcommand.night.chips
 import link.thesymbolic.jetcommand.night.stretches
-import link.thesymbolic.jetcommand.protocol.NightSummary
-import link.thesymbolic.jetcommand.protocol.NightsSource
+import link.thesymbolic.jetcommand.protocol.core.NightSummary
+import link.thesymbolic.jetcommand.protocol.ports.NightsSource
 
 /** The Nights tab: the list, and a night's review in place of it once one is picked. */
 @Composable

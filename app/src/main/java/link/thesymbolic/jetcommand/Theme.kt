@@ -4,7 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import link.thesymbolic.jetcommand.protocol.Mode
+import link.thesymbolic.jetcommand.protocol.core.Mode
 
 // Fixed, not dynamic, and dark whatever the system says: it's read in a dark bedroom. Muted
 // blue-greys, no reds.

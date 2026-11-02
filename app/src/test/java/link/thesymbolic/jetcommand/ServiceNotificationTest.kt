@@ -2,9 +2,9 @@ package link.thesymbolic.jetcommand
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import link.thesymbolic.jetcommand.protocol.LinkState
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.StatusUpdate
+import link.thesymbolic.jetcommand.protocol.core.LinkState
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.StatusUpdate
 
 class ServiceNotificationTest {
     private val update =

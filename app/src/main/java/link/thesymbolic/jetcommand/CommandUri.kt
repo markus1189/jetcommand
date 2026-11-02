@@ -1,10 +1,10 @@
 package link.thesymbolic.jetcommand
 
-import link.thesymbolic.jetcommand.protocol.CommandRequest
-import link.thesymbolic.jetcommand.protocol.Key
-import link.thesymbolic.jetcommand.protocol.SettableMode
-import link.thesymbolic.jetcommand.protocol.Slot
-import link.thesymbolic.jetcommand.protocol.UserCommand
+import link.thesymbolic.jetcommand.protocol.core.CommandRequest
+import link.thesymbolic.jetcommand.protocol.core.Key
+import link.thesymbolic.jetcommand.protocol.core.SettableMode
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.UserCommand
 
 /**
  * Commands as intent data, e.g. `jetcommand:program/2`; shortcuts.xml spells these out, so the

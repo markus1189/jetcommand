@@ -3,13 +3,13 @@ package link.thesymbolic.jetcommand.night
 import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import link.thesymbolic.jetcommand.protocol.NightDetail
-import link.thesymbolic.jetcommand.protocol.NightEvent
-import link.thesymbolic.jetcommand.protocol.NightEvent.Kind
-import link.thesymbolic.jetcommand.protocol.NightSummary
-import link.thesymbolic.jetcommand.protocol.NightSummary.Cause
-import link.thesymbolic.jetcommand.protocol.NightSummary.Gap
-import link.thesymbolic.jetcommand.protocol.RunOutcome
+import link.thesymbolic.jetcommand.protocol.core.NightDetail
+import link.thesymbolic.jetcommand.protocol.core.NightEvent
+import link.thesymbolic.jetcommand.protocol.core.NightEvent.Kind
+import link.thesymbolic.jetcommand.protocol.core.NightSummary
+import link.thesymbolic.jetcommand.protocol.core.NightSummary.Cause
+import link.thesymbolic.jetcommand.protocol.core.NightSummary.Gap
+import link.thesymbolic.jetcommand.protocol.core.RunOutcome
 
 class NightReviewTest {
     private val text = NightText(ZoneOffset.UTC)

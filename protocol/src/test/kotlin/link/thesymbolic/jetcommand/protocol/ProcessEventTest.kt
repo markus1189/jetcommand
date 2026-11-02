@@ -13,9 +13,14 @@ import io.kotest.property.checkAll
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.test.runTest
-import link.thesymbolic.jetcommand.protocol.ProcessEvent.Exit
-import link.thesymbolic.jetcommand.protocol.ProcessEvent.Note
-import link.thesymbolic.jetcommand.protocol.ProcessEvent.Started
+import link.thesymbolic.jetcommand.protocol.core.ExitReason
+import link.thesymbolic.jetcommand.protocol.core.NightEvent
+import link.thesymbolic.jetcommand.protocol.core.ProcessEvent
+import link.thesymbolic.jetcommand.protocol.core.ProcessEvent.Exit
+import link.thesymbolic.jetcommand.protocol.core.ProcessEvent.Note
+import link.thesymbolic.jetcommand.protocol.core.ProcessEvent.Started
+import link.thesymbolic.jetcommand.protocol.core.unrecorded
+import link.thesymbolic.jetcommand.protocol.shell.InMemoryNightLogStore
 
 class ProcessEventTest {
     /**

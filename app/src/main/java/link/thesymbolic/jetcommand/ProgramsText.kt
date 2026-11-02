@@ -2,17 +2,17 @@
 package link.thesymbolic.jetcommand
 
 import java.time.LocalTime
-import link.thesymbolic.jetcommand.protocol.LibraryEntry
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.Origin
-import link.thesymbolic.jetcommand.protocol.ProgramId
-import link.thesymbolic.jetcommand.protocol.ProgramRevision
-import link.thesymbolic.jetcommand.protocol.Slot
-import link.thesymbolic.jetcommand.protocol.SlotStatus
-import link.thesymbolic.jetcommand.protocol.SlotView
-import link.thesymbolic.jetcommand.protocol.Step
-import link.thesymbolic.jetcommand.protocol.Timing
-import link.thesymbolic.jetcommand.protocol.formatTemp
+import link.thesymbolic.jetcommand.protocol.core.LibraryEntry
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.Origin
+import link.thesymbolic.jetcommand.protocol.core.ProgramId
+import link.thesymbolic.jetcommand.protocol.core.ProgramRevision
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.SlotStatus
+import link.thesymbolic.jetcommand.protocol.core.SlotView
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.formatTemp
 
 enum class SlotTone {
     MUTED,

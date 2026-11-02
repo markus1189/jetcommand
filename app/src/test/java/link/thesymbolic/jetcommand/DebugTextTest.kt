@@ -4,13 +4,13 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import link.thesymbolic.jetcommand.protocol.Characteristic
-import link.thesymbolic.jetcommand.protocol.LinkState
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.NightEvent
-import link.thesymbolic.jetcommand.protocol.Notification
-import link.thesymbolic.jetcommand.protocol.Step
-import link.thesymbolic.jetcommand.protocol.Timing
+import link.thesymbolic.jetcommand.protocol.core.LinkState
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.NightEvent
+import link.thesymbolic.jetcommand.protocol.core.Notification
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.ports.Characteristic
 
 class DebugTextTest {
     @Test

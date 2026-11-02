@@ -1,4 +1,4 @@
-package link.thesymbolic.jetcommand.protocol
+package link.thesymbolic.jetcommand.protocol.core
 
 /**
  * A [NightEvent.Kind.PROCESS] entry. The log stores only [detail], in the text earlier builds

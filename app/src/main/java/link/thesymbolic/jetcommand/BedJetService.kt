@@ -20,14 +20,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
-import link.thesymbolic.jetcommand.protocol.CommandOrigin
-import link.thesymbolic.jetcommand.protocol.Key
-import link.thesymbolic.jetcommand.protocol.LinkState
-import link.thesymbolic.jetcommand.protocol.LogLevel
-import link.thesymbolic.jetcommand.protocol.ProcessEvent
-import link.thesymbolic.jetcommand.protocol.StatusUpdate
-import link.thesymbolic.jetcommand.protocol.UserCommand
-import link.thesymbolic.jetcommand.protocol.formatTemp
+import link.thesymbolic.jetcommand.protocol.core.CommandOrigin
+import link.thesymbolic.jetcommand.protocol.core.Key
+import link.thesymbolic.jetcommand.protocol.core.LinkState
+import link.thesymbolic.jetcommand.protocol.core.LogLevel
+import link.thesymbolic.jetcommand.protocol.core.ProcessEvent
+import link.thesymbolic.jetcommand.protocol.core.StatusUpdate
+import link.thesymbolic.jetcommand.protocol.core.UserCommand
+import link.thesymbolic.jetcommand.protocol.core.formatTemp
 
 /**
  * Keeps the process alive while [BedJetController] holds a connection, with an ongoing status

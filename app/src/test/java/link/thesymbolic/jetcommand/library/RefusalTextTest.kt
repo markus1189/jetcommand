@@ -2,8 +2,8 @@ package link.thesymbolic.jetcommand.library
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import link.thesymbolic.jetcommand.protocol.ErrorCode
-import link.thesymbolic.jetcommand.protocol.Refusal
+import link.thesymbolic.jetcommand.protocol.core.ErrorCode
+import link.thesymbolic.jetcommand.protocol.core.Refusal
 
 class RefusalTextTest {
     // The texts the exceptions carried before refusals became values.

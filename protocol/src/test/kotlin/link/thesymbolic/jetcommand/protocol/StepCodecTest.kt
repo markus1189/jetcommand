@@ -17,6 +17,21 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
+import link.thesymbolic.jetcommand.protocol.core.Button
+import link.thesymbolic.jetcommand.protocol.core.Limits
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.NameTarget
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.Query
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.decodeStep
+import link.thesymbolic.jetcommand.protocol.core.decodeSteps
+import link.thesymbolic.jetcommand.protocol.core.encodeStep
+import link.thesymbolic.jetcommand.protocol.core.encodeSteps
+import link.thesymbolic.jetcommand.protocol.core.fingerprint
+import link.thesymbolic.jetcommand.protocol.core.toHex
 
 class StepCodecTest {
     // Every value the wire can carry: hours have 7 bits, minutes a whole byte, fan is clamped.

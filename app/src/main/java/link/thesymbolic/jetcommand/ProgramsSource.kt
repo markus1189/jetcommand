@@ -2,15 +2,15 @@ package link.thesymbolic.jetcommand
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
-import link.thesymbolic.jetcommand.protocol.DeviceId
-import link.thesymbolic.jetcommand.protocol.LibraryEntry
-import link.thesymbolic.jetcommand.protocol.Program
-import link.thesymbolic.jetcommand.protocol.ProgramId
-import link.thesymbolic.jetcommand.protocol.ProgramRevision
-import link.thesymbolic.jetcommand.protocol.Resolution
-import link.thesymbolic.jetcommand.protocol.Slot
-import link.thesymbolic.jetcommand.protocol.SlotView
-import link.thesymbolic.jetcommand.protocol.StartedSlot
+import link.thesymbolic.jetcommand.protocol.core.DeviceId
+import link.thesymbolic.jetcommand.protocol.core.LibraryEntry
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.ProgramId
+import link.thesymbolic.jetcommand.protocol.core.ProgramRevision
+import link.thesymbolic.jetcommand.protocol.core.Resolution
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.SlotView
+import link.thesymbolic.jetcommand.protocol.core.StartedSlot
 
 /**
  * Everything the program screens read or do; `LibraryPrograms` in the app, [FakePrograms] for

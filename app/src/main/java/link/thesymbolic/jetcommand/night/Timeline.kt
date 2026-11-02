@@ -5,11 +5,11 @@ import java.time.ZoneId
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToLong
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.NightDetail
-import link.thesymbolic.jetcommand.protocol.NightEvent
-import link.thesymbolic.jetcommand.protocol.NightSummary
-import link.thesymbolic.jetcommand.protocol.fanPercent
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.NightDetail
+import link.thesymbolic.jetcommand.protocol.core.NightEvent
+import link.thesymbolic.jetcommand.protocol.core.NightSummary
+import link.thesymbolic.jetcommand.protocol.core.fanPercent
 
 /** More than this many minutes between samples is a gap, drawn as a break rather than a line. */
 const val GAP_MINUTES = 2.5

@@ -51,9 +51,9 @@ import link.thesymbolic.jetcommand.night.sampleAt
 import link.thesymbolic.jetcommand.night.shareText
 import link.thesymbolic.jetcommand.night.statTiles
 import link.thesymbolic.jetcommand.night.stats
-import link.thesymbolic.jetcommand.protocol.NightDetail
-import link.thesymbolic.jetcommand.protocol.NightSummary
-import link.thesymbolic.jetcommand.protocol.NightsSource
+import link.thesymbolic.jetcommand.protocol.core.NightDetail
+import link.thesymbolic.jetcommand.protocol.core.NightSummary
+import link.thesymbolic.jetcommand.protocol.ports.NightsSource
 
 @Composable
 fun NightReviewScreen(

@@ -23,7 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import link.thesymbolic.jetcommand.library.ProgramsViewModel
-import link.thesymbolic.jetcommand.protocol.NightsSource
+import link.thesymbolic.jetcommand.protocol.ports.NightsSource
 
 enum class Place(val label: String, val glyph: String) {
     NOW("Now", "◉"),

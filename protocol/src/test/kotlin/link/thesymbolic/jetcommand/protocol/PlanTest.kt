@@ -10,6 +10,26 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
+import link.thesymbolic.jetcommand.protocol.core.AutoOff
+import link.thesymbolic.jetcommand.protocol.core.CommandOrigin
+import link.thesymbolic.jetcommand.protocol.core.CommandRequest
+import link.thesymbolic.jetcommand.protocol.core.CommandSnapshot
+import link.thesymbolic.jetcommand.protocol.core.FanStep
+import link.thesymbolic.jetcommand.protocol.core.Key
+import link.thesymbolic.jetcommand.protocol.core.LinkConfig
+import link.thesymbolic.jetcommand.protocol.core.LinkState
+import link.thesymbolic.jetcommand.protocol.core.Plan
+import link.thesymbolic.jetcommand.protocol.core.RunOutcome
+import link.thesymbolic.jetcommand.protocol.core.SettableMode
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.StartFailure
+import link.thesymbolic.jetcommand.protocol.core.StartOutcome
+import link.thesymbolic.jetcommand.protocol.core.TargetTemp
+import link.thesymbolic.jetcommand.protocol.core.UserCommand
+import link.thesymbolic.jetcommand.protocol.core.describe
+import link.thesymbolic.jetcommand.protocol.core.plan
+import link.thesymbolic.jetcommand.protocol.core.runOutcomeOf
+import link.thesymbolic.jetcommand.protocol.shell.readyTimeoutMs
 
 class PlanTest {
     private val ready =
@@ -27,7 +47,7 @@ class PlanTest {
 
     @Test
     fun `a shortcut waits out a timed-out connect, the longest backoff and a retry`() =
-        assertEquals(50_000, readyTimeoutMs(BedJetLink.Config(reconnectMaxMs = 10_000)))
+        assertEquals(50_000, readyTimeoutMs(LinkConfig(reconnectMaxMs = 10_000)))
 
     private val fan = UserCommand.SetFan(FanStep.of(9)!!)
     private val press = UserCommand.Press(Key.FAN_UP)

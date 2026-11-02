@@ -12,12 +12,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import link.thesymbolic.jetcommand.protocol.CommandOrigin
-import link.thesymbolic.jetcommand.protocol.CommandRequest
-import link.thesymbolic.jetcommand.protocol.LogLevel
-import link.thesymbolic.jetcommand.protocol.SettableMode
-import link.thesymbolic.jetcommand.protocol.Slot
-import link.thesymbolic.jetcommand.protocol.UserCommand
+import link.thesymbolic.jetcommand.protocol.core.CommandOrigin
+import link.thesymbolic.jetcommand.protocol.core.CommandRequest
+import link.thesymbolic.jetcommand.protocol.core.LogLevel
+import link.thesymbolic.jetcommand.protocol.core.SettableMode
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.UserCommand
 
 /** The UI's view of [BedJetController]; the connection lives there, not here. */
 class BedJetViewModel(app: Application) : AndroidViewModel(app) {

@@ -12,7 +12,7 @@ import androidx.annotation.RequiresPermission
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import link.thesymbolic.jetcommand.protocol.Uuids
+import link.thesymbolic.jetcommand.protocol.core.Uuids
 
 data class ScannedDevice(val device: BluetoothDevice, val name: String?, val rssi: Int) {
     val address: String

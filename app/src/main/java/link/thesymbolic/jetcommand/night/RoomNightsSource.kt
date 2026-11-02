@@ -6,12 +6,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flow
-import link.thesymbolic.jetcommand.protocol.NightDetail
-import link.thesymbolic.jetcommand.protocol.NightSummary
-import link.thesymbolic.jetcommand.protocol.NightsSource
-import link.thesymbolic.jetcommand.protocol.groupNights
-import link.thesymbolic.jetcommand.protocol.nightOf
-import link.thesymbolic.jetcommand.protocol.nightWindow
+import link.thesymbolic.jetcommand.protocol.core.NightDetail
+import link.thesymbolic.jetcommand.protocol.core.NightSummary
+import link.thesymbolic.jetcommand.protocol.core.groupNights
+import link.thesymbolic.jetcommand.protocol.core.nightOf
+import link.thesymbolic.jetcommand.protocol.core.nightWindow
+import link.thesymbolic.jetcommand.protocol.ports.NightsSource
 
 /**
  * Regroups the whole log on every write (a sample a minute): events are a few hundred a night and

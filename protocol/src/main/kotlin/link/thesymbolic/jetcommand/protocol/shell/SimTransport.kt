@@ -1,4 +1,4 @@
-package link.thesymbolic.jetcommand.protocol
+package link.thesymbolic.jetcommand.protocol.shell
 
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
@@ -14,6 +14,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
+import link.thesymbolic.jetcommand.protocol.core.BedJetException
+import link.thesymbolic.jetcommand.protocol.core.Reply
+import link.thesymbolic.jetcommand.protocol.core.toHex
+import link.thesymbolic.jetcommand.protocol.core.u
+import link.thesymbolic.jetcommand.protocol.ports.BedJetTransport
+import link.thesymbolic.jetcommand.protocol.ports.Characteristic
+import link.thesymbolic.jetcommand.protocol.ports.TransportException
+import link.thesymbolic.jetcommand.protocol.ports.TransportState
 
 /**
  * A [BedJetTransport] over a [BedJetSim] that behaves like the real unit on the wire, for demo mode

@@ -11,9 +11,28 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import link.thesymbolic.jetcommand.protocol.NightEvent.Kind
-import link.thesymbolic.jetcommand.protocol.SimTransport.Fault
-import link.thesymbolic.jetcommand.protocol.SimTransport.Op
+import link.thesymbolic.jetcommand.protocol.core.LinkConfig
+import link.thesymbolic.jetcommand.protocol.core.LinkState
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.NightEvent.Kind
+import link.thesymbolic.jetcommand.protocol.core.Notification
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.RecorderInput
+import link.thesymbolic.jetcommand.protocol.core.RecorderOutput
+import link.thesymbolic.jetcommand.protocol.core.RecorderState
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.next
+import link.thesymbolic.jetcommand.protocol.shell.BedJetDevice
+import link.thesymbolic.jetcommand.protocol.shell.BedJetLink
+import link.thesymbolic.jetcommand.protocol.shell.BedJetSim
+import link.thesymbolic.jetcommand.protocol.shell.InMemoryNightLogStore
+import link.thesymbolic.jetcommand.protocol.shell.NightRecorder
+import link.thesymbolic.jetcommand.protocol.shell.SimTransport
+import link.thesymbolic.jetcommand.protocol.shell.SimTransport.Fault
+import link.thesymbolic.jetcommand.protocol.shell.SimTransport.Op
+import link.thesymbolic.jetcommand.protocol.shell.TappedTransport
+import link.thesymbolic.jetcommand.protocol.shell.attempt
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NightRecorderTest {
@@ -29,7 +48,7 @@ class NightRecorderTest {
                 BedJetLink(
                     transport,
                     backgroundScope,
-                    BedJetLink.Config(maxReconnectAttempts = null),
+                    LinkConfig(maxReconnectAttempts = null),
                     now = { currentTime },
                 )
             val device =
@@ -139,7 +158,7 @@ class NightRecorderTest {
             BedJetLink(
                 st,
                 backgroundScope,
-                BedJetLink.Config(maxReconnectAttempts = null),
+                LinkConfig(maxReconnectAttempts = null),
                 now = { currentTime },
             )
         BedJetDevice(link, backgroundScope, autoAck = false, now = { currentTime })

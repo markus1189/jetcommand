@@ -2,8 +2,8 @@ package link.thesymbolic.jetcommand
 
 import android.content.Context
 import androidx.core.content.edit
-import link.thesymbolic.jetcommand.protocol.DeviceMemory
-import link.thesymbolic.jetcommand.protocol.RememberedDevice
+import link.thesymbolic.jetcommand.protocol.ports.DeviceMemory
+import link.thesymbolic.jetcommand.protocol.ports.RememberedDevice
 
 // SharedPreferences, not DataStore: two strings, read once synchronously at startup. File and keys
 // are those of earlier installs, which keep their remembered unit.

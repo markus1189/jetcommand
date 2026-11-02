@@ -44,22 +44,22 @@ import kotlinx.coroutines.delay
 import link.thesymbolic.jetcommand.ble.BedJetScanner
 import link.thesymbolic.jetcommand.ble.RequireBluetoothPermissions
 import link.thesymbolic.jetcommand.ble.ScannedDevice
-import link.thesymbolic.jetcommand.protocol.Characteristic
-import link.thesymbolic.jetcommand.protocol.Key
-import link.thesymbolic.jetcommand.protocol.LinkState
-import link.thesymbolic.jetcommand.protocol.LogLevel
-import link.thesymbolic.jetcommand.protocol.NightEvent
-import link.thesymbolic.jetcommand.protocol.Notification
-import link.thesymbolic.jetcommand.protocol.SettableMode
-import link.thesymbolic.jetcommand.protocol.SimTransport
-import link.thesymbolic.jetcommand.protocol.Slot
-import link.thesymbolic.jetcommand.protocol.Status
-import link.thesymbolic.jetcommand.protocol.StatusUpdate
-import link.thesymbolic.jetcommand.protocol.Step
-import link.thesymbolic.jetcommand.protocol.Timing
-import link.thesymbolic.jetcommand.protocol.TransportState
-import link.thesymbolic.jetcommand.protocol.fanPercent
-import link.thesymbolic.jetcommand.protocol.formatTemp
+import link.thesymbolic.jetcommand.protocol.core.Key
+import link.thesymbolic.jetcommand.protocol.core.LinkState
+import link.thesymbolic.jetcommand.protocol.core.LogLevel
+import link.thesymbolic.jetcommand.protocol.core.NightEvent
+import link.thesymbolic.jetcommand.protocol.core.Notification
+import link.thesymbolic.jetcommand.protocol.core.SettableMode
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.Status
+import link.thesymbolic.jetcommand.protocol.core.StatusUpdate
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.fanPercent
+import link.thesymbolic.jetcommand.protocol.core.formatTemp
+import link.thesymbolic.jetcommand.protocol.ports.Characteristic
+import link.thesymbolic.jetcommand.protocol.ports.TransportState
+import link.thesymbolic.jetcommand.protocol.shell.SimTransport
 
 /** Full-stack test bench: a real BedJet from the scan list, or the demo sim with fault buttons. */
 @Composable

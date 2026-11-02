@@ -4,14 +4,14 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.NightDetail
-import link.thesymbolic.jetcommand.protocol.NightEvent
-import link.thesymbolic.jetcommand.protocol.NightEvent.Kind
-import link.thesymbolic.jetcommand.protocol.NightSample
-import link.thesymbolic.jetcommand.protocol.NightSummary
-import link.thesymbolic.jetcommand.protocol.NightSummary.Cause
-import link.thesymbolic.jetcommand.protocol.NightSummary.Gap
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.NightDetail
+import link.thesymbolic.jetcommand.protocol.core.NightEvent
+import link.thesymbolic.jetcommand.protocol.core.NightEvent.Kind
+import link.thesymbolic.jetcommand.protocol.core.NightSample
+import link.thesymbolic.jetcommand.protocol.core.NightSummary
+import link.thesymbolic.jetcommand.protocol.core.NightSummary.Cause
+import link.thesymbolic.jetcommand.protocol.core.NightSummary.Gap
 
 class TimelineTest {
     private val berlin = ZoneId.of("Europe/Berlin")

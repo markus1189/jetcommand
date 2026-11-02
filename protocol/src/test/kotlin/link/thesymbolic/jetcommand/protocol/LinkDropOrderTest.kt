@@ -8,6 +8,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
+import link.thesymbolic.jetcommand.protocol.core.LinkState
+import link.thesymbolic.jetcommand.protocol.shell.BedJetLink
+import link.thesymbolic.jetcommand.protocol.shell.BedJetSim
+import link.thesymbolic.jetcommand.protocol.shell.SimTransport
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LinkDropOrderTest {

@@ -18,21 +18,21 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import link.thesymbolic.jetcommand.hoursMinutes
-import link.thesymbolic.jetcommand.protocol.DeviceId
-import link.thesymbolic.jetcommand.protocol.LinkState
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.Notification
-import link.thesymbolic.jetcommand.protocol.Program
-import link.thesymbolic.jetcommand.protocol.SettableMode
-import link.thesymbolic.jetcommand.protocol.Slot
-import link.thesymbolic.jetcommand.protocol.SlotState
-import link.thesymbolic.jetcommand.protocol.SlotStatus
-import link.thesymbolic.jetcommand.protocol.SlotView
-import link.thesymbolic.jetcommand.protocol.StartedSlot
-import link.thesymbolic.jetcommand.protocol.StatusUpdate
-import link.thesymbolic.jetcommand.protocol.Step
-import link.thesymbolic.jetcommand.protocol.Timing
-import link.thesymbolic.jetcommand.protocol.maxRuntimeMinutes
+import link.thesymbolic.jetcommand.protocol.core.DeviceId
+import link.thesymbolic.jetcommand.protocol.core.LinkState
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.Notification
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.SettableMode
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.SlotState
+import link.thesymbolic.jetcommand.protocol.core.SlotStatus
+import link.thesymbolic.jetcommand.protocol.core.SlotView
+import link.thesymbolic.jetcommand.protocol.core.StartedSlot
+import link.thesymbolic.jetcommand.protocol.core.StatusUpdate
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.maxRuntimeMinutes
 import link.thesymbolic.jetcommand.status
 
 private val DEV = DeviceId("AA:BB")

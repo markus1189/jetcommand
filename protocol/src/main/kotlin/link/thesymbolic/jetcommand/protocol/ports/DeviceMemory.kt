@@ -1,4 +1,4 @@
-package link.thesymbolic.jetcommand.protocol
+package link.thesymbolic.jetcommand.protocol.ports
 
 /** A real unit connected to before; [name] is what the scan reported, if anything. */
 data class RememberedDevice(val address: String, val name: String?)

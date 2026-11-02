@@ -3,8 +3,8 @@ package link.thesymbolic.jetcommand
 import android.app.Activity
 import android.os.Bundle
 import android.widget.Toast
-import link.thesymbolic.jetcommand.protocol.CommandOrigin
-import link.thesymbolic.jetcommand.protocol.LogLevel
+import link.thesymbolic.jetcommand.protocol.core.CommandOrigin
+import link.thesymbolic.jetcommand.protocol.core.LogLevel
 
 /**
  * The target of shortcuts.xml, and through it of Samsung Routines' app actions. Theme NoDisplay:

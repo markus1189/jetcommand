@@ -1,4 +1,4 @@
-package link.thesymbolic.jetcommand.protocol
+package link.thesymbolic.jetcommand.protocol.core
 
 /**
  * Puts split status packets back together, without side effects: every input returns the next

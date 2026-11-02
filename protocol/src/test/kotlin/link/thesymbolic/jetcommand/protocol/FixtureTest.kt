@@ -16,6 +16,31 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import link.thesymbolic.jetcommand.protocol.core.BedJetException
+import link.thesymbolic.jetcommand.protocol.core.Button
+import link.thesymbolic.jetcommand.protocol.core.Command
+import link.thesymbolic.jetcommand.protocol.core.MemorySlot
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.NameTarget
+import link.thesymbolic.jetcommand.protocol.core.Reply
+import link.thesymbolic.jetcommand.protocol.core.SettableMode
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.Status
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.TempUnit
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.fanPercent
+import link.thesymbolic.jetcommand.protocol.core.formatTemp
+import link.thesymbolic.jetcommand.protocol.core.heatHours
+import link.thesymbolic.jetcommand.protocol.core.hexToBytes
+import link.thesymbolic.jetcommand.protocol.core.longestStepMinutes
+import link.thesymbolic.jetcommand.protocol.core.maxRuntimeMinutes
+import link.thesymbolic.jetcommand.protocol.core.plan
+import link.thesymbolic.jetcommand.protocol.core.planProgram
+import link.thesymbolic.jetcommand.protocol.core.stepProblem
+import link.thesymbolic.jetcommand.protocol.core.toHex
+import link.thesymbolic.jetcommand.protocol.core.validateProgram
+import link.thesymbolic.jetcommand.protocol.shell.BedJetSim
 
 /** Replays what the web app's codec and sim recorded (scripts/gen-fixtures.mjs). */
 class FixtureTest {

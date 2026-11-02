@@ -11,12 +11,12 @@ import link.thesymbolic.jetcommand.library.RoomLibraryStore
 import link.thesymbolic.jetcommand.night.NightLogDatabase
 import link.thesymbolic.jetcommand.night.RoomNightLogStore
 import link.thesymbolic.jetcommand.night.RoomNightsSource
-import link.thesymbolic.jetcommand.protocol.NightEvent
-import link.thesymbolic.jetcommand.protocol.NightLogStore
-import link.thesymbolic.jetcommand.protocol.Origin
-import link.thesymbolic.jetcommand.protocol.ProcessEvent
-import link.thesymbolic.jetcommand.protocol.ProgramLibrary
-import link.thesymbolic.jetcommand.protocol.unrecorded
+import link.thesymbolic.jetcommand.protocol.core.NightEvent
+import link.thesymbolic.jetcommand.protocol.core.Origin
+import link.thesymbolic.jetcommand.protocol.core.ProcessEvent
+import link.thesymbolic.jetcommand.protocol.core.unrecorded
+import link.thesymbolic.jetcommand.protocol.ports.NightLogStore
+import link.thesymbolic.jetcommand.protocol.shell.ProgramLibrary
 
 class JetCommandApp : Application() {
     lateinit var bedJetController: BedJetController

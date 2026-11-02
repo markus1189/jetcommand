@@ -1,5 +1,5 @@
 // Port of the web app's `BedJetDevice`: the operations above single frames.
-package link.thesymbolic.jetcommand.protocol
+package link.thesymbolic.jetcommand.protocol.shell
 
 import java.time.LocalTime
 import kotlinx.coroutines.CoroutineScope
@@ -15,21 +15,29 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-
-/** How [BedJetDevice.startProgram] ended. */
-sealed interface StartOutcome {
-    /** [status] is the first one that showed the program running. */
-    data class Started(val status: Status) : StartOutcome
-
-    data class Failed(val reason: StartFailure) : StartOutcome
-}
-
-/** Why a program didn't start; [code] and [text] for surfaces that report errors. */
-enum class StartFailure(val code: ErrorCode, val text: String = code.text) {
-    CLOCK_NOT_SET(ErrorCode.CLOCK_NOT_SET),
-    STEP_TOO_LONG(ErrorCode.STEP_TOO_LONG),
-    UNCONFIRMED(ErrorCode.TIMEOUT, "Your BedJet didn't confirm that the program started."),
-}
+import link.thesymbolic.jetcommand.protocol.core.BedJetException
+import link.thesymbolic.jetcommand.protocol.core.Command
+import link.thesymbolic.jetcommand.protocol.core.ErrorCode
+import link.thesymbolic.jetcommand.protocol.core.Key
+import link.thesymbolic.jetcommand.protocol.core.Limits
+import link.thesymbolic.jetcommand.protocol.core.LinkState
+import link.thesymbolic.jetcommand.protocol.core.MemorySlot
+import link.thesymbolic.jetcommand.protocol.core.NameTarget
+import link.thesymbolic.jetcommand.protocol.core.Notification
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.Query
+import link.thesymbolic.jetcommand.protocol.core.Reply
+import link.thesymbolic.jetcommand.protocol.core.SettableMode
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.StartFailure
+import link.thesymbolic.jetcommand.protocol.core.StartOutcome
+import link.thesymbolic.jetcommand.protocol.core.Status
+import link.thesymbolic.jetcommand.protocol.core.StatusExtra
+import link.thesymbolic.jetcommand.protocol.core.StatusUpdate
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.u
+import link.thesymbolic.jetcommand.protocol.core.validateProgram
+import link.thesymbolic.jetcommand.protocol.ports.SlotReader
 
 /**
  * [clock] is the phone's local time, synced to the unit before a program starts; [now] (ms)

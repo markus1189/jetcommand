@@ -12,6 +12,23 @@ import io.kotest.property.checkAll
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.test.runTest
+import link.thesymbolic.jetcommand.protocol.core.Catalog
+import link.thesymbolic.jetcommand.protocol.core.DeviceId
+import link.thesymbolic.jetcommand.protocol.core.Fingerprint
+import link.thesymbolic.jetcommand.protocol.core.LibraryEntry
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.Origin
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.ProgramId
+import link.thesymbolic.jetcommand.protocol.core.ProgramRevision
+import link.thesymbolic.jetcommand.protocol.core.PushRecord
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.SlotState
+import link.thesymbolic.jetcommand.protocol.core.SlotStatus
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.fingerprint
+import link.thesymbolic.jetcommand.protocol.core.slotStatus
 
 class SlotStatusTest {
     // Few programs, so random catalogs and slots collide on content often.

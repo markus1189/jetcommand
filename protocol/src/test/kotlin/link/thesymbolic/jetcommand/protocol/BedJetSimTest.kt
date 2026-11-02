@@ -2,6 +2,14 @@ package link.thesymbolic.jetcommand.protocol
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import link.thesymbolic.jetcommand.protocol.core.Command
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.Notification
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.shell.BedJetSim
 
 /** Program start and run as the firmware does them (`FUN_400ece98`, `FUN_400e65bc`). */
 class BedJetSimTest {

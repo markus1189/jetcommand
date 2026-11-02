@@ -36,38 +36,39 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import link.thesymbolic.jetcommand.ble.GattTransport
-import link.thesymbolic.jetcommand.protocol.BedJetDevice
-import link.thesymbolic.jetcommand.protocol.BedJetException
-import link.thesymbolic.jetcommand.protocol.BedJetLink
-import link.thesymbolic.jetcommand.protocol.BedJetSim
-import link.thesymbolic.jetcommand.protocol.BedJetTransport
-import link.thesymbolic.jetcommand.protocol.CommandOrigin
-import link.thesymbolic.jetcommand.protocol.CommandRequest
-import link.thesymbolic.jetcommand.protocol.CommandSnapshot
-import link.thesymbolic.jetcommand.protocol.DeviceId
-import link.thesymbolic.jetcommand.protocol.DeviceMemory
-import link.thesymbolic.jetcommand.protocol.LinkState
-import link.thesymbolic.jetcommand.protocol.LogLevel
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.NightEvent
-import link.thesymbolic.jetcommand.protocol.NightLogStore
-import link.thesymbolic.jetcommand.protocol.NightRecorder
-import link.thesymbolic.jetcommand.protocol.Plan
-import link.thesymbolic.jetcommand.protocol.ProcessEvent
-import link.thesymbolic.jetcommand.protocol.Program
-import link.thesymbolic.jetcommand.protocol.ProgramLibrary
-import link.thesymbolic.jetcommand.protocol.RememberedDevice
-import link.thesymbolic.jetcommand.protocol.RunOutcome
-import link.thesymbolic.jetcommand.protocol.SimTransport
-import link.thesymbolic.jetcommand.protocol.StatusUpdate
-import link.thesymbolic.jetcommand.protocol.Step
-import link.thesymbolic.jetcommand.protocol.TappedTransport
-import link.thesymbolic.jetcommand.protocol.Timing
-import link.thesymbolic.jetcommand.protocol.UserCommand
-import link.thesymbolic.jetcommand.protocol.attempt
-import link.thesymbolic.jetcommand.protocol.plan
-import link.thesymbolic.jetcommand.protocol.readyTimeoutMs
-import link.thesymbolic.jetcommand.protocol.runOutcomeOf
+import link.thesymbolic.jetcommand.protocol.core.BedJetException
+import link.thesymbolic.jetcommand.protocol.core.CommandOrigin
+import link.thesymbolic.jetcommand.protocol.core.CommandRequest
+import link.thesymbolic.jetcommand.protocol.core.CommandSnapshot
+import link.thesymbolic.jetcommand.protocol.core.DeviceId
+import link.thesymbolic.jetcommand.protocol.core.LinkConfig
+import link.thesymbolic.jetcommand.protocol.core.LinkState
+import link.thesymbolic.jetcommand.protocol.core.LogLevel
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.NightEvent
+import link.thesymbolic.jetcommand.protocol.core.Plan
+import link.thesymbolic.jetcommand.protocol.core.ProcessEvent
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.RunOutcome
+import link.thesymbolic.jetcommand.protocol.core.StatusUpdate
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.UserCommand
+import link.thesymbolic.jetcommand.protocol.core.plan
+import link.thesymbolic.jetcommand.protocol.core.runOutcomeOf
+import link.thesymbolic.jetcommand.protocol.ports.BedJetTransport
+import link.thesymbolic.jetcommand.protocol.ports.DeviceMemory
+import link.thesymbolic.jetcommand.protocol.ports.NightLogStore
+import link.thesymbolic.jetcommand.protocol.ports.RememberedDevice
+import link.thesymbolic.jetcommand.protocol.shell.BedJetDevice
+import link.thesymbolic.jetcommand.protocol.shell.BedJetLink
+import link.thesymbolic.jetcommand.protocol.shell.BedJetSim
+import link.thesymbolic.jetcommand.protocol.shell.NightRecorder
+import link.thesymbolic.jetcommand.protocol.shell.ProgramLibrary
+import link.thesymbolic.jetcommand.protocol.shell.SimTransport
+import link.thesymbolic.jetcommand.protocol.shell.TappedTransport
+import link.thesymbolic.jetcommand.protocol.shell.attempt
+import link.thesymbolic.jetcommand.protocol.shell.readyTimeoutMs
 
 sealed interface Source {
     val label: String
@@ -458,7 +459,7 @@ class BedJetController(
         // timeouts left a 358 s gap; 10 s keeps it under ~30 s. The BedJet's BLE stays on in
         // standby, so only leaving the room ends a link: after 15 min down, let go for the day.
         val LINK_CONFIG =
-            BedJetLink.Config(
+            LinkConfig(
                 maxReconnectAttempts = null,
                 giveUpAfterDownMs = 15 * 60_000L,
                 retryFailedConnect = true,

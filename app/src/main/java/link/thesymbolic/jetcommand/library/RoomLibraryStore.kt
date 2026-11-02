@@ -15,19 +15,19 @@ import androidx.room.withTransaction
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import link.thesymbolic.jetcommand.protocol.DeviceId
-import link.thesymbolic.jetcommand.protocol.Fingerprint
-import link.thesymbolic.jetcommand.protocol.LibraryEntry
-import link.thesymbolic.jetcommand.protocol.LibraryStore
-import link.thesymbolic.jetcommand.protocol.Origin
-import link.thesymbolic.jetcommand.protocol.Program
-import link.thesymbolic.jetcommand.protocol.ProgramId
-import link.thesymbolic.jetcommand.protocol.ProgramRevision
-import link.thesymbolic.jetcommand.protocol.PushRecord
-import link.thesymbolic.jetcommand.protocol.Slot
-import link.thesymbolic.jetcommand.protocol.SlotState
-import link.thesymbolic.jetcommand.protocol.decodeSteps
-import link.thesymbolic.jetcommand.protocol.encodeSteps
+import link.thesymbolic.jetcommand.protocol.core.DeviceId
+import link.thesymbolic.jetcommand.protocol.core.Fingerprint
+import link.thesymbolic.jetcommand.protocol.core.LibraryEntry
+import link.thesymbolic.jetcommand.protocol.core.Origin
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.ProgramId
+import link.thesymbolic.jetcommand.protocol.core.ProgramRevision
+import link.thesymbolic.jetcommand.protocol.core.PushRecord
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.SlotState
+import link.thesymbolic.jetcommand.protocol.core.decodeSteps
+import link.thesymbolic.jetcommand.protocol.core.encodeSteps
+import link.thesymbolic.jetcommand.protocol.ports.LibraryStore
 
 @Entity(tableName = "program", indices = [Index("updatedAt")])
 data class ProgramRow(

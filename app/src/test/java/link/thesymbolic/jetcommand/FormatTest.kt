@@ -6,10 +6,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import link.thesymbolic.jetcommand.night.NightText
 import link.thesymbolic.jetcommand.night.chips
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.NightSummary
-import link.thesymbolic.jetcommand.protocol.Step
-import link.thesymbolic.jetcommand.protocol.Timing
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.NightSummary
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
 
 /** Every caller of the shared formatters, pinned to the exact text it printed before the merge. */
 class FormatTest {

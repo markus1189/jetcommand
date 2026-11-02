@@ -9,15 +9,15 @@ import link.thesymbolic.jetcommand.durationMs
 import link.thesymbolic.jetcommand.hhmm
 import link.thesymbolic.jetcommand.hhmmss
 import link.thesymbolic.jetcommand.plural
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.NightDetail
-import link.thesymbolic.jetcommand.protocol.NightEvent
-import link.thesymbolic.jetcommand.protocol.NightEvent.Kind
-import link.thesymbolic.jetcommand.protocol.NightSample
-import link.thesymbolic.jetcommand.protocol.NightSummary
-import link.thesymbolic.jetcommand.protocol.ProcessEvent
-import link.thesymbolic.jetcommand.protocol.fanPercent
-import link.thesymbolic.jetcommand.protocol.formatTemp
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.NightDetail
+import link.thesymbolic.jetcommand.protocol.core.NightEvent
+import link.thesymbolic.jetcommand.protocol.core.NightEvent.Kind
+import link.thesymbolic.jetcommand.protocol.core.NightSample
+import link.thesymbolic.jetcommand.protocol.core.NightSummary
+import link.thesymbolic.jetcommand.protocol.core.ProcessEvent
+import link.thesymbolic.jetcommand.protocol.core.fanPercent
+import link.thesymbolic.jetcommand.protocol.core.formatTemp
 
 /**
  * What the Nights screens show, derived from the [NightsSource] contract; no Android, no Compose.

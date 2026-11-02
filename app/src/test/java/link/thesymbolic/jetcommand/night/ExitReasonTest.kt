@@ -4,7 +4,7 @@ import android.annotation.SuppressLint
 import android.app.ApplicationExitInfo
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import link.thesymbolic.jetcommand.protocol.ExitReason
+import link.thesymbolic.jetcommand.protocol.core.ExitReason
 
 class ExitReasonTest {
     // The constants are inlined at compile time, so newer ones are fine on any API level here.

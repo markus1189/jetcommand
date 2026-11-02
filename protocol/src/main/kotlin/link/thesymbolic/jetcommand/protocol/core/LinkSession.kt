@@ -1,4 +1,4 @@
-package link.thesymbolic.jetcommand.protocol
+package link.thesymbolic.jetcommand.protocol.core
 
 /**
  * Where the link is and whether anyone wants it, decided by [linkStep]; [BedJetLink] holds one and
@@ -115,7 +115,7 @@ fun linkStep(
     s: LinkSession,
     event: LinkEvent,
     now: Long,
-    config: BedJetLink.Config,
+    config: LinkConfig,
 ): LinkTransition =
     when (event) {
         LinkEvent.Connect -> connect(s)
@@ -164,7 +164,7 @@ private fun connect(s: LinkSession): LinkTransition =
 private fun connectFailed(
     s: LinkSession,
     event: LinkEvent.ConnectFailed,
-    config: BedJetLink.Config,
+    config: LinkConfig,
 ): LinkTransition =
     if (event.owned && config.retryFailedConnect && config.autoReconnect)
         LinkTransition(
@@ -176,7 +176,7 @@ private fun connectFailed(
         )
     else LinkTransition(s)
 
-private fun dropped(s: LinkSession, reason: String?, config: BedJetLink.Config): LinkTransition {
+private fun dropped(s: LinkSession, reason: String?, config: LinkConfig): LinkTransition {
     val p = s.phase
     if (p != LinkSession.Phase.Ready && p !is LinkSession.Phase.Connecting) return LinkTransition(s)
     return LinkTransition(
@@ -190,7 +190,7 @@ private fun dropped(s: LinkSession, reason: String?, config: BedJetLink.Config):
     )
 }
 
-private fun retryNow(s: LinkSession, config: BedJetLink.Config): LinkTransition {
+private fun retryNow(s: LinkSession, config: LinkConfig): LinkTransition {
     val p = s.phase
     val gaveUp = (p as? LinkSession.Phase.Down)?.gaveUp == true
     if (!config.autoReconnect || (p !is LinkSession.Phase.Waiting && !gaveUp))
@@ -222,7 +222,7 @@ private fun schedule(
     s: LinkSession,
     after: Int,
     now: Long,
-    config: BedJetLink.Config,
+    config: LinkConfig,
 ): LinkTransition {
     val since = s.downSince ?: now
     val started = s.copy(downSince = since)

@@ -55,7 +55,7 @@ import link.thesymbolic.jetcommand.night.Timeline
 import link.thesymbolic.jetcommand.night.atMinute
 import link.thesymbolic.jetcommand.night.timeTicks
 import link.thesymbolic.jetcommand.night.timeline
-import link.thesymbolic.jetcommand.protocol.NightDetail
+import link.thesymbolic.jetcommand.protocol.core.NightDetail
 
 /** Same width on every panel, so their plot areas line up on one time axis. */
 private val AxisWidth = 36.dp

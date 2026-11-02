@@ -5,14 +5,14 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
-import link.thesymbolic.jetcommand.protocol.ClockWindow
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.PlannedStep
-import link.thesymbolic.jetcommand.protocol.Step
-import link.thesymbolic.jetcommand.protocol.StepEdit
-import link.thesymbolic.jetcommand.protocol.Timing
-import link.thesymbolic.jetcommand.protocol.planProgram
-import link.thesymbolic.jetcommand.protocol.startWindows
+import link.thesymbolic.jetcommand.protocol.core.ClockWindow
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.PlannedStep
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.StepEdit
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.planProgram
+import link.thesymbolic.jetcommand.protocol.core.startWindows
 
 class EditorStateTest {
     private fun step(mode: Mode, fan: Int, temp: Int, min: Int) =
@@ -99,7 +99,7 @@ class EditorStateTest {
         assertEquals(
             "Dry has no clock time: kept as 1 h 30 instead of until 05:30.",
             noteText(
-                link.thesymbolic.jetcommand.protocol.EditNote.ClockTimeDropped(Mode.DRY, 90),
+                link.thesymbolic.jetcommand.protocol.core.EditNote.ClockTimeDropped(Mode.DRY, 90),
                 summer[4],
                 step(Mode.DRY, 4, 50, p.wanted),
             ),

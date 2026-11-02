@@ -92,15 +92,15 @@ import link.thesymbolic.jetcommand.Warm
 import link.thesymbolic.jetcommand.WarmLine
 import link.thesymbolic.jetcommand.modeColor
 import link.thesymbolic.jetcommand.prettyName
-import link.thesymbolic.jetcommand.protocol.EDITOR_MODES
-import link.thesymbolic.jetcommand.protocol.LibraryEntry
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.Program
-import link.thesymbolic.jetcommand.protocol.ProgramRevision
-import link.thesymbolic.jetcommand.protocol.StepEdit
-import link.thesymbolic.jetcommand.protocol.Timing
-import link.thesymbolic.jetcommand.protocol.startWindows
-import link.thesymbolic.jetcommand.protocol.untilAllowed
+import link.thesymbolic.jetcommand.protocol.core.EDITOR_MODES
+import link.thesymbolic.jetcommand.protocol.core.LibraryEntry
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.ProgramRevision
+import link.thesymbolic.jetcommand.protocol.core.StepEdit
+import link.thesymbolic.jetcommand.protocol.core.Timing
+import link.thesymbolic.jetcommand.protocol.core.startWindows
+import link.thesymbolic.jetcommand.protocol.core.untilAllowed
 import link.thesymbolic.jetcommand.stripWidths
 
 /** Edits [entry]'s current revision; [back] returns to the program, saved or not. */

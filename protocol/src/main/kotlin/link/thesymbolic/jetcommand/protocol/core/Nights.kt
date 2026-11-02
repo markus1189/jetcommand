@@ -1,6 +1,4 @@
-package link.thesymbolic.jetcommand.protocol
-
-import kotlinx.coroutines.flow.Flow
+package link.thesymbolic.jetcommand.protocol.core
 
 /**
  * One night: everything logged from [start] to [end]; [end] is the last event or sample, not a
@@ -29,10 +27,3 @@ data class NightDetail(
     val events: List<NightEvent>,
     val samples: List<NightSample>,
 )
-
-interface NightsSource {
-    /** Newest first. */
-    fun nights(): Flow<List<NightSummary>>
-
-    suspend fun detail(night: NightSummary): NightDetail
-}

@@ -88,13 +88,13 @@ import link.thesymbolic.jetcommand.now.shortLabel
 import link.thesymbolic.jetcommand.now.steadyActual
 import link.thesymbolic.jetcommand.now.tempField
 import link.thesymbolic.jetcommand.now.undoTarget
-import link.thesymbolic.jetcommand.protocol.Mode
-import link.thesymbolic.jetcommand.protocol.Program
-import link.thesymbolic.jetcommand.protocol.SettableMode
-import link.thesymbolic.jetcommand.protocol.Slot
-import link.thesymbolic.jetcommand.protocol.Status
-import link.thesymbolic.jetcommand.protocol.Step
-import link.thesymbolic.jetcommand.protocol.Timing
+import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.Program
+import link.thesymbolic.jetcommand.protocol.core.SettableMode
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.Status
+import link.thesymbolic.jetcommand.protocol.core.Step
+import link.thesymbolic.jetcommand.protocol.core.Timing
 
 /** Collects the view model and [programs] into a [NowState] for [NowContent]. */
 @Composable

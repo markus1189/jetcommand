@@ -6,14 +6,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
-import link.thesymbolic.jetcommand.protocol.AutoOff
-import link.thesymbolic.jetcommand.protocol.CommandRequest
-import link.thesymbolic.jetcommand.protocol.FanStep
-import link.thesymbolic.jetcommand.protocol.Key
-import link.thesymbolic.jetcommand.protocol.SettableMode
-import link.thesymbolic.jetcommand.protocol.Slot
-import link.thesymbolic.jetcommand.protocol.TargetTemp
-import link.thesymbolic.jetcommand.protocol.UserCommand
+import link.thesymbolic.jetcommand.protocol.core.AutoOff
+import link.thesymbolic.jetcommand.protocol.core.CommandRequest
+import link.thesymbolic.jetcommand.protocol.core.FanStep
+import link.thesymbolic.jetcommand.protocol.core.Key
+import link.thesymbolic.jetcommand.protocol.core.SettableMode
+import link.thesymbolic.jetcommand.protocol.core.Slot
+import link.thesymbolic.jetcommand.protocol.core.TargetTemp
+import link.thesymbolic.jetcommand.protocol.core.UserCommand
 import org.w3c.dom.Element
 
 class CommandUriTest {

@@ -1,6 +1,6 @@
 // Port of the web app's `BedJetWebLink`, minus the browser: device picking and remembering are the
 // transport's job.
-package link.thesymbolic.jetcommand.protocol
+package link.thesymbolic.jetcommand.protocol.shell
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -19,31 +19,26 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import link.thesymbolic.jetcommand.protocol.LinkSession.Phase
-
-sealed interface LinkState {
-    /** [gaveUp]: auto-reconnect ran out of attempts or of [BedJetLink.Config.giveUpAfterDownMs]. */
-    data class Disconnected(val gaveUp: Boolean = false) : LinkState
-
-    /** [reconnectAttempt] is 0 for a connect the caller asked for. */
-    data class Connecting(val reconnectAttempt: Int = 0) : LinkState
-
-    data object Ready : LinkState
-}
-
-/**
- * A parsed status. Bytes 27–29 ([Status.extra]) only arrive with the remainder of a split packet;
- * when this notification lacked them, [Status.extra] is the last known value and [extraFresh] is
- * false.
- */
-data class StatusUpdate(val status: Status, val extraFresh: Boolean)
-
-enum class LogLevel {
-    INFO,
-    SUCCESS,
-    WARN,
-    ERROR,
-}
+import link.thesymbolic.jetcommand.protocol.core.Assembled
+import link.thesymbolic.jetcommand.protocol.core.BedJetException
+import link.thesymbolic.jetcommand.protocol.core.Command
+import link.thesymbolic.jetcommand.protocol.core.ErrorCode
+import link.thesymbolic.jetcommand.protocol.core.LinkConfig
+import link.thesymbolic.jetcommand.protocol.core.LinkEffect
+import link.thesymbolic.jetcommand.protocol.core.LinkEvent
+import link.thesymbolic.jetcommand.protocol.core.LinkSession
+import link.thesymbolic.jetcommand.protocol.core.LinkSession.Phase
+import link.thesymbolic.jetcommand.protocol.core.LinkState
+import link.thesymbolic.jetcommand.protocol.core.LogLevel
+import link.thesymbolic.jetcommand.protocol.core.Reply
+import link.thesymbolic.jetcommand.protocol.core.StatusAssembler
+import link.thesymbolic.jetcommand.protocol.core.StatusUpdate
+import link.thesymbolic.jetcommand.protocol.core.linkStep
+import link.thesymbolic.jetcommand.protocol.core.u
+import link.thesymbolic.jetcommand.protocol.ports.BedJetTransport
+import link.thesymbolic.jetcommand.protocol.ports.Characteristic
+import link.thesymbolic.jetcommand.protocol.ports.TransportException
+import link.thesymbolic.jetcommand.protocol.ports.TransportState
 
 /**
  * The BedJet protocol over a [BedJetTransport]: one GATT operation at a time, tagged queries with
@@ -56,26 +51,10 @@ enum class LogLevel {
 class BedJetLink(
     private val transport: BedJetTransport,
     scope: CoroutineScope,
-    val config: Config = Config(),
+    val config: LinkConfig = LinkConfig(),
     private val now: () -> Long = { System.nanoTime() / 1_000_000 },
     private val log: (LogLevel, String) -> Unit = { _, _ -> },
 ) {
-    data class Config(
-        val timeoutMs: Long = 5000,
-        val connectTimeoutMs: Long = 20000,
-        val queryAttempts: Int = 8,
-        val queryRetryMs: Long = 400,
-        val remainderIntervalMs: Long = 2000,
-        /** Null: never give up while the connection is wanted. */
-        val maxReconnectAttempts: Int? = 10,
-        /** Null: no limit on how long the link may stay down while reconnecting. */
-        val giveUpAfterDownMs: Long? = null,
-        val reconnectBaseMs: Long = 3000,
-        val reconnectMaxMs: Long = 60000,
-        val autoReconnect: Boolean = true,
-        /** A failed [connect] goes on retrying like a lost link instead of staying down. */
-        val retryFailedConnect: Boolean = false,
-    )
 
     private val scope =
         CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
@@ -453,3 +432,9 @@ class BedJetLink(
         return BedJetException(code, "${code.text} (${e.message})", e)
     }
 }
+
+/**
+ * How long a shortcut waits for Ready on a link with [config]: a connect that times out, the
+ * longest backoff and the retry must fit, or a unit that is just waking up fails the command.
+ */
+fun readyTimeoutMs(config: LinkConfig) = 2 * config.connectTimeoutMs + config.reconnectMaxMs

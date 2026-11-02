@@ -22,14 +22,14 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import link.thesymbolic.jetcommand.protocol.BedJetTransport
-import link.thesymbolic.jetcommand.protocol.Characteristic
-import link.thesymbolic.jetcommand.protocol.TransportException
-import link.thesymbolic.jetcommand.protocol.TransportException.Kind
-import link.thesymbolic.jetcommand.protocol.TransportState
-import link.thesymbolic.jetcommand.protocol.Uuids
-import link.thesymbolic.jetcommand.protocol.cleanupOnFailure
-import link.thesymbolic.jetcommand.protocol.toHex
+import link.thesymbolic.jetcommand.protocol.core.Uuids
+import link.thesymbolic.jetcommand.protocol.core.toHex
+import link.thesymbolic.jetcommand.protocol.ports.BedJetTransport
+import link.thesymbolic.jetcommand.protocol.ports.Characteristic
+import link.thesymbolic.jetcommand.protocol.ports.TransportException
+import link.thesymbolic.jetcommand.protocol.ports.TransportException.Kind
+import link.thesymbolic.jetcommand.protocol.ports.TransportState
+import link.thesymbolic.jetcommand.protocol.shell.cleanupOnFailure
 
 /**
  * [BedJetTransport] over Android GATT. Every public method throws [TransportException] with kind
