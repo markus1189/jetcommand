@@ -209,6 +209,26 @@ scenarios.push({
         { skip: 10 },
     ]),
 });
+// The auto-off timer in a program moves the step's end, and the next step still runs its own length.
+scenarios.push({
+    name: 'auto off in a program sets the step left',
+    trace: await scenario(() => [
+        { send: C.writeProgram(1, [
+            { mode: Mode.COOL, fan: 9, temp: 44, hours: 0, minutes: 30, clock: false },
+            { mode: Mode.HEAT, fan: 12, temp: 70, hours: 0, minutes: 20, clock: false },
+            { mode: Mode.DRY, fan: 15, temp: 60, hours: 0, minutes: 10, clock: false },
+        ]) },
+        { send: [C.nameFrame(5, 'Short')] },
+        { send: [C.setClock(22, 0)] },
+        { send: [C.startProgram(1)] },
+        { send: [C.setRuntime(5)] },
+        { tick: 299 },
+        { tick: 1 },
+        { send: [C.setRuntime(0)] },
+        { tick: 1 },
+        { send: [C.setRuntime(90)] },
+    ]),
+});
 scenarios.push({
     name: 'manual modes, memories, limits',
     trace: await scenario(() => [

@@ -72,7 +72,12 @@ class BedJetSim(
         if (b.size < 2) throw BedJetException(ErrorCode.BAD_RESPONSE)
         when (b.u(0)) {
             0x01 -> press(b.u(1))
-            0x02 -> if (b.size >= 3) remainingSeconds = minOf(b.u(1) * 60 + b.u(2), maxRuntime) * 60
+            0x02 ->
+                if (b.size >= 3) {
+                    remainingSeconds = minOf(b.u(1) * 60 + b.u(2), maxRuntime) * 60
+                    // In a program it moves the step's end; the next step keeps its own length.
+                    run?.left = remainingSeconds
+                }
             0x03 -> {
                 target = if (mode.usesTemperature) b.u(1).coerceIn(min, max) else b.u(1)
                 limitHeat()
