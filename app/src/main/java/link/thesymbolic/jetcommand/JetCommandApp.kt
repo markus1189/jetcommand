@@ -33,7 +33,7 @@ class JetCommandApp : Application() {
         val dao = NightLogDatabase.open(this).events()
         programLibrary = ProgramLibrary(RoomLibraryStore(LibraryDatabase.open(this)))
         val store = RoomNightLogStore(dao)
-        bedJetController = BedJetController(this, store, programLibrary)
+        bedJetController = BedJetController(this, store, programLibrary, PrefsDeviceMemory(this))
         dropSeededTemplates()
         nights = RoomNightsSource(dao)
         logStart(store)

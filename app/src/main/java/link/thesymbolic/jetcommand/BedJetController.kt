@@ -10,7 +10,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.widget.Toast
-import androidx.core.content.edit
 import java.time.LocalTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -46,6 +45,7 @@ import link.thesymbolic.jetcommand.protocol.CommandOrigin
 import link.thesymbolic.jetcommand.protocol.CommandRequest
 import link.thesymbolic.jetcommand.protocol.CommandSnapshot
 import link.thesymbolic.jetcommand.protocol.DeviceId
+import link.thesymbolic.jetcommand.protocol.DeviceMemory
 import link.thesymbolic.jetcommand.protocol.LinkState
 import link.thesymbolic.jetcommand.protocol.LogLevel
 import link.thesymbolic.jetcommand.protocol.Mode
@@ -56,6 +56,7 @@ import link.thesymbolic.jetcommand.protocol.Plan
 import link.thesymbolic.jetcommand.protocol.ProcessEvent
 import link.thesymbolic.jetcommand.protocol.Program
 import link.thesymbolic.jetcommand.protocol.ProgramLibrary
+import link.thesymbolic.jetcommand.protocol.RememberedDevice
 import link.thesymbolic.jetcommand.protocol.RunOutcome
 import link.thesymbolic.jetcommand.protocol.SimTransport
 import link.thesymbolic.jetcommand.protocol.StartFailure
@@ -106,10 +107,10 @@ class BedJetController(
     context: Context,
     private val store: NightLogStore,
     private val library: ProgramLibrary,
+    private val memory: DeviceMemory,
 ) {
     private val context = context.applicationContext
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val prefs = this.context.getSharedPreferences("jetcommand", Context.MODE_PRIVATE)
 
     private val _stack = MutableStateFlow<BedJetStack?>(null)
     val stack: StateFlow<BedJetStack?> = _stack.asStateFlow()
@@ -128,7 +129,8 @@ class BedJetController(
     private val _log = MutableStateFlow<List<String>>(emptyList())
     val log: StateFlow<List<String>> = _log.asStateFlow()
 
-    private val _remembered = MutableStateFlow(loadRemembered())
+    private val _remembered =
+        MutableStateFlow(memory.load()?.let { Source.Device(it.address, it.name) })
     /** The last real device connected to, persisted. */
     val remembered: StateFlow<Source.Device?> = _remembered.asStateFlow()
 
@@ -193,10 +195,15 @@ class BedJetController(
      * device if nothing is connected.
      */
     fun autoConnectOnce() {
-        if (autoConnectTried) return
+        val device =
+            autoConnectTarget(
+                _remembered.value,
+                alreadyTried = autoConnectTried,
+                connected = _stack.value != null,
+                hasPermission = hasConnectPermission(),
+            )
         autoConnectTried = true
-        val device = _remembered.value ?: return
-        if (_stack.value != null || !hasConnectPermission()) return
+        if (device == null) return
         log(LogLevel.INFO, "Auto-connecting to ${device.label}")
         connect(device)
     }
@@ -443,18 +450,8 @@ class BedJetController(
         }
     }
 
-    // SharedPreferences, not DataStore: two strings, read once synchronously at startup to decide
-    // on auto-connect.
-    private fun loadRemembered(): Source.Device? {
-        val address = prefs.getString(KEY_ADDRESS, null) ?: return null
-        return Source.Device(address, prefs.getString(KEY_NAME, null))
-    }
-
     private fun remember(device: Source.Device) {
-        prefs.edit {
-            putString(KEY_ADDRESS, device.address)
-            putString(KEY_NAME, device.name)
-        }
+        memory.save(RememberedDevice(device.address, device.name))
         _remembered.value = device
     }
 
@@ -496,8 +493,5 @@ class BedJetController(
 
         fun idOf(source: Source) =
             DeviceId(if (source is Source.Device) source.address else DEMO_ID)
-
-        private const val KEY_ADDRESS = "device.address"
-        private const val KEY_NAME = "device.name"
     }
 }
