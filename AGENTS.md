@@ -6,19 +6,19 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 
 | Layer | Where | Tested by |
 |---|---|---|
-| Codec, `BedJetSim` (device model) | `protocol/.../Codec.kt`, `BedJetSim.kt` | `FixtureTest` (recorded from the web app), `StepCodecTest` (pinned fingerprint) |
-| Transport contract | `protocol/.../Transport.kt` | — |
-| `SimTransport`, `BedJetLink`, `BedJetDevice` | `protocol/` | `BedJetLinkTest`, virtual time |
-| `StatusAssembler`, `reconnectDecision` (the link's pure parts) | `protocol/` | `StatusAssemblerTest`, `ReconnectDecisionTest` |
-| `ProgramLibrary`, `slotStatus` over a `Catalog` | `protocol/.../Library.kt` | `LibraryTest`, `SlotStatusTest` |
-| `UserCommand`, `plan()` (command policy) | `protocol/.../UserCommand.kt` | `PlanTest` |
+| Codec, `BedJetSim` (device model) | `protocol/.../core/Codec.kt`, `shell/BedJetSim.kt` | `FixtureTest` (recorded from the web app), `StepCodecTest` (pinned fingerprint) |
+| Transport contract, store interfaces | `protocol/.../ports/` | — |
+| `SimTransport`, `BedJetLink`, `BedJetDevice` | `protocol/.../shell/` | `BedJetLinkTest`, virtual time |
+| `StatusAssembler`, `reconnectDecision`, `linkStep` (the link's pure parts) | `protocol/.../core/` | `StatusAssemblerTest`, `ReconnectDecisionTest` |
+| `ProgramLibrary`, `slotStatus` over a `Catalog` | `shell/ProgramLibrary.kt`, `core/Library.kt` | `LibraryTest`, `SlotStatusTest` |
+| `UserCommand`, `plan()` (command policy) | `core/UserCommand.kt` | `PlanTest` |
 | `CommandUri` (intent data, also in `shortcuts.xml`) | `app/` | `CommandUriTest` |
-| `NightRecorder`, `NightLogStore`, `ProcessEvent` | `protocol/.../NightLog.kt`, `ProcessEvent.kt` | `NightRecorderTest`, `ProcessEventTest` |
+| `NightRecorder`, its state machine, `ProcessEvent` | `shell/NightRecorder.kt`, `core/NightLog.kt`, `core/ProcessEvent.kt` | `NightRecorderTest`, `ProcessEventTest` |
 | `GattTransport`, scanner, permissions | `app/.../ble/` | real device only |
 | Screen state and text: `now/NowState`, `ProgramsText`, `night/` | `app/` | `app/src/test` (JVM) |
 | `BedJetController` (owns the stack), `BedJetService`, Room stores, composables | `app/` | emulator via Demo BedJet |
 
-`:protocol` stays free of Android so its tests run on the JVM. Logic lives in pure functions over immutable values; classes hold one state value and run the effects, and composables take state, not view models.
+`:protocol` stays free of Android so its tests run on the JVM. Its `core/` (pure), `ports/` (interfaces) and `shell/` (effects) split is enforced by `ArchitectureTest`. Logic lives in pure functions over immutable values; classes hold one state value and run the effects, and composables take state, not view models.
 
 ## Toolchain
 
