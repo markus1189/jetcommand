@@ -504,12 +504,14 @@ private fun RunningStrip(r: RunningView) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Text(r.title, fontSize = 15.sp, modifier = Modifier.weight(1f))
-            Text(
-                r.left,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold,
-                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
-            )
+            r.left?.let {
+                Text(
+                    it,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                )
+            }
         }
         Text(
             r.next,

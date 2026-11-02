@@ -62,12 +62,12 @@ sealed interface NowBody {
 data class ProgramButton(val slot: Slot, val label: String)
 
 /**
- * [left] is the step's countdown; [next] what follows it. [nowMinute] counts from the program's
- * start, like the [spans].
+ * [left] is the step's countdown, null while the countdown card shows it; [next] what follows it.
+ * [nowMinute] counts from the program's start, like the [spans].
  */
 data class RunningView(
     val title: String,
-    val left: String,
+    val left: String?,
     val next: String,
     val spans: List<Span>,
     val nowMinute: Double,
@@ -117,13 +117,15 @@ private fun live(st: Status, inputs: NowInputs, now: LocalTime): NowBody.Live {
     val step = st.extra?.programStep ?: 0
     val running =
         runningProgram(step, inputs.device, inputs.started, inputs.slots)?.let {
-            runningView(it, step, st.remainingSeconds, now)
+            runningView(it, step, st.remainingSeconds, now)?.let { r ->
+                if (hasCountdown(st)) r.copy(left = null) else r
+            }
         }
     val summary =
         listOfNotNull(
                 // In a program the shutoff timer is the step's remaining time, which the strip
                 // and the countdown card show.
-                "auto off ${hoursMinutes(st.remainingSeconds)}"
+                "auto off ${countdown(st.remainingSeconds)}"
                     .takeIf { st.mode != Mode.STANDBY && running == null && step > 0 },
                 "program step $step".takeIf { step > 0 && running == null },
             )
@@ -207,7 +209,7 @@ private val NUDGES = listOf(-15, -5, -1, 1, 5, 15)
  * silently does less than it says.
  */
 fun countdownView(st: Status, draft: Int?, now: LocalTime): CountdownView? {
-    if (st.mode == Mode.STANDBY || st.mode == Mode.WAIT) return null
+    if (!hasCountdown(st)) return null
     val inProgram = (st.extra?.programStep ?: 0) > 0
     val max = maxRuntimeMinutes(st.mode, st.targetTemp, st.fanStep)
     val limits = RUNTIME_MINUTES.first..max
@@ -222,9 +224,7 @@ fun countdownView(st: Status, draft: Int?, now: LocalTime): CountdownView? {
     val seconds = draft?.let { it * 60 } ?: st.remainingSeconds
     val off = now.plusSeconds(seconds.toLong())
     return CountdownView(
-        // The minutes the nudges count from, or 9:50 would read 0:09 with "+1" already at a
-        // 10 min ceiling.
-        left = hoursMinutes(current * 60),
+        left = countdown(seconds),
         title = if (inProgram) "Step left" else "Auto off in",
         offAt = (if (inProgram) "step ends " else "off at ") + hhmm(off.hour, off.minute),
         ceiling = "max ${hoursMinutes(max * 60)}",
@@ -234,6 +234,8 @@ fun countdownView(st: Status, draft: Int?, now: LocalTime): CountdownView? {
 }
 
 /** The whole minutes to nudge from; a unit set to h:mm reports h:mm:00, so round to nearest. */
+private fun hasCountdown(st: Status) = st.mode != Mode.STANDBY && st.mode != Mode.WAIT
+
 fun runtimeMinutes(remainingSeconds: Int) = (remainingSeconds + 30) / 60
 
 /**

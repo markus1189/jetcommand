@@ -170,7 +170,7 @@ class NowStateTest {
         listOf(
                 // The countdown card shows a manual mode's time.
                 base.copy(update = heat) to "",
-                base.copy(update = inProgram) to "auto off 0:10 · program step 2",
+                base.copy(update = inProgram) to "auto off 00:10:00 · program step 2",
                 base.copy(update = inProgram, slots = listOf(slot(0, two))) to "",
                 base.copy(update = off) to "program step 2",
             )
@@ -191,6 +191,22 @@ class NowStateTest {
             listOf(ProgramButton(Slot.all[0], "Twostep"), ProgramButton(Slot.all[2], "Warm up")),
             live.programs,
         )
+    }
+
+    @Test
+    fun `the strip shows the step countdown only where the card can't`() {
+        fun left(mode: Mode) =
+            (nowState(
+                        base.copy(
+                            update = StatusUpdate(status(mode, 600, programStep = 1), true),
+                            slots = listOf(slot(0, two)),
+                        ),
+                        NOON,
+                    )
+                    .body as NowBody.Live)
+                .running
+                ?.left
+        assertEquals(null to "00:10:00", left(Mode.HEAT) to left(Mode.WAIT))
     }
 
     @Test
@@ -324,7 +340,7 @@ class NowStateTest {
         val v = countdownView(status(Mode.HEAT, remainingSeconds = 167 * 60), null, ten)!!
         assertEquals(listOf("−15", "−5", "−1", "+1", "+5", "+15"), labels(v))
         assertEquals(listOf(152, 162, 166, 168, 172, 182), v.nudges.map { it.target })
-        assertEquals("2:47", v.left)
+        assertEquals("02:47:00", v.left)
         assertEquals("off at 00:47", v.offAt)
         assertEquals("max 12:00", v.ceiling)
     }
@@ -342,15 +358,16 @@ class NowStateTest {
     }
 
     @Test
-    fun `the shown time is the minute the nudges count from`() {
-        val turbo = status(Mode.TURBO, remainingSeconds = 9 * 60 + 50)
-        assertEquals("0:10", countdownView(turbo, null, ten)!!.left)
+    fun `the card shows seconds, the nudges count from the nearest minute`() {
+        val v = countdownView(status(Mode.TURBO, remainingSeconds = 9 * 60 + 50), null, ten)!!
+        assertEquals("00:09:50", v.left)
+        assertEquals(listOf(9, null), v.nudges.slice(2..3).map { it.target })
     }
 
     @Test
     fun `taps build on the draft, not the status`() {
         val v = countdownView(status(Mode.COOL, remainingSeconds = 3_600), 75, ten)!!
-        assertEquals("1:15", v.left)
+        assertEquals("01:15:00", v.left)
         assertEquals(76, v.nudges[3].target)
     }
 

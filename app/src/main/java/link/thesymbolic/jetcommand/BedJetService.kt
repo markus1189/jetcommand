@@ -12,6 +12,7 @@ import android.content.pm.ServiceInfo
 import android.graphics.drawable.Icon
 import android.os.IBinder
 import androidx.core.net.toUri
+import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -93,8 +94,8 @@ class BedJetService : Service() {
                 .conflate()
                 .collect { (s, l, u) ->
                     if (s == null) return@collect
-                    val content = serviceNotification(s.label, l, u)
-                    if (content == posted) return@collect
+                    val content = serviceNotification(s.label, l, u, System.currentTimeMillis())
+                    if (content.sameAs(posted)) return@collect
                     posted = content
                     getSystemService(NotificationManager::class.java).notify(ID, build(content))
                     delay(RATE_MS)
@@ -122,6 +123,7 @@ class BedJetService : Service() {
 
     private fun build(content: ServiceNotification): Notification {
         val (title, text, ready) = content
+        val endsAt = content.endsAt
         val open =
             PendingIntent.getActivity(
                 this,
@@ -139,6 +141,11 @@ class BedJetService : Service() {
                 .setOnlyAlertOnce(true)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+        if (endsAt != null)
+            b.setWhen(endsAt)
+                .setShowWhen(true)
+                .setUsesChronometer(true)
+                .setChronometerCountDown(true)
         // Presses while the link is down would only land in the log.
         if (ready) {
             // No session token: SystemUI only moves MediaStyle notifications that carry one into
@@ -219,20 +226,40 @@ class BedJetService : Service() {
 }
 
 /** [ready]: a live status, so the controls can reach the unit. */
-data class ServiceNotification(val title: String, val text: String, val ready: Boolean = false)
+/** [endsAt] (epoch ms) drives a countdown chronometer, so the seconds tick without reposting. */
+data class ServiceNotification(
+    val title: String,
+    val text: String,
+    val ready: Boolean = false,
+    val endsAt: Long? = null,
+) {
+    /**
+     * Statuses arrive with whole seconds and some latency, so an unchanged timer's end wobbles by
+     * about a second.
+     */
+    fun sameAs(other: ServiceNotification?): Boolean {
+        if (other == null || copy(endsAt = other.endsAt) != other) return false
+        val (a, b) = endsAt to other.endsAt
+        return a == b || (a != null && b != null && abs(a - b) < END_TOLERANCE_MS)
+    }
+}
+
+private const val END_TOLERANCE_MS = 2_000L
 
 fun serviceNotification(
     label: String,
     link: LinkState,
     update: StatusUpdate?,
+    nowMs: Long,
 ): ServiceNotification {
     val st = update?.status?.takeIf { link == LinkState.Ready }
     return if (st == null) ServiceNotification(label, linkText(link))
     else
         ServiceNotification(
             "${st.mode.label} · ${formatTemp(st.actualTemp)} → ${formatTemp(st.targetTemp)}",
-            "${hoursMinutes(st.remainingSeconds)} left · ${linkText(link)}",
+            linkText(link),
             ready = true,
+            endsAt = (nowMs + st.remainingSeconds * 1_000L).takeIf { st.remainingSeconds > 0 },
         )
 }
 
