@@ -1,6 +1,6 @@
 # Roadmap
 
-Native successor to the JetCommand PWA (`~/repos/projects/tools/bedjet-bluetooth-control.html`), which stays the
+Native successor to the JetCommand PWA ([markus1189/tools](https://github.com/markus1189/tools)), which stays the
 fallback for desktop and iOS. Update the status column as work lands; decisions are settled unless new evidence
 appears.
 

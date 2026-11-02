@@ -1,6 +1,6 @@
 # JetCommand (Android)
 
-Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; protocol reference in `~/repos/projects/tools/docs/BEDJET_PROTOCOL.md`. Plan, decisions, status and the real-device checklist: `docs/ROADMAP.md` (update its status when a phase lands).
+Native successor to the JetCommand web app in [markus1189/tools](https://github.com/markus1189/tools); protocol reference in `docs/BEDJET_PROTOCOL.md` (this copy is the source of truth). Plan, decisions, status and the real-device checklist: `docs/ROADMAP.md` (update its status when a phase lands).
 
 ## Layout
 
@@ -22,7 +22,7 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 
 ## Toolchain
 
-- Everything via `nix develop` (SDK, JDK 21, adb, node, sqlite3 for the pulled Room databases). Done means `./gradlew check assembleDebug` exits 0 (protocol tests, app unit tests, lint, APK); install with `./gradlew installDebug`.
+- Everything via `nix develop` (SDK, JDK 21, adb, sqlite3 for the pulled Room databases). Done means `./gradlew check assembleDebug` exits 0 (protocol tests, app unit tests, lint, APK); install with `./gradlew installDebug`.
 - `check` also runs `spotlessCheck` (ktfmt, kotlinlang style), detekt (`detekt.yml`) and lint with Kotlin warnings as errors; run `./gradlew spotlessApply` first. The baselines (`*/lint-baseline.xml`, `*/detekt-baseline.xml`) hold pre-existing findings only: fix new ones, or suppress per site with the reason.
 - New files must be `git add`ed before `nix develop` sees flake changes.
 - SDK in the Nix store is read-only: `compileSdk`/`buildToolsVersion` in `app/build.gradle.kts` must match the versions in `flake.nix`, or AGP tries to install and fails.
@@ -43,8 +43,7 @@ Native successor to `~/repos/projects/tools/bedjet-bluetooth-control.html`; prot
 ## Protocol
 
 - `:protocol` is a pure-Kotlin port of the web app's `bedjet-codec` and `bedjet-sim` scripts; `BedJetSim` is the device only, connection state belongs to the transport.
-- `FixtureTest` replays `fixtures.json`, recorded from the web app by `node scripts/gen-fixtures.mjs` (reads `../tools/bedjet-bluetooth-control.html`). After a protocol change on either side, regenerate and rerun `./gradlew :protocol:test`.
-- Random cases miss boundaries: a behaviour worth pinning gets a hand-written case in the generator.
+- `fixtures.json` is frozen golden data, recorded once from the web app (generator removed, see git history); new behaviour gets hand-written Kotlin tests, and a deliberate change that contradicts a recorded case edits that case by hand.
 - Link tests: `SimTransport(sim, backgroundScope)` under `runTest` makes the sim tick on virtual time; pass `now = { currentTime }` to `BedJetLink`/`BedJetDevice`. Faults go through `inject(fault) { op -> … }`, `replyLatency`, `dropNotifications`, `loseLink()`, `chaos`.
 - A test collecting a `StateFlow` sees intermediate states only on `UnconfinedTestDispatcher`; a dispatched collector gets the conflated last value.
 - `BedJetLink` and `BedJetDevice` keep unlocked state: give them a single-threaded scope (Main or `limitedParallelism(1)`).

@@ -42,7 +42,7 @@ import link.thesymbolic.jetcommand.protocol.core.toHex
 import link.thesymbolic.jetcommand.protocol.core.validateProgram
 import link.thesymbolic.jetcommand.protocol.shell.BedJetSim
 
-/** Replays what the web app's codec and sim recorded (scripts/gen-fixtures.mjs). */
+/** Replays what the web app's codec and sim recorded; frozen since the generator was removed. */
 class FixtureTest {
     private val fixtures =
         Json.parseToJsonElement(checkNotNull(javaClass.getResource("/fixtures.json")).readText())
