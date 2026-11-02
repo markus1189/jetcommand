@@ -59,8 +59,6 @@ import link.thesymbolic.jetcommand.protocol.ProgramLibrary
 import link.thesymbolic.jetcommand.protocol.RememberedDevice
 import link.thesymbolic.jetcommand.protocol.RunOutcome
 import link.thesymbolic.jetcommand.protocol.SimTransport
-import link.thesymbolic.jetcommand.protocol.StartFailure
-import link.thesymbolic.jetcommand.protocol.StartOutcome
 import link.thesymbolic.jetcommand.protocol.StatusUpdate
 import link.thesymbolic.jetcommand.protocol.Step
 import link.thesymbolic.jetcommand.protocol.TappedTransport
@@ -69,6 +67,7 @@ import link.thesymbolic.jetcommand.protocol.UserCommand
 import link.thesymbolic.jetcommand.protocol.attempt
 import link.thesymbolic.jetcommand.protocol.plan
 import link.thesymbolic.jetcommand.protocol.readyTimeoutMs
+import link.thesymbolic.jetcommand.protocol.runOutcomeOf
 
 sealed interface Source {
     val label: String
@@ -386,14 +385,11 @@ class BedJetController(
             is UserCommand.SetTemperature -> device.setTemperature(command.target.halfC)
             is UserCommand.SetFan -> device.setFan(command.fan.step)
             is UserCommand.StartProgram -> {
-                val started = device.startProgram(command.slot)
-                val unconfirmed =
-                    started is StartOutcome.Failed && started.reason == StartFailure.UNCONFIRMED
-                if (started is StartOutcome.Failed && !unconfirmed)
-                    return RunOutcome.Failed(started.reason.text)
-                // Unconfirmed starts usually run; the next fresh extra clears this if not.
-                library.noteStarted(idOf(stack.source), command.slot)
-                if (unconfirmed) return RunOutcome.Unconfirmed("sent, not confirmed")
+                val outcome = runOutcomeOf(device.startProgram(command.slot))
+                // An unconfirmed start that didn't run is cleared by the next fresh extra.
+                if (outcome !is RunOutcome.Failed)
+                    library.noteStarted(idOf(stack.source), command.slot)
+                return outcome
             }
             is UserCommand.Press -> device.press(command.key)
             is UserCommand.SetRuntime -> device.setRuntime(command.autoOff.minutes)

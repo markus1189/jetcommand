@@ -255,4 +255,16 @@ class PlanTest {
             )
         for ((command, name) in expected) assertEquals(name, describe(command))
     }
+
+    @Test
+    fun `an unconfirmed start counts as sent, a refused one as failed`() {
+        assertEquals(
+            RunOutcome.Unconfirmed("sent, not confirmed"),
+            runOutcomeOf(StartOutcome.Failed(StartFailure.UNCONFIRMED)),
+        )
+        for (reason in listOf(StartFailure.CLOCK_NOT_SET, StartFailure.STEP_TOO_LONG)) assertEquals(
+            RunOutcome.Failed(reason.text),
+            runOutcomeOf(StartOutcome.Failed(reason)),
+        )
+    }
 }

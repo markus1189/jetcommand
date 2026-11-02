@@ -148,6 +148,18 @@ sealed interface RunOutcome {
 }
 
 /**
+ * A program start as a command's outcome. Unconfirmed starts usually run, so only a
+ * [RunOutcome.Failed] means the program didn't start.
+ */
+fun runOutcomeOf(started: StartOutcome): RunOutcome =
+    when {
+        started is StartOutcome.Started -> RunOutcome.Ran
+        (started as StartOutcome.Failed).reason == StartFailure.UNCONFIRMED ->
+            RunOutcome.Unconfirmed("sent, not confirmed")
+        else -> RunOutcome.Failed(started.reason.text)
+    }
+
+/**
  * How long a shortcut waits for Ready on a link with [config]: a connect that times out, the
  * longest backoff and the retry must fit, or a unit that is just waking up fails the command.
  */
