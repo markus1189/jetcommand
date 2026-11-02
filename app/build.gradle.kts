@@ -34,6 +34,7 @@ android {
         disable +=
             setOf(
                 "NewerVersionAvailable",
+                "AndroidGradlePluginVersion",
                 "GradleDependency",
                 "SyntheticAccessor",
                 "ComposeUnstableCollections",
