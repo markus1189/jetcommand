@@ -41,7 +41,7 @@ class BedJetDevice(
     val autoAck: Boolean = true,
     private val clock: () -> LocalTime = { LocalTime.now() },
     private val now: () -> Long = { System.nanoTime() / 1_000_000 },
-) {
+) : SlotReader {
     private val scope =
         CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
 
@@ -120,10 +120,10 @@ class BedJetDevice(
 
     suspend fun memoryNames() = Reply.parseNames(link.query(Query.MEMORY_NAMES)).take(3)
 
-    suspend fun programNames() =
+    override suspend fun programNames(): List<String?> =
         Reply.parseNames(link.query(Query.PROGRAM_NAMES)).take(Limits.SLOTS)
 
-    suspend fun programSteps(slot: Slot): List<Step> {
+    override suspend fun programSteps(slot: Slot): List<Step> {
         val steps = mutableListOf<Step>()
         for (index in 0 until Limits.FRAGMENTS_PER_SLOT) {
             val fragment =
@@ -135,7 +135,7 @@ class BedJetDevice(
         throw BedJetException(ErrorCode.BAD_RESPONSE)
     }
 
-    suspend fun storedPrograms(): List<Program?> {
+    override suspend fun storedPrograms(): List<Program?> {
         val names = programNames()
         return Slot.all.map { slot ->
             val name = names.getOrNull(slot.index) ?: return@map null
