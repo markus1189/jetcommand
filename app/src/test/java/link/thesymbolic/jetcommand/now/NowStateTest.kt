@@ -355,9 +355,15 @@ class NowStateTest {
     }
 
     @Test
-    fun `no countdown card in standby or a program`() {
+    fun `no countdown card in standby, in a program it moves the step's end`() {
         assertNull(countdownView(status(Mode.STANDBY), null, ten))
-        assertNull(countdownView(status(Mode.HEAT, programStep = 2), null, ten))
+        val v =
+            countdownView(
+                status(Mode.HEAT, remainingSeconds = 30 * 60, programStep = 2),
+                null,
+                ten,
+            )!!
+        assertEquals("Step left" to "step ends 22:30", v.title to v.offAt)
         assertNull(countdownView(status(Mode.WAIT, programStep = 1), null, ten))
     }
 

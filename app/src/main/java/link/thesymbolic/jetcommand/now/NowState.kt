@@ -122,7 +122,7 @@ private fun live(st: Status, inputs: NowInputs, now: LocalTime): NowBody.Live {
     val summary =
         listOfNotNull(
                 // In a program the shutoff timer is the step's remaining time, which the strip
-                // shows; outside one the countdown card does.
+                // and the countdown card show.
                 "auto off ${hoursMinutes(st.remainingSeconds)}"
                     .takeIf { st.mode != Mode.STANDBY && running == null && step > 0 },
                 "program step $step".takeIf { step > 0 && running == null },
@@ -190,6 +190,7 @@ data class Nudge(val label: String, val target: Int?)
 
 /** [fraction] is the time left as a share of the unit's ceiling. */
 data class CountdownView(
+    val title: String,
     val left: String,
     val offAt: String,
     val ceiling: String,
@@ -200,13 +201,14 @@ data class CountdownView(
 private val NUDGES = listOf(-15, -5, -1, 1, 5, 15)
 
 /**
- * The auto-off card for a manual mode, null in standby and programs (whether moving a step's time
- * works there is unverified). [draft] is the minutes tapped but not yet seen in a status. A step
- * that overshoots a limit becomes "to" the limit, so a tap never silently does less than it says.
+ * The auto-off card, null in standby and wait. In a program it sets the active step's remaining
+ * time; the unit then runs the next step for its own duration. [draft] is the minutes tapped but
+ * not yet seen in a status. A step that overshoots a limit becomes "to" the limit, so a tap never
+ * silently does less than it says.
  */
 fun countdownView(st: Status, draft: Int?, now: LocalTime): CountdownView? {
-    if (st.mode == Mode.STANDBY || st.mode == Mode.WAIT || (st.extra?.programStep ?: 0) > 0)
-        return null
+    if (st.mode == Mode.STANDBY || st.mode == Mode.WAIT) return null
+    val inProgram = (st.extra?.programStep ?: 0) > 0
     val max = maxRuntimeMinutes(st.mode, st.targetTemp, st.fanStep)
     val limits = RUNTIME_MINUTES.first..max
     val current = draft ?: runtimeMinutes(st.remainingSeconds)
@@ -223,7 +225,8 @@ fun countdownView(st: Status, draft: Int?, now: LocalTime): CountdownView? {
         // The minutes the nudges count from, or 9:50 would read 0:09 with "+1" already at a
         // 10 min ceiling.
         left = hoursMinutes(current * 60),
-        offAt = "off at ${hhmm(off.hour, off.minute)}",
+        title = if (inProgram) "Step left" else "Auto off in",
+        offAt = (if (inProgram) "step ends " else "off at ") + hhmm(off.hour, off.minute),
         ceiling = "max ${hoursMinutes(max * 60)}",
         fraction = (seconds / (max * 60f)).coerceIn(0f, 1f),
         nudges = nudges,

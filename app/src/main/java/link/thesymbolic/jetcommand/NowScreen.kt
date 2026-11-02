@@ -440,7 +440,7 @@ private fun Countdown(st: Status, send: (Int) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-            Text("Auto off in", fontSize = 14.sp, color = Muted, modifier = Modifier.weight(1f))
+            Text(view.title, fontSize = 14.sp, color = Muted, modifier = Modifier.weight(1f))
             Text(
                 view.left,
                 fontSize = 26.sp,
