@@ -5,6 +5,7 @@ package link.thesymbolic.jetcommand.edit
 import link.thesymbolic.jetcommand.Span
 import link.thesymbolic.jetcommand.durationMin
 import link.thesymbolic.jetcommand.hhmm
+import link.thesymbolic.jetcommand.pad2
 import link.thesymbolic.jetcommand.plural
 import link.thesymbolic.jetcommand.prettyName
 import link.thesymbolic.jetcommand.protocol.core.ClockWindow
@@ -122,27 +123,112 @@ fun EditorState.shiftStart(minutes: Int) = copy(start = Math.floorMod(start + mi
 
 // ---- Step controls: each returns the edit, or null where the control is disabled ----
 
-private fun timeIncrement(step: Step) = if (step.mode == Mode.TURBO) 1 else 5
-
 fun maxMinutes(step: Step) = durationRange(step).last
 
-fun shorter(step: Step): StepEdit? =
-    when (val t = step.timing) {
-        is Timing.Until -> StepEdit.SetUntil(t.minuteOfDay - timeIncrement(step))
-        is Timing.For -> {
-            val m = t.totalMinutes
-            val inc = timeIncrement(step)
-            (m - inc).coerceAtLeast(minOf(inc, m)).takeIf { it < m }?.let(StepEdit::SetDuration)
-        }
+/** The minutes a held −/+ moves per tick, after [ticks] repeats. */
+val HOLD_STEPS = listOf(1, 5, 15)
+
+fun holdLabel(by: Int) = if (by == 1) "tap 1 min" else "hold $by min"
+
+fun typeTitle(step: Step, i: Int) =
+    "${if (step.timing is Timing.Until) "Run until" else "Run for"} · step ${i + 1}"
+
+fun holdStep(ticks: Int) =
+    when {
+        ticks < 8 -> 1
+        ticks < 20 -> 5
+        else -> 15
     }
 
-fun longer(step: Step): StepEdit? =
+/** [v] moved one [by] towards [dir]; a coarse step lands on the next multiple of [by]. */
+fun stepped(v: Int, dir: Int, by: Int): Int =
+    when {
+        by == 1 -> v + dir
+        dir > 0 -> Math.floorDiv(v, by) * by + by
+        else -> -Math.floorDiv(-v, by) * by - by
+    }
+
+/** A clock time wraps past midnight; the 12 h limit there depends on the start, see [issue]. */
+fun nudge(step: Step, dir: Int, by: Int = 1): StepEdit? =
     when (val t = step.timing) {
-        is Timing.Until -> StepEdit.SetUntil(t.minuteOfDay + timeIncrement(step))
+        is Timing.Until -> StepEdit.SetUntil(Math.floorMod(stepped(t.minuteOfDay, dir, by), DAY))
         is Timing.For ->
-            minOf(t.totalMinutes + timeIncrement(step), maxMinutes(step))
-                .takeIf { it > t.totalMinutes }
+            stepped(t.totalMinutes, dir, by)
+                .coerceIn(durationRange(step))
+                .takeIf { it != t.totalMinutes }
                 ?.let(StepEdit::SetDuration)
+    }
+
+// ---- Typed time: up to four digits filling h:mm (or HH:MM) from the right ----
+
+const val BACKSPACE = "⌫"
+val KEYS = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", BACKSPACE)
+
+fun typeKey(digits: String, key: String): String =
+    when {
+        key == BACKSPACE -> digits.dropLast(1)
+        digits.isEmpty() && key.startsWith("0") -> digits
+        else -> (digits + key).take(4)
+    }
+
+/**
+ * The keypad's reading of [digits] for [step], which [p] plans; [edit] is null until it is one the
+ * step takes. A clock time past the 12 h limit only warns: the start is an assumption.
+ */
+data class Typed(
+    val hours: String,
+    val minutes: String,
+    val typing: Boolean,
+    val note: String,
+    val bad: Boolean,
+    val edit: StepEdit?,
+)
+
+fun typed(step: Step, p: PlannedStep, digits: String): Typed {
+    val until = step.timing is Timing.Until
+    val hoursText = { h: Int -> if (until) pad2(h) else h.toString() }
+    if (digits.isEmpty()) {
+        val v =
+            when (val t = step.timing) {
+                is Timing.Until -> t.minuteOfDay
+                is Timing.For -> t.totalMinutes
+            }
+        val hint =
+            if (until) "24-hour clock: 6 3 0 is 06:30" else "Hours, then minutes: 7 4 3 is 7 h 43"
+        return Typed(hoursText(v / 60), pad2(v % 60), typing = false, hint, bad = false, null)
+    }
+    val d = digits.padStart(4, '0')
+    val h = d.take(2).toInt()
+    val m = d.drop(2).toInt()
+    val v = h * 60 + m
+    typedError(step, h, m)?.let {
+        return Typed(hoursText(h), pad2(m), typing = true, it, bad = true, null)
+    }
+    if (!until)
+        return Typed(hoursText(h), pad2(m), typing = true, "", bad = false, StepEdit.SetDuration(v))
+    val wanted = Math.floorMod(v - p.plannedFrom, DAY)
+    val late = wanted > Limits.MAX_STEP_MINUTES
+    val note =
+        "${durationMin(wanted)} after the step before" +
+            if (late) ": the BedJet refuses to start" else ""
+    return Typed(hoursText(h), pad2(m), typing = true, note, bad = late, StepEdit.SetUntil(v))
+}
+
+private fun typedError(step: Step, h: Int, m: Int): String? =
+    when {
+        m > 59 -> "Minutes go up to 59"
+        step.timing is Timing.Until -> if (h > 23) "Hours go up to 23" else null
+        h * 60 + m == 0 -> "At least 1 min"
+        h * 60 + m > maxMinutes(step) -> overText(step)
+        else -> null
+    }
+
+private fun overText(step: Step) =
+    when {
+        step.mode == Mode.TURBO -> "Turbo runs at most ${Limits.TURBO_MAX_MINUTES} min"
+        maxMinutes(step) < Limits.MAX_STEP_MINUTES ->
+            "${step.mode.label} at this setting runs at most ${durationMin(maxMinutes(step))}"
+        else -> "At most ${durationMin(Limits.MAX_STEP_MINUTES)}"
     }
 
 fun fanBy(step: Step, delta: Int): StepEdit? =

@@ -6,7 +6,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -42,6 +45,8 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,13 +69,18 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -88,6 +98,7 @@ import link.thesymbolic.jetcommand.SectionTitle
 import link.thesymbolic.jetcommand.StepStrip
 import link.thesymbolic.jetcommand.TickLabel
 import link.thesymbolic.jetcommand.TrashIcon
+import link.thesymbolic.jetcommand.WaitStub
 import link.thesymbolic.jetcommand.Warm
 import link.thesymbolic.jetcommand.WarmLine
 import link.thesymbolic.jetcommand.modeColor
@@ -95,12 +106,15 @@ import link.thesymbolic.jetcommand.prettyName
 import link.thesymbolic.jetcommand.protocol.core.EDITOR_MODES
 import link.thesymbolic.jetcommand.protocol.core.LibraryEntry
 import link.thesymbolic.jetcommand.protocol.core.Mode
+import link.thesymbolic.jetcommand.protocol.core.PlannedStep
 import link.thesymbolic.jetcommand.protocol.core.Program
 import link.thesymbolic.jetcommand.protocol.core.ProgramRevision
+import link.thesymbolic.jetcommand.protocol.core.Step
 import link.thesymbolic.jetcommand.protocol.core.StepEdit
 import link.thesymbolic.jetcommand.protocol.core.Timing
 import link.thesymbolic.jetcommand.protocol.core.startWindows
 import link.thesymbolic.jetcommand.protocol.core.untilAllowed
+import link.thesymbolic.jetcommand.segmentTick
 import link.thesymbolic.jetcommand.stripWidths
 
 /** Edits [entry]'s current revision; [back] returns to the program, saved or not. */
@@ -566,18 +580,7 @@ private fun StepEditor(state: EditorState, i: Int, update: (EditorState) -> Unit
             edit,
         )
         TimingRow(step.mode, step.timing is Timing.Until, edit)
-        Setting(
-            Control(
-                "",
-                timeText(step),
-                "Shorter or earlier",
-                "Longer or later",
-                shorter(step),
-                longer(step),
-                timeHint(step, state.planned[i]),
-            ),
-            edit,
-        )
+        TimeControl(step, i, state.planned[i], edit)
         state.note
             ?.takeIf { it.index == i }
             ?.let { Text(it.text, fontSize = 13.sp, lineHeight = 18.sp, color = ScrubLine) }
@@ -669,6 +672,223 @@ private fun Setting(c: Control, edit: (StepEdit) -> Unit) =
         }
         PlusMinus("+", c.upLabel, enabled = c.up != null) { c.up?.let(edit) }
     }
+
+/** −/+ move a minute a tap and speed up while held; the value opens the keypad. */
+@Composable
+private fun TimeControl(step: Step, i: Int, p: PlannedStep, edit: (StepEdit) -> Unit) {
+    var held by remember { mutableStateOf<Int?>(null) }
+    var typing by remember { mutableStateOf(false) }
+    // A held button ticks between recompositions; it must nudge the step as it is by then.
+    val latest by rememberUpdatedState(step)
+    val apply by rememberUpdatedState(edit)
+    fun push(dir: Int, by: Int) = nudge(latest, dir, by)?.also(apply) != null
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Spacer(Modifier.width(56.dp))
+            HoldButton("−", "Shorter or earlier", nudge(step, -1) != null, { held = it }) {
+                push(-1, it)
+            }
+            Column(
+                Modifier.weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .clickable(onClickLabel = "Type the time") { typing = true }
+                    .padding(horizontal = 6.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(timeText(step), fontSize = 18.sp, textDecoration = TextDecoration.Underline)
+                Text(
+                    timeHint(step, p),
+                    fontSize = 11.sp,
+                    color = Muted,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            HoldButton("+", "Longer or later", nudge(step, 1) != null, { held = it }) {
+                push(1, it)
+            }
+        }
+        HoldPills(held)
+    }
+    if (typing)
+        TypeSheet(step, i, p, close = { typing = false }) {
+            apply(it)
+            typing = false
+        }
+}
+
+/** Which of [HOLD_STEPS] a held button is on: tells the gesture without a line of text. */
+@Composable
+private fun HoldPills(held: Int?) =
+    Row(
+        Modifier.fillMaxWidth().padding(start = 66.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+    ) {
+        HOLD_STEPS.forEach { by ->
+            val on = held == by
+            Text(
+                holdLabel(by),
+                Modifier.clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (on) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.surfaceContainer
+                    )
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                fontSize = 11.sp,
+                color = if (on) MaterialTheme.colorScheme.onPrimary else TickLabel,
+            )
+        }
+    }
+
+@Composable
+private fun Keypad(press: (String) -> Unit) =
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        KEYS.chunked(3).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { k ->
+                    Button(
+                        { press(k) },
+                        Modifier.weight(1f).height(56.dp).semantics {
+                            if (k == BACKSPACE) contentDescription = "Delete digit"
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                    ) {
+                        Text(k, fontSize = 22.sp)
+                    }
+                }
+            }
+        }
+    }
+
+/**
+ * A tap steps once by 1; held past [HOLD_DELAY_MS] it repeats with [holdStep]'s growing steps,
+ * reporting the current one to [onHeld] (null on release). [step] returns false at a limit.
+ */
+@Composable
+private fun HoldButton(
+    symbol: String,
+    label: String,
+    enabled: Boolean,
+    onHeld: (Int?) -> Unit,
+    step: (Int) -> Boolean,
+) {
+    val view = LocalView.current
+    val onStep by rememberUpdatedState(step)
+    val held by rememberUpdatedState(onHeld)
+    val outline = MaterialTheme.colorScheme.outline.copy(alpha = if (enabled) 1f else 0.35f)
+    Box(
+        Modifier.size(48.dp)
+            .clip(CircleShape)
+            .border(1.dp, outline, CircleShape)
+            .semantics {
+                contentDescription = label
+                role = Role.Button
+                if (!enabled) disabled()
+                onClick { onStep(1) }
+            }
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                awaitEachGesture {
+                    awaitFirstDown()
+                    if (onStep(1)) view.segmentTick()
+                    var up =
+                        withTimeoutOrNull(HOLD_DELAY_MS) { waitForUpOrCancellation().let { true } }
+                    var ticks = 0
+                    try {
+                        while (up == null) {
+                            val by = holdStep(ticks++)
+                            held(by)
+                            if (onStep(by)) view.segmentTick()
+                            up =
+                                withTimeoutOrNull(HOLD_REPEAT_MS) {
+                                    waitForUpOrCancellation().let { true }
+                                }
+                        }
+                    } finally {
+                        held(null)
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(symbol, fontSize = 20.sp, color = if (enabled) Color.Unspecified else Muted)
+    }
+}
+
+private const val HOLD_DELAY_MS = 400L
+private const val HOLD_REPEAT_MS = 110L
+
+/** Big keys rather than the system keyboard: one-handed, in the dark. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TypeSheet(
+    step: Step,
+    i: Int,
+    p: PlannedStep,
+    close: () -> Unit,
+    set: (StepEdit) -> Unit,
+) {
+    var digits by remember { mutableStateOf("") }
+    val t = typed(step, p, digits)
+    val until = step.timing is Timing.Until
+    val valueColor =
+        when {
+            !t.typing -> WaitStub
+            t.edit == null -> Refused
+            else -> MaterialTheme.colorScheme.onSurface
+        }
+    // Half-open, the keypad pushes Set below the screen edge.
+    ModalBottomSheet(
+        close,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Column(
+            Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(typeTitle(step, i), fontSize = 14.sp, color = Muted)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(t.hours, Modifier.alignByBaseline(), fontSize = 44.sp, color = valueColor)
+                Text(
+                    if (until) ":" else "h",
+                    Modifier.alignByBaseline(),
+                    fontSize = if (until) 44.sp else 18.sp,
+                    color = Muted,
+                )
+                Text(t.minutes, Modifier.alignByBaseline(), fontSize = 44.sp, color = valueColor)
+                if (!until) Text("min", Modifier.alignByBaseline(), fontSize = 18.sp, color = Muted)
+            }
+            Text(t.note, fontSize = 12.sp, color = if (t.bad) Refused else Muted)
+            Keypad { digits = typeKey(digits, it) }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            ) {
+                TextButton(close, Modifier.heightIn(min = 48.dp)) {
+                    Text("Cancel", fontSize = 14.sp)
+                }
+                Button(
+                    { t.edit?.let(set) },
+                    Modifier.heightIn(min = 48.dp),
+                    enabled = t.edit != null,
+                ) {
+                    Text("Set", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun TimingRow(mode: Mode, until: Boolean, edit: (StepEdit) -> Unit) =

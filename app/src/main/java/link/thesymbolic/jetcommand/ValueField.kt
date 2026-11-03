@@ -2,6 +2,7 @@ package link.thesymbolic.jetcommand
 
 import android.os.Build
 import android.view.HapticFeedbackConstants
+import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -37,6 +38,13 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/** The haptic for one value step; SEGMENT_TICK exists from API 34. */
+fun View.segmentTick() =
+    performHapticFeedback(
+        if (Build.VERSION.SDK_INT >= 34) HapticFeedbackConstants.SEGMENT_TICK
+        else HapticFeedbackConstants.CLOCK_TICK
+    )
+
 private sealed interface Press {
     data object Released : Press
 
@@ -69,11 +77,7 @@ fun ValueField(
     val current by rememberUpdatedState(index)
     val preview by rememberUpdatedState(onPreview)
     val commit by rememberUpdatedState(onCommit)
-    fun tick() =
-        view.performHapticFeedback(
-            if (Build.VERSION.SDK_INT >= 34) HapticFeedbackConstants.SEGMENT_TICK
-            else HapticFeedbackConstants.CLOCK_TICK
-        )
+    fun tick() = view.segmentTick()
 
     val gestures =
         if (!enabled) Modifier

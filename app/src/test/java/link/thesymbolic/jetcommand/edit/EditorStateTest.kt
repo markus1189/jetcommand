@@ -90,7 +90,8 @@ class EditorStateTest {
             hot.note,
         )
         assertEquals("Heat at this setting: at most 1 h 00", timeHint(hot.steps[3], hot.planned[3]))
-        assertNull(longer(hot.steps[3]))
+        assertNull(nudge(hot.steps[3], 1))
+        assertNull(nudge(hot.steps[3], 1, by = 15))
     }
 
     @Test
@@ -107,17 +108,94 @@ class EditorStateTest {
     }
 
     @Test
-    fun `time steps by 5 min, turbo by 1, never above what the unit loads`() {
-        assertEquals(StepEdit.SetDuration(235), shorter(summer[3]))
-        assertEquals(StepEdit.SetDuration(3), shorter(summer[0]))
-        assertNull(shorter(step(Mode.COOL, 0, 40, 3)))
-        assertEquals(StepEdit.SetDuration(720), longer(step(Mode.COOL, 0, 40, 715)))
-        assertNull(longer(step(Mode.TURBO, 19, 86, 10)))
-        assertEquals(StepEdit.SetUntil(325), shorter(summer[4]))
+    fun `time steps by 1 min in every mode, never outside what the unit loads`() {
+        assertEquals(StepEdit.SetDuration(239), nudge(summer[3], -1))
+        assertEquals(StepEdit.SetDuration(3), nudge(summer[0], -1))
+        assertEquals(StepEdit.SetDuration(2), nudge(step(Mode.COOL, 0, 40, 3), -1))
+        assertNull(nudge(step(Mode.COOL, 0, 40, 1), -1))
+        assertNull(nudge(step(Mode.COOL, 0, 40, 720), 1))
+        assertNull(nudge(step(Mode.TURBO, 19, 86, 10), 1))
+        assertEquals(StepEdit.SetUntil(329), nudge(summer[4], -1))
+        // Clock times wrap at midnight both ways.
+        assertEquals(StepEdit.SetUntil(0), nudge(until(Mode.COOL, 23, 59), 1))
+        assertEquals(StepEdit.SetUntil(1439), nudge(until(Mode.COOL, 0, 0), -1))
         assertNull(fanBy(summer[1], 1))
         assertNull(tempBy(summer[0], 1))
         assertEquals(StepEdit.SetTemp(39), tempBy(summer[3], -1))
         assertNull(tempBy(step(Mode.COOL, 0, 38, 5), -1))
+    }
+
+    @Test
+    fun `a held button speeds up from 1 to 5 to 15 min and lands on that grid`() {
+        assertEquals(listOf(1, 1, 5, 5, 15), listOf(0, 7, 8, 19, 20).map(::holdStep))
+        assertEquals(StepEdit.SetDuration(125), nudge(step(Mode.COOL, 0, 40, 123), 1, by = 5))
+        assertEquals(StepEdit.SetDuration(120), nudge(step(Mode.COOL, 0, 40, 123), -1, by = 5))
+        assertEquals(StepEdit.SetDuration(130), nudge(step(Mode.COOL, 0, 40, 125), 1, by = 5))
+        assertEquals(StepEdit.SetDuration(135), nudge(step(Mode.COOL, 0, 40, 123), 1, by = 15))
+        // The low end clamps to 1 min, the high end to the cap, rather than refusing the tick.
+        assertEquals(StepEdit.SetDuration(1), nudge(step(Mode.COOL, 0, 40, 10), -1, by = 15))
+        assertEquals(StepEdit.SetDuration(720), nudge(step(Mode.COOL, 0, 40, 710), 1, by = 15))
+        assertEquals(StepEdit.SetUntil(0), nudge(until(Mode.COOL, 23, 50), 1, by = 15))
+        assertEquals(StepEdit.SetUntil(1425), nudge(until(Mode.COOL, 0, 0), -1, by = 15))
+    }
+
+    @Test
+    fun `keys fill the time from the right, without leading zeros, at most four digits`() {
+        val keys = { ks: String -> ks.split(" ").fold("") { d, k -> typeKey(d, k) } }
+        assertEquals("743", keys("7 4 3"))
+        assertEquals("", keys("0 00"))
+        assertEquals("700", keys("7 00"))
+        assertEquals("1234", keys("1 2 3 4 5"))
+        assertEquals("12", keys("1 2 3 $BACKSPACE"))
+    }
+
+    @Test
+    fun `typed durations stay inside what the step's mode and setting allow`() {
+        val cool = step(Mode.COOL, 0, 40, 120)
+        val p = planProgram(listOf(cool), 0)[0]
+        typed(cool, p, "").let {
+            assertEquals(Triple("2", "00", false), Triple(it.hours, it.minutes, it.typing))
+            assertNull(it.edit)
+        }
+        assertEquals(StepEdit.SetDuration(463), typed(cool, p, "743").edit)
+        assertEquals("7" to "43", typed(cool, p, "743").let { it.hours to it.minutes })
+        assertEquals("Minutes go up to 59", typed(cool, p, "175").note)
+        assertEquals("At most 12 h 00", typed(cool, p, "1201").note)
+        assertEquals(StepEdit.SetDuration(720), typed(cool, p, "1200").edit)
+        val turbo = step(Mode.TURBO, 19, 86, 4)
+        assertEquals(
+            "Turbo runs at most 10 min",
+            typed(turbo, planProgram(listOf(turbo), 0)[0], "11").note,
+        )
+        val hot =
+            s.edit(3, StepEdit.SetMode(Mode.HEAT))
+                .edit(3, StepEdit.SetFan(19))
+                .edit(3, StepEdit.SetTemp(80))
+        typed(hot.steps[3], hot.planned[3], "101").let {
+            assertEquals("Heat at this setting runs at most 1 h 00", it.note)
+            assertTrue(it.bad)
+            assertNull(it.edit)
+        }
+    }
+
+    @Test
+    fun `a typed clock time past 12 h only warns, since the start is assumed`() {
+        val cool = until(Mode.COOL, 6, 30)
+        val p = planProgram(listOf(cool), 23 * 60 + 15)[0]
+        assertEquals("06" to "30", typed(cool, p, "").let { it.hours to it.minutes })
+        typed(cool, p, "657").let {
+            assertEquals(StepEdit.SetUntil(417), it.edit)
+            assertEquals("7 h 42 after the step before", it.note)
+            assertEquals(false, it.bad)
+        }
+        typed(cool, p, "1200").let {
+            assertEquals(StepEdit.SetUntil(720), it.edit)
+            assertEquals("12 h 45 after the step before: the BedJet refuses to start", it.note)
+            assertTrue(it.bad)
+        }
+        assertEquals("Hours go up to 23", typed(cool, p, "2400").note)
+        assertNull(typed(cool, p, "2400").edit)
+        assertEquals("Run until · step 5", typeTitle(cool, 4))
     }
 
     @Test
