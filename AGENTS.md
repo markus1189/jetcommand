@@ -35,6 +35,8 @@ Native successor to the JetCommand web app in [markus1189/tools](https://github.
 - Drive it with `adb`: `am start -n link.thesymbolic.jetcommand/.MainActivity`, `exec-out screencap -p`, `uiautomator dump` for tap coordinates, `input tap|text`.
 - Its virtual Bluetooth never sees a BedJet. The "Demo BedJet" entry runs the full link/device stack on `SimTransport`, with fault buttons; `pm grant link.thesymbolic.jetcommand android.permission.BLUETOOTH_SCAN` (and `_CONNECT`) skips the permission dialog.
 - The user's phone is reachable over wireless adb at `192.168.178.69:<port>`; the port changes whenever wireless debugging restarts, so ask for it. `adb` exists only inside `nix develop`.
+- The step editor needs no BedJet: Programs → a library program → Edit → tap a step row.
+- A `ModalBottomSheet` opens half-expanded unless its state skips that: what lies below the fold is missing from `uiautomator dump`, and coordinates shift once it expands, so dump again after every sheet change.
 - Shortcuts: long-press the launcher icon in the app drawer; `am start` can't reach the non-exported `CommandActivity`.
 - Faking a remembered device: add `device.address`/`device.name` to `shared_prefs/jetcommand.xml` via `run-as`, keeping `exit.seen`, or every past process exit is imported again.
 - `pm grant` of the Bluetooth permissions skips the dialog that also asks for POST_NOTIFICATIONS; grant that too or the notification never shows.
